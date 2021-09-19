@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.0.0)
 project(elektra VERSION 0.1.0)
 
 include(CTest)
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/elektra)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 enable_testing()
 
 add_executable(elektra elektra.cpp)
