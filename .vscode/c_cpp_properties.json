@@ -5,14 +5,14 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/elektra",
-                "${workspaceFolder}/include",
+                "${workspaceFolder}/external/parlaylib/include/parlay",
                 "${workspaceFolder}"
             ],
             "defines": [],
-            "compilerPath": "/usr/local/bin/clang",
+            "compilerPath": "/usr/bin/clang",
             "cStandard": "c11",
             "cppStandard": "c++14",
-            "intelliSenseMode": "linux-clang-x64",
+            "intelliSenseMode": "linux-clang-x64"
             // "configurationProvider": "ms-vscode.cmake-tools"
         }
     ],
