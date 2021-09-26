@@ -191,12 +191,9 @@ class BatchDynamicConnectivity {
   parlay::sequence<Vertex> parallelLevelSearch(
       const parlay::sequence<UndirectedEdge> &se,
       parlay::sequence<Vertex> &components,
-      parlay::sequence<UndirectedEdge> &promotedEdges, int level);
+      parlay::sequence<std::pair<int, int>> &promotedEdges, int level);
 
   treeSet getSpanningTree(const parlay::sequence<UndirectedEdge> &se);
-
-  std::pair<int, int> *edgeBatchToPairArray(
-      parlay::sequence<UndirectedEdge> &se);
 
   template <typename Rank, typename Parent>
   treeSet constructTree(Rank &r, Parent &p,
@@ -343,11 +340,11 @@ treeSet BatchDynamicConnectivity::getSpanningTree(
   return constructTree(rank_pmap, parent_pmap, se);
 }
 
-std::pair<int, int> *BatchDynamicConnectivity::edgeBatchToPairArray(
+parlay::sequence<std::pair<int, int>> edgeBatchToPairArray(
     parlay::sequence<UndirectedEdge> &se) {
   // turns a sequence of edges to an array of pairs
   // useful for interfacing with EulerTourTrees
-  std::pair<int, int> *array = new std::pair<int, int>[se.size()];
+  auto array = parlay::sequence<std::pair<int, int>>::uninitialized(se.size());
 
   parlay::parallel_for(0, se.size(), [&](int i) {
     array[i] = std::make_pair(se[i].first, se[i].second);
@@ -371,13 +368,14 @@ void BatchDynamicConnectivity::BatchAddEdges(
             (Vertex)maxLevelEulerTree->getRepresentative(e.second));
       });
   auto tree = getSpanningTree(auxiliaryEdges);
-  parlay::sequence<UndirectedEdge> treeEdges;
+
+  parlay::sequence<std::pair<int, int>> treeEdges;
   parlay::sequence<UndirectedEdge> nonTreeEdges;
 
   // update the tree and nonTree edges based on the ST computation
   parlay::parallel_for(0, se.size(), [&](int i) {
     if (tree.count(se[i])) {
-      treeEdges.push_back(se[i]);
+      treeEdges.push_back(make_pair(se[i].first, se[i].second));
       detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
                              detail::EdgeType::kTree};
       edges_[se[i]] = ei;
@@ -404,8 +402,7 @@ void BatchDynamicConnectivity::BatchAddEdges(
   // }
 
   // add tree edges
-  maxLevelEulerTree->BatchLink(edgeBatchToPairArray(treeEdges),
-                               treeEdges.size());
+  maxLevelEulerTree->BatchLink(treeEdges, treeEdges.size());
 
   // add to adjacancy list
   parlay::parallel_for(0, nonTreeEdges.size(), [&](int i) {
@@ -444,10 +441,9 @@ UndirectedEdge BatchDynamicConnectivity::componentSearch(int level, Vertex v) {
 parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
     const parlay::sequence<UndirectedEdge> &se,
     parlay::sequence<Vertex> &components,
-    parlay::sequence<UndirectedEdge> &promotedEdges, int level) {
+    parlay::sequence<std::pair<int, int>> &promotedEdges, int level) {
   auto levelEulerTree = parallel_spanning_forests_[level];
-  levelEulerTree->BatchLink(edgeBatchToPairArray(promotedEdges),
-                            promotedEdges.size());
+  levelEulerTree->BatchLink(promotedEdges, promotedEdges.size());
 
   auto ncomponents = parlay::map(components, [&](Vertex v) {
     return (Vertex)levelEulerTree->getRepresentative(v);
@@ -478,7 +474,7 @@ parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
   parlay::sequence<UndirectedEdge> R;
 
   while (componentsToConsider.size() != 0) {
-    parlay::sequence<UndirectedEdge> edgesToDropLevel;
+    parlay::sequence<std::pair<int, int>> edgesToDropLevel;
     for (Vertex v : componentsToConsider) {
       // Move all the edges of small components down a level
       auto componentSearched = levelEulerTree->ConnectedComponent(v);
@@ -497,13 +493,13 @@ parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
             (cc.find(e.first) != cc.end() || cc.find(e.second) != cc.end())) {
           edges_[e] = detail::EdgeInfo{
               static_cast<detail::Level>(details.level - 1), edges_[e].type};
-          edgesToDropLevel.push_back(e);
+          edgesToDropLevel.push_back(make_pair(e.first, e.second));
         }
       }
       R.push_back(componentSearch(level, v));
     }
-    parallel_spanning_forests_[level - 1]->BatchLink(
-        edgeBatchToPairArray(edgesToDropLevel), edgesToDropLevel.size());
+    parallel_spanning_forests_[level - 1]->BatchLink(edgesToDropLevel,
+                                                     edgesToDropLevel.size());
 
     auto maxLevelEulerTree = parallel_spanning_forests_[max_level_];
     auto auxiliaryEdges = parlay::map(R, [&](UndirectedEdge e) {
@@ -512,12 +508,13 @@ parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
     });
     auto promIndices = getSpanningTree(auxiliaryEdges);
 
-    parlay::sequence<UndirectedEdge> newPromotedEdges;
+    parlay::sequence<std::pair<int, int>> newPromotedEdges;
     parlay::sequence<UndirectedEdge> notPromotedEdges;
 
     parlay::parallel_for(0, promIndices.size(), [&](int i) {
       if (promIndices.find(auxiliaryEdges[i]) != promIndices.end())
-        newPromotedEdges.push_back(auxiliaryEdges[i]);
+        newPromotedEdges.push_back(
+            make_pair(auxiliaryEdges[i].first, auxiliaryEdges[i].second));
       else
         notPromotedEdges.push_back(auxiliaryEdges[i]);
     });
@@ -529,11 +526,12 @@ parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
     //     notPromotedEdges.push_back(auxiliaryEdges[i]);
     // }
 
-    levelEulerTree->BatchLink(edgeBatchToPairArray(newPromotedEdges),
-                              newPromotedEdges.size());
+    levelEulerTree->BatchLink(newPromotedEdges, newPromotedEdges.size());
 
     parlay::parallel_for(0, newPromotedEdges.size(), [&](size_t i) {
-      level = edges_[newPromotedEdges[i]].level;
+      UndirectedEdge e = {newPromotedEdges[i].first,
+                          newPromotedEdges[i].second};
+      level = edges_[e].level;
       auto u = newPromotedEdges[i].first;
       auto v = newPromotedEdges[i].second;
 
@@ -621,7 +619,11 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
     auto levelEulerTree = parallel_spanning_forests_[level];
     auto toDelete = parlay::filter(
         treeEdges, [&](UndirectedEdge e) { return edges_[e].level <= level; });
-    levelEulerTree->BatchCut(edgeBatchToPairArray(toDelete), toDelete.size());
+
+    parlay::sequence<std::pair<int, int>> toDeletePairSequence =
+        edgeBatchToPairArray(toDelete);
+
+    levelEulerTree->BatchCut(toDeletePairSequence, toDelete.size());
   }
 
   parlay::sequence<Vertex> lcomponents =
@@ -632,7 +634,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
 
   auto components = removeDuplicates(lcomponents);
 
-  parlay::sequence<UndirectedEdge> promotedEdges;
+  parlay::sequence<std::pair<int, int>> promotedEdges;
   for (int i = min_tree_edge_level; i < max_level_; i++) {
     components = parallelLevelSearch(se, components, promotedEdges, i);
   }

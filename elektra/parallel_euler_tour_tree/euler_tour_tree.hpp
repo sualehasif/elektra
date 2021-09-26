@@ -298,6 +298,9 @@ class EulerTourTree {
   // forest.
   void Cut(int u, int v);
 
+  // Returns the representative of the vertex with id `u`.
+  int getRepresentative(int u) const;
+
   // Adds all edges in the `len`-length array `links` to the forest. Adding
   // these edges must not create cycles in the graph.
   void BatchLink(parlay::sequence<std::pair<int, int>>& const links, int len);
@@ -380,6 +383,14 @@ EulerTourTree::~EulerTourTree() {
 
 bool EulerTourTree::IsConnected(int u, int v) const {
   return vertices_[u].FindRepresentative() == vertices_[v].FindRepresentative();
+}
+
+// RESOLVED: fix this because this is bad. Check whether casting etc is valid
+// and all.
+int EulerTourTree::getRepresentative(int u) const {
+  auto el = vertices_[u].FindRepresentative();
+  assert(el->id_.first == el->id_.second);
+  return el->id_.first;
 }
 
 parlay::sequence<int> EulerTourTree::ConnectedComponent(int v) {
