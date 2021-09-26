@@ -300,7 +300,7 @@ class EulerTourTree {
 
   // Adds all edges in the `len`-length array `links` to the forest. Adding
   // these edges must not create cycles in the graph.
-  void BatchLink(std::pair<int, int>* links, int len);
+  void BatchLink(parlay::sequence<std::pair<int, int>>& const links, int len);
   // Removes all edges in the `len`-length array `cuts` from the forest. These
   // edges must be present in the forest and must be distinct.
   void BatchCut(parlay::sequence<std::pair<int, int>>& const cuts, int len);
@@ -415,9 +415,10 @@ struct secondF {
   E2 operator()(std::pair<E1, E2> a) { return a.second; }
 };
 
-void EulerTourTree::BatchLink(pair<int, int>* links, int len) {
+void EulerTourTree::BatchLink(
+    parlay::sequence<std::pair<int, int>>& const links, int len) {
   if (len <= 75) {
-    BatchLinkSequential(this, links, len);
+    BatchLinkSequential(this, links.begin(), len);
     return;
   }
 
