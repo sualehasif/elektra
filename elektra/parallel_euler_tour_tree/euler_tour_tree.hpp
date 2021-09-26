@@ -9,9 +9,7 @@
 #include "elektra/hash_pair.h"
 #include "parallel_skip_list/skip_list.h"
 
-// TODO: port over the skip list from the previous implementation
-// TODO: port over the list allocator from the previous implementation
-// TOOD:
+// TODO: split this file carefully into Element, EdgeMap, and EulerTourTree.
 
 namespace parallel_euler_tour_tree {
 
@@ -21,7 +19,12 @@ class Element : public parallel_skip_list::ElementBase<Element> {
  public:
   Element() : parallel_skip_list::ElementBase<Element>{} {}
   explicit Element(std::pair<int, int> id, size_t random_int)
-      : parallel_skip_list::ElementBase<Element>{random_int}, id_{id} {}
+      : parallel_skip_list::ElementBase<Element>{random_int},
+        id_{id},
+        values_{new int[height_]} {
+    const bool isVertex{id.first == id.second};
+    values_[0] = isVertex;
+  }
 
   // If this element represents a vertex v, then id == (v, v). Otherwise if
   // this element represents a directed edge (u, v), then id == (u,v).
@@ -32,11 +35,163 @@ class Element : public parallel_skip_list::ElementBase<Element> {
   // splice out in the current round of recursion.
   bool split_mark_{false};
 
+  // Get all vertices held in the skip list that contains this element.
+  parlay::sequence<int> GetVertices();
+
  private:
   friend class parallel_skip_list::ElementBase<Element>;
   static void DerivedInitialize() {}
   static void DerivedFinish() {}
+
+  // Updates `values_`.
+  void UpdateTopDown(int level);
+  void UpdateTopDownSequential(int level);
+  // Gets vertices held in child elements of this element and writes them into
+  // the sequence starting at the offset. `values_` needs to be up to date.
+  void GetVerticesBelow(parlay::sequence<int>* s, int offset, int level) const;
+  // Augment the skip list with the function "count the number of vertices in
+  // this list" (i.e., `values_[0]` is 1 if element represents a vertex, else is
+  // 0; `values_[i]` sums children's `values_[i - 1]`).
+  // We update `values_` lazily since we only use it in `GetVertices()`.
+  int* values_{nullptr};
 };
+
+void Element::UpdateTopDownSequential(int level) {
+  if (level == 0) {
+    // values_[0] filled in by constructor
+    return;
+  }
+  UpdateTopDownSequential(level - 1);
+
+  int sum{values_[level - 1]};
+  Element* curr{neighbors_[level - 1].next};
+  while (curr != nullptr && curr->height_ < level + 1) {
+    curr->UpdateTopDownSequential(level - 1);
+    sum += curr->values_[level - 1];
+    curr = curr->neighbors_[level - 1].next;
+  }
+  values_[level] = sum;
+}
+
+void Element::UpdateTopDown(int level) {
+  if (level <= 6) {
+    // It's not worth spawning a bunch of threads once we get close to the
+    // bottom of the list and are not doing as much work per thread. Instead
+    // just run sequentially.
+    return UpdateTopDownSequential(level);
+  }
+
+  // Recursively update augmented values of children.
+  Element* curr{this};
+  // do {
+  //   cilk_spawn curr->UpdateTopDown(level - 1);
+  //   curr = curr->neighbors_[level - 1].next;
+  // } while (curr != nullptr && curr->height_ < level + 1);
+  // cilk_sync;
+
+  // TODO: remove unnecessary synchronization
+  do {
+    parlay::par_do([&]() { curr->UpdateTopDown(level - 1); },
+                   [&]() { curr = curr->neighbors_[level - 1].next; });
+  } while (curr != nullptr && curr->height_ < level + 1);
+
+  // Now that children have correct augmented values, update own augmented
+  // value.
+  int sum{values_[level - 1]};
+  curr = neighbors_[level - 1].next;
+  while (curr->height_ < level + 1) {
+    sum += curr->values_[level - 1];
+    curr = curr->neighbors_[level - 1].next;
+  }
+  values_[level] = sum;
+}
+
+void Element::GetVerticesBelow(parlay::sequence<int>* s, int offset,
+                               int level) const {
+  if (level == 0) {
+    if (values_[0]) {
+      (*s)[offset] = id_.first;
+    }
+    return;
+  }
+  const Element* curr{this};
+  if (level <= 6) {
+    // run sequentially once we're near the bottom of the list and not doing as
+    // much work per thread
+    do {
+      curr->GetVerticesBelow(s, offset, level - 1);
+      offset += curr->values_[level - 1];
+      curr = curr->neighbors_[level - 1].next;
+    } while (curr != nullptr && curr->height_ < level + 1);
+  } else {  // run in parallel
+    // do {
+    //   cilk_spawn curr->GetVerticesBelow(s, offset, level - 1);
+    //   offset += curr->values_[level - 1];
+    //   curr = curr->neighbors_[level - 1].next;
+    // } while (curr != nullptr && curr->height_ < level + 1);
+    // cilk_sync;
+
+    do {
+      parlay::par_do([&]() { curr->GetVerticesBelow(s, offset, level - 1); },
+                     [&]() {
+                       offset += curr->values_[level - 1];
+                       curr = curr->neighbors_[level - 1].next;
+                     });
+    } while (curr != nullptr && curr->height_ < level + 1);
+  }
+}
+
+parlay::sequence<int> Element::GetVertices() {
+  // get element at the top level of the list
+  Element* const top_element{FindRepresentative()};
+  const int level = top_element->height_ - 1;
+
+  // fill in `values_` for all elements in list
+  {
+    Element* curr{top_element};
+    // do {
+    //   cilk_spawn curr->UpdateTopDown(level);
+    //   curr = curr->neighbors_[level].next;
+    // } while (curr != nullptr && curr != top_element);
+    // cilk_sync;
+
+    do {
+      parlay::par_do([&]() { curr->UpdateTopDown(level); },
+                     [&]() { curr = curr->neighbors_[level].next; });
+    } while (curr != nullptr && curr != top_element);
+  }
+
+  size_t num_vertices{0};
+  {
+    Element* curr = top_element;
+    do {
+      num_vertices += curr->values_[level];
+      curr = curr->neighbors_[level].next;
+    } while (curr != nullptr && curr != top_element);
+  }
+
+  parlay::sequence<int> vertices(num_vertices);
+  {
+    int offset{0};
+    Element* curr = top_element;
+    // do {
+    //   cilk_spawn curr->GetVerticesBelow(&vertices, offset, level);
+    //   offset += curr->values_[level];
+    //   curr = curr->neighbors_[level].next;
+    // } while (curr != nullptr && curr != top_element);
+    // cilk_sync;
+
+    do {
+      parlay::par_do(
+          [&]() { curr->GetVerticesBelow(&vertices, offset, level); },
+          [&]() {
+            offset += curr->values_[level];
+            curr = curr->neighbors_[level].next;
+          });
+    } while (curr != nullptr && curr != top_element);
+  }
+  return vertices;
+}
 
 // The element allocator is used to allocate and deallocate elements.
 // It is used to allocate the elements in the skip list.
@@ -133,6 +288,9 @@ class EulerTourTree {
 
   // Returns true if `u` and `v` are in the same tree in the represented forest.
   bool IsConnected(int u, int v) const;
+  // Returns all vertices in the connected component that contains vertex `v`.
+  parlay::sequence<int> ConnectedComponent(int v);
+
   // Adds edge {`u`, `v`} to forest. The addition of this edge must not create a
   // cycle in the graph.
   void Link(int u, int v);
@@ -145,12 +303,12 @@ class EulerTourTree {
   void BatchLink(std::pair<int, int>* links, int len);
   // Removes all edges in the `len`-length array `cuts` from the forest. These
   // edges must be present in the forest and must be distinct.
-  void BatchCut(std::pair<int, int>* cuts, int len);
+  void BatchCut(parlay::sequence<std::pair<int, int>>& const cuts, int len);
 
  private:
-  void BatchCutRecurse(std::pair<int, int>* cuts, int len, bool* ignored,
-                       _internal::Element** join_targets,
-                       _internal::Element** edge_elements);
+  void BatchCutRecurse(parlay::sequence<std::pair<int, int>>& const cuts,
+                       int len, parlay::sequence<bool>& const ignored,
+                       Element** join_targets, Element** edge_elements);
 
   int num_vertices_;
   parlay::sequence<parallel_euler_tour_tree::Element> vertices_;
@@ -180,7 +338,8 @@ namespace {
 // on them later.
 constexpr int kBatchCutRecursiveFactor{100};
 
-void BatchCutSequential(EulerTourTree* ett, pair<int, int>* cuts, int len) {
+void BatchCutSequential(EulerTourTree* ett, std::pair<int, int>* cuts,
+                        int len) {
   for (int i = 0; i < len; i++) {
     ett->Cut(cuts[i].first, cuts[i].second);
   }
@@ -221,6 +380,10 @@ EulerTourTree::~EulerTourTree() {
 
 bool EulerTourTree::IsConnected(int u, int v) const {
   return vertices_[u].FindRepresentative() == vertices_[v].FindRepresentative();
+}
+
+parlay::sequence<int> EulerTourTree::ConnectedComponent(int v) {
+  return vertices_[v].GetVertices();
 }
 
 void EulerTourTree::Link(int u, int v) {
@@ -359,11 +522,12 @@ void EulerTourTree::Cut(int u, int v) {
 // `join_targets` stores sequence elements that need to be joined to each other.
 // `edge_elements[i]` stores a pointer to the sequence element corresponding to
 // edge `cuts[i]`.
-void EulerTourTree::BatchCutRecurse(pair<int, int>* cuts, int len,
-                                    bool* ignored, Element** join_targets,
-                                    Element** edge_elements) {
+void EulerTourTree::BatchCutRecurse(
+    parlay::sequence<std::pair<int, int>>& const cuts, int len,
+    parlay::sequence<bool>& const ignored, Element** join_targets,
+    Element** edge_elements) {
   if (len <= 75) {
-    BatchCutSequential(this, cuts, len);
+    BatchCutSequential(this, cuts.begin(), len);
     return;
   }
 
@@ -475,26 +639,31 @@ void EulerTourTree::BatchCutRecurse(pair<int, int>* cuts, int len,
     }
   });
 
+  // parlay::sequence<std::pair<int, int>> full_cuts = *cuts;
+
   // seq::sequence<pair<int, int>> cuts_seq{seq::sequence<pair<int, int>>(cuts,
   // len)};
-  auto cuts_seq = parlay::sequence<pair<int, int>>(cuts, len);
+  // auto cuts_seq = parlay::sequence<pair<int, int>>(cuts);
 
   // seq::sequence<bool> ignored_seq{seq::sequence<bool>(ignored, len)};
-  auto ignored_seq = parlay::sequence<bool>(ignored, len);
+  // auto ignored_seq = parlay::sequence<bool>(ignored);
 
   // seq::sequence<pair<int, int>> next_cuts_seq{
   //     pbbs::pack(cuts_seq, ignored_seq)};
   auto next_cuts_seq =
-      parlay::sequence<pair<int, int>>(parlay::pack(cuts_seq, ignored_seq));
+      parlay::sequence<std::pair<int, int>>(parlay::pack(cuts, ignored));
 
-  BatchCutRecurse(next_cuts_seq.begin(), next_cuts_seq.size(), ignored,
-                  join_targets, edge_elements);
+  // parlay::sequence<std::pair<int, int>>* next_cuts_seq_ptr = &next_cuts_seq;
+
+  BatchCutRecurse(next_cuts_seq, next_cuts_seq.size(), ignored, join_targets,
+                  edge_elements);
   // pbbs::delete_array(next_cuts_seq.as_array(), next_cuts_seq.size());
 }
 
-void EulerTourTree::BatchCut(pair<int, int>* cuts, int len) {
+void EulerTourTree::BatchCut(parlay::sequence<std::pair<int, int>>& const cuts,
+                             int len) {
   if (len <= 75) {
-    BatchCutSequential(this, cuts, len);
+    BatchCutSequential(this, cuts.begin(), len);
     return;
   }
 
@@ -507,7 +676,7 @@ void EulerTourTree::BatchCut(pair<int, int>* cuts, int len) {
   // Element** edge_elements{pbbs::new_array_no_init<Element*>(len)};
   auto edge_elements = parlay::sequence<Element*>::uninitialized(len);
 
-  BatchCutRecurse(cuts, len, ignored.begin(), join_targets.begin(),
+  BatchCutRecurse(cuts, len, ignored, join_targets.begin(),
                   edge_elements.begin());
   // pbbs::delete_array(edge_elements, len);
   // pbbs::delete_array(join_targets, 4 * len);

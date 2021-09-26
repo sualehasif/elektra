@@ -3,6 +3,8 @@
     "python.formatting.provider": "yapf",
     "files.associations": {
         "iosfwd": "cpp",
-        "utility": "cpp"
+        "utility": "cpp",
+        "algorithm": "cpp",
+        "random": "cpp"
     }
 }
