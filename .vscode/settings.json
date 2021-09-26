@@ -1,4 +1,8 @@
 {
     "cmake.configureOnOpen": true,
-    "python.formatting.provider": "yapf"
+    "python.formatting.provider": "yapf",
+    "files.associations": {
+        "iosfwd": "cpp",
+        "utility": "cpp"
+    }
 }

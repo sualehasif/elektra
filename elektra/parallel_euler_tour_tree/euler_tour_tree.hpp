@@ -20,9 +20,12 @@ namespace _internal {
 class Element : public parallel_skip_list::ElementBase<Element> {
  public:
   Element() : parallel_skip_list::ElementBase<Element>{} {}
-  explicit Element(size_t random_int)
-      : parallel_skip_list::ElementBase<Element>{random_int} {}
+  explicit Element(std::pair<int, int> id, size_t random_int)
+      : parallel_skip_list::ElementBase<Element>{random_int}, id_{id} {}
 
+  // If this element represents a vertex v, then id == (v, v). Otherwise if
+  // this element represents a directed edge (u, v), then id == (u,v).
+  std::pair<int, int> id_;
   // If this element represents edge (u, v), `twin` should point towards (v, u).
   Element* twin_{nullptr};
   // When batch splitting, we mark this as `true` for an edge that we will
@@ -203,7 +206,7 @@ EulerTourTree::EulerTourTree(int num_vertices)
                        false>::uninitialized(num_vertices_);
 
   parlay::parallel_for(0, num_vertices_, [&](size_t i) {
-    new (&vertices_[i]) Element{randomness_.ith_rand(i)};
+    new (&vertices_[i]) Element{make_pair(i, i), randomness_.ith_rand(i)};
     // The Euler tour on a vertex v (a singleton tree) is simply (v, v).
     Element::Join(&vertices_[i], &vertices_[i]);
   });
@@ -222,9 +225,9 @@ bool EulerTourTree::IsConnected(int u, int v) const {
 
 void EulerTourTree::Link(int u, int v) {
   Element* uv = ElementAllocator::alloc();
-  new (uv) Element{randomness_.ith_rand(0)};
+  new (uv) Element{make_pair(u, v), randomness_.ith_rand(0)};
   Element* vu = ElementAllocator::alloc();
-  new (vu) Element{randomness_.ith_rand(1)};
+  new (vu) Element{make_pair(v, u), randomness_.ith_rand(1)};
   randomness_ = randomness_.next();
   uv->twin_ = vu;
   vu->twin_ = uv;
@@ -299,9 +302,11 @@ void EulerTourTree::BatchLink(pair<int, int>* links, int len) {
     // allocate edge element
     if (u < v) {
       Element* uv = ElementAllocator::alloc();
-      new (uv) Element{randomness_.ith_rand(2 * i)};
+      // new (uv) Element{randomness_.ith_rand(2 * i)};
+      new (uv) Element{make_pair(u, v), randomness_.ith_rand(2 * i)};
       Element* vu = ElementAllocator::alloc();
-      new (vu) Element{randomness_.ith_rand(2 * i + 1)};
+      // new (vu) Element{randomness_.ith_rand(2 * i + 1)};
+      new (vu) Element{make_pair(v, u), randomness_.ith_rand(2 * i + 1)};
       uv->twin_ = vu;
       vu->twin_ = uv;
       edges_.Insert(u, v, uv);
