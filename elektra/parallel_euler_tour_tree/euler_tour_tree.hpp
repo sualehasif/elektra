@@ -270,6 +270,11 @@ void EdgeMap::FreeElements() {
 
 }  // namespace _internal
 
+using Element = _internal::Element;
+using ElementAllocator = parlay::type_allocator<Element>;
+
+using std::pair;
+
 // Euler tour trees represent forests. We may add an edge using `Link`, remove
 // an edge using `Cut`, and query whether two vertices are in the same tree
 // using `IsConnected`. This implementation can also exploit parallelism when
@@ -303,15 +308,15 @@ class EulerTourTree {
 
   // Adds all edges in the `len`-length array `links` to the forest. Adding
   // these edges must not create cycles in the graph.
-  void BatchLink(parlay::sequence<std::pair<int, int>>& const links, int len);
+  void BatchLink(parlay::sequence<std::pair<int, int>>& links, int len);
   // Removes all edges in the `len`-length array `cuts` from the forest. These
   // edges must be present in the forest and must be distinct.
-  void BatchCut(parlay::sequence<std::pair<int, int>>& const cuts, int len);
+  void BatchCut(parlay::sequence<std::pair<int, int>>& cuts, int len);
 
  private:
-  void BatchCutRecurse(parlay::sequence<std::pair<int, int>>& const cuts,
-                       int len, parlay::sequence<bool>& const ignored,
-                       Element** join_targets, Element** edge_elements);
+  void BatchCutRecurse(parlay::sequence<std::pair<int, int>>& cuts, int len,
+                       parlay::sequence<bool>& ignored, Element** join_targets,
+                       Element** edge_elements);
 
   int num_vertices_;
   parlay::sequence<parallel_euler_tour_tree::Element> vertices_;
@@ -329,11 +334,6 @@ class EulerTourTree {
 // structure like a skip list. Euler tours behave nicely under edge additions
 // and edge deletions, so links and cuts reduce to a few splits and joins on
 // sequences.
-
-using Element = _internal::Element;
-using ElementAllocator = parlay::type_allocator<Element>;
-
-using std::pair;
 
 namespace {
 
@@ -426,8 +426,8 @@ struct secondF {
   E2 operator()(std::pair<E1, E2> a) { return a.second; }
 };
 
-void EulerTourTree::BatchLink(
-    parlay::sequence<std::pair<int, int>>& const links, int len) {
+void EulerTourTree::BatchLink(parlay::sequence<std::pair<int, int>>& links,
+                              int len) {
   if (len <= 75) {
     BatchLinkSequential(this, links.begin(), len);
     return;
@@ -460,7 +460,12 @@ void EulerTourTree::BatchLink(
 
   // intSort::iSort(links_both_dirs, 2 * len, num_vertices_ + 1,
   //                firstF<int, int>());
-  parlay::integer_sort(links_both_dirs, firstF<int, int>());
+  // parlay::integer_sort(links_both_dirs, firstF<int, int>());
+  auto getFirst = [&](std::pair<int, int> a) {
+    assert(a.first > -1);
+    return (uint)a.first;
+  };
+  parlay::integer_sort(links_both_dirs, getFirst);
 
   // Element** split_successors{pbbs::new_array_no_init<Element*>(2 * len)};
   auto split_successors = parlay::sequence<Element*>::uninitialized(2 * len);
@@ -534,10 +539,10 @@ void EulerTourTree::Cut(int u, int v) {
 // `join_targets` stores sequence elements that need to be joined to each other.
 // `edge_elements[i]` stores a pointer to the sequence element corresponding to
 // edge `cuts[i]`.
-void EulerTourTree::BatchCutRecurse(
-    parlay::sequence<std::pair<int, int>>& const cuts, int len,
-    parlay::sequence<bool>& const ignored, Element** join_targets,
-    Element** edge_elements) {
+void EulerTourTree::BatchCutRecurse(parlay::sequence<std::pair<int, int>>& cuts,
+                                    int len, parlay::sequence<bool>& ignored,
+                                    Element** join_targets,
+                                    Element** edge_elements) {
   if (len <= 75) {
     BatchCutSequential(this, cuts.begin(), len);
     return;
@@ -672,7 +677,7 @@ void EulerTourTree::BatchCutRecurse(
   // pbbs::delete_array(next_cuts_seq.as_array(), next_cuts_seq.size());
 }
 
-void EulerTourTree::BatchCut(parlay::sequence<std::pair<int, int>>& const cuts,
+void EulerTourTree::BatchCut(parlay::sequence<std::pair<int, int>>& cuts,
                              int len) {
   if (len <= 75) {
     BatchCutSequential(this, cuts.begin(), len);

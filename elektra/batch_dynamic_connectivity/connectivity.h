@@ -425,7 +425,7 @@ auto BatchDynamicConnectivity::removeDuplicates(parlay::sequence<Vertex> &seq) {
 
 UndirectedEdge BatchDynamicConnectivity::componentSearch(int level, Vertex v) {
   auto levelEulerTree = parallel_spanning_forests_[level];
-  // TODO
+  // TODO: make sure there is a return in every case.
   auto cc = levelEulerTree->ConnectedComponent(v);
   for (int i = 0; i < cc.size(); i++) {
     auto u = cc[i];
@@ -436,6 +436,10 @@ UndirectedEdge BatchDynamicConnectivity::componentSearch(int level, Vertex v) {
       }
     }
   }
+
+  // WE HAVE A BUG HERE
+  assert(false);
+  return UndirectedEdge(0, 0);
 }
 
 parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
