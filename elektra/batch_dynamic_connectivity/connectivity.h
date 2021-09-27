@@ -437,7 +437,7 @@ UndirectedEdge BatchDynamicConnectivity::componentSearch(int level, Vertex v) {
     }
   }
 
-  // WE HAVE A BUG HERE
+  // BUG: WE HAVE A BUG HERE
   assert(false);
   return UndirectedEdge(0, 0);
 }
