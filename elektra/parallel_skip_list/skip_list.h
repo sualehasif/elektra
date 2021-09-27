@@ -74,6 +74,9 @@ class ElementBase {
   // May run concurrently with other `Split` calls.
   Derived* Split();
 
+  // Returns the height of the element.
+  size_t GetHeight() const;
+
  protected:
   struct Neighbors {
     Derived* prev;
@@ -134,6 +137,11 @@ void ElementBase<Derived>::Finish() {
     delete neighbor_allocator_;
   }
   Derived::DerivedFinish();
+}
+
+template <typename Derived>
+size_t ElementBase<Derived>::GetHeight() const {
+  return height_;
 }
 
 template <typename Derived>

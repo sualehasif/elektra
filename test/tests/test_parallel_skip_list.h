@@ -12,7 +12,7 @@
 namespace elektra::testing {
 namespace {
 using Element = parallel_skip_list::Element;
-#define kNumElements 1000
+#define kNumElements 100
 
 // The fixture for testing class Foo.
 class ParallelSkipListTest : public ::testing::Test {
@@ -27,28 +27,20 @@ class ParallelSkipListTest : public ::testing::Test {
 
     auto elements_seq = parlay::sequence<Element>::uninitialized(kNumElements);
 
-    elements = elements_seq.begin();
-
-    // Element elements[kNumElements];
-    std::cout << "here" << std::endl;
-
-    // elements = elements_seq.data();
+    elements = elements_seq.data();
 
     // parlay::parallel_for(0, kNumElements, [&](int i) {
     //   new (&elements[i]) Element(r.ith_rand(i));
     // });
 
     for (int i = 0; i < kNumElements; i++) {
-      new (&elements[i]) Element(r.ith_rand(i));
-
-      // auto e{Element(r.ith_rand(i))};
-      // elements[i] = e;
+      auto rand = r.ith_rand(i);
+      new (&elements[i]) Element(rand);
+      std::cout << "Element " << i << ": " << elements[i].GetHeight()
+                << std::endl;
     }
-    std::cout << "here 2" << std::endl;
-    split_points[2] = true;
-    std::cout << "here" << std::endl;
     PrimeSieve();
-    std::cout << "here 3" << std::endl;
+    std::cout << "here" << std::endl;
   }
 
   ~ParallelSkipListTest() override { Element::Finish(); }
@@ -62,8 +54,6 @@ class ParallelSkipListTest : public ::testing::Test {
 
   // Mark that we will split at prime-numbered indices.
   inline void PrimeSieve() {
-    std::cout << "here" << std::endl;
-
     split_points[2] = true;
     for (int i = 3; i < kNumElements; i += 2) split_points[i] = true;
     for (int64_t i = 3; i * i < kNumElements; i += 2) {
@@ -77,42 +67,7 @@ class ParallelSkipListTest : public ::testing::Test {
 };
 
 // Tests
-TEST_F(ParallelSkipListTest, ReperesentativeTest1_DisjointElements) {
-  int start_index{0};
-  for (int i = 0; i < kNumElements; i++) {
-    start_index_of_list[i] = start_index;
-    if (split_points[i]) {
-      start_index = i + 1;
-    }
-  }
-  start_index_of_list[0] = start_index_of_list[1] = start_index_of_list[2] =
-      start_index % kNumElements;
-
-  for (int i = 0; i < kNumElements; i++) {
-    Element* representative_i{elements[i].FindRepresentative()};
-
-    for (int j = i + 1; j < kNumElements; j++) {
-      std::cout << "here 4" << std::endl;
-      Element* representative_j{elements[j].FindRepresentative()};
-
-      bool assertion = (representative_j != representative_i);
-      std::cout << representative_j << " " << representative_i << std::endl;
-      std::cout << assertion << std::endl;
-      EXPECT_TRUE(assertion);
-      std::cout << assertion << std::endl;
-    }
-  }
-
-  // parlay::parallel_for(0, kNumElements, [&](int i) {
-  //   Element* representative_i{elements[i].FindRepresentative()};
-
-  //   for (int j = i + 1; j < kNumElements; j++) {
-  //     ASSERT_TRUE(representative_i != elements[j].FindRepresentative());
-  //   }
-  // });
-}
-
-// TEST_F(ParallelSkipListTest, ReperesentativeTest2_JoiningAllElements) {
+// TEST_F(ParallelSkipListTest, ReperesentativeTest1_DisjointElements) {
 //   int start_index{0};
 //   for (int i = 0; i < kNumElements; i++) {
 //     start_index_of_list[i] = start_index;
@@ -123,18 +78,55 @@ TEST_F(ParallelSkipListTest, ReperesentativeTest1_DisjointElements) {
 //   start_index_of_list[0] = start_index_of_list[1] = start_index_of_list[2] =
 //       start_index % kNumElements;
 
-//   // could be parallelized
-//   // Join all elements together
-//   for (int i = 0; i < kNumElements - 1; i++) {
-//     Element::Join(&elements[i], &elements[i + 1]);
+//   for (int i = 0; i < kNumElements; i++) {
+//     Element* representative_i{elements[i].FindRepresentative()};
+
+//     for (int j = i + 1; j < kNumElements; j++) {
+//       std::cout << "here 4" << std::endl;
+//       Element* representative_j{elements[j].FindRepresentative()};
+
+//       bool assertion = (representative_j != representative_i);
+//       std::cout << representative_j << " " << representative_i << std::endl;
+//       std::cout << assertion << std::endl;
+//       EXPECT_TRUE(assertion);
+//       std::cout << assertion << std::endl;
+//     }
 //   }
 
-//   // could be parallelized
-//   Element* representative_0{elements[0].FindRepresentative()};
-//   for (int i = 0; i < kNumElements; i++) {
-//     assert(representative_0 == elements[i].FindRepresentative());
-//   }
+//   // parlay::parallel_for(0, kNumElements, [&](int i) {
+//   //   Element* representative_i{elements[i].FindRepresentative()};
+
+//   //   for (int j = i + 1; j < kNumElements; j++) {
+//   //     ASSERT_TRUE(representative_i != elements[j].FindRepresentative());
+//   //   }
+//   // });
 // }
+
+TEST_F(ParallelSkipListTest, ReperesentativeTest2_JoiningAllElements) {
+  int start_index{0};
+  for (int i = 0; i < kNumElements; i++) {
+    start_index_of_list[i] = start_index;
+    if (split_points[i]) {
+      start_index = i + 1;
+    }
+  }
+  start_index_of_list[0] = start_index_of_list[1] = start_index_of_list[2] =
+      start_index % kNumElements;
+
+  // could be parallelized
+  // Join all elements together
+
+  std::cout << "here 2" << std::endl;
+  for (int i = 0; i < kNumElements - 1; i++) {
+    Element::Join(&elements[i], &elements[i + 1]);
+  }
+
+  // could be parallelized
+  Element* representative_0{elements[0].FindRepresentative()};
+  for (int i = 0; i < kNumElements; i++) {
+    assert(representative_0 == elements[i].FindRepresentative());
+  }
+}
 
 // TEST_F(ParallelSkipListTest, ReperesentativeTest3_JoiningAllIntoOneBigCycle)
 // {
