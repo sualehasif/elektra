@@ -3,6 +3,7 @@
 
 #include "parallel_skip_list/concurrent_array_allocator.h"
 #include "parlay/random.h"
+#include "utilities/cas.h"
 
 namespace parallel_skip_list {
 

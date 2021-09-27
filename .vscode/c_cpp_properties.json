@@ -6,6 +6,7 @@
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/elektra",
                 "${workspaceFolder}/external/parlaylib/include/parlay",
+                "${workspaceFolder}/external/googletest/googletest/include/",
                 "${workspaceFolder}"
             ],
             "defines": [],
