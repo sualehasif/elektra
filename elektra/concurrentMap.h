@@ -1,8 +1,54 @@
 #pragma once
 
+#include <parlay/parallel.h>
+#include <parlay/utilities.h>
+
 #include <tuple>
 
 using namespace std;
+
+template <class T>
+struct maybe {
+  T value;
+  bool valid;
+
+  maybe(T v, bool u) : value(v) { valid = u; }
+  maybe(T v) : value(v) { valid = true; }
+  maybe() { valid = false; }
+
+  bool operator!() const { return !valid; }
+  operator bool() const { return valid; };
+  T &operator*() { return value; }
+};
+
+// #define granular_for(_i, _start, _end, _cond, _body)                 \
+//   {                                                                  \
+//     if (_cond) {                                                     \
+//       {                                                              \
+//         parlay::parallel_for(_start, _end, [&](size_t _i)) { _body } \
+//       }                                                              \
+//     } else {                                                         \
+//       {                                                              \
+//         for (size_t _i = _start; _i < _end; _i++) {                  \
+//           _body                                                      \
+//         }                                                            \
+//       }                                                              \
+//     }                                                                \
+//   }
+
+#define newA(__E, __n) (__E *)malloc((__n) * sizeof(__E))
+
+#if defined(LONG)
+typedef long intT;
+typedef unsigned long uintT;
+#define INT_T_MAX LONG_MAX
+#define UINT_T_MAX ULONG_MAX
+#else
+typedef int intT;
+typedef unsigned int uintT;
+#define INT_T_MAX INT_MAX
+#define UINT_T_MAX UINT_MAX
+#endif
 
 namespace concurrent_map {
 
@@ -28,8 +74,15 @@ class concurrentHT {
   size_t mask;
 
   inline void clearA(KV *v, size_t n, K emp_key) {
-    granular_for(i, 0, n, (n > 2000), { get<0>(v[i]) = emp_key; });
-  }
+    // granular_for(i, 0, n, (n > 2000), { get<0>(v[i]) = emp_key; });
+    if (n > 2000) {
+      parlay::parallel_for(0, n, [&](size_t i) { get<0>(v[i]) = emp_key; });
+    } else {
+      for (size_t i = 0; i < n; i++) {
+        get<0>(v[i]) = emp_key;
+      }
+    }
+  };
 
   inline size_t toRange(size_t h) const { return h & mask; }
   inline size_t firstIndex(K k) const { return toRange(H(k)); }
@@ -61,7 +114,7 @@ class concurrentHT {
         capacity(size),
         mask(size - 1) {
     if (table == nullptr) {
-      capacity = 1 << pbbs::log2_up(100 + (intT)(1.1 * (float)size));
+      capacity = 1 << parlay::log2_up(100 + (intT)(1.1 * (float)size));
       mask = capacity - 1;
       table = alloc_table(capacity);
       alloc = true;

@@ -5,8 +5,8 @@
 
 #include <utility>
 
-#include "elektra/concurrentMap.h"
-#include "elektra/hash_pair.h"
+#include "concurrentMap.h"
+#include "hash_pair.h"
 #include "parallel_skip_list/skip_list.h"
 
 // TODO: split this file carefully into Element, EdgeMap, and EulerTourTree.

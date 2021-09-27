@@ -1,6 +1,5 @@
 #include <iostream>
 
-int main()
-{
-    std::cout << "Hello, from elektra!\n";
-}
+#include "elektra/batch_dynamic_connectivity/connectivity.h"
+
+int main() { std::cout << "Hello, from elektra!\n"; }
