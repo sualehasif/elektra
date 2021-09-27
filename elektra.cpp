@@ -28,6 +28,8 @@ void CheckAllPairsConnectivity(
 int main() {
   std::cout << "Hello, from elektra!\n";
 
+  std::cout << "Parallel ETT: Test 1";
+
   std::mt19937 rng{};
   rng.seed(0);
   std::uniform_int_distribution<std::mt19937::result_type> vert_dist{
@@ -80,5 +82,5 @@ int main() {
     // CheckAllPairsConnectivity(reference_solution, ett);
   }
 
-  std::cout << "Test complete." << std::endl;
+  std::cout << "Test 1 complete." << std::endl;
 }
