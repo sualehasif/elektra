@@ -402,7 +402,7 @@ void BatchDynamicConnectivity::BatchAddEdges(
   // }
 
   // add tree edges
-  maxLevelEulerTree->BatchLink(treeEdges, treeEdges.size());
+  maxLevelEulerTree->BatchLink(treeEdges);
 
   // add to adjacancy list
   parlay::parallel_for(0, nonTreeEdges.size(), [&](int i) {
@@ -447,7 +447,7 @@ parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
     parlay::sequence<Vertex> &components,
     parlay::sequence<std::pair<int, int>> &promotedEdges, int level) {
   auto levelEulerTree = parallel_spanning_forests_[level];
-  levelEulerTree->BatchLink(promotedEdges, promotedEdges.size());
+  levelEulerTree->BatchLink(promotedEdges);
 
   auto ncomponents = parlay::map(components, [&](Vertex v) {
     return (Vertex)levelEulerTree->getRepresentative(v);
@@ -502,8 +502,7 @@ parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
       }
       R.push_back(componentSearch(level, v));
     }
-    parallel_spanning_forests_[level - 1]->BatchLink(edgesToDropLevel,
-                                                     edgesToDropLevel.size());
+    parallel_spanning_forests_[level - 1]->BatchLink(edgesToDropLevel);
 
     auto maxLevelEulerTree = parallel_spanning_forests_[max_level_];
     auto auxiliaryEdges = parlay::map(R, [&](UndirectedEdge e) {
@@ -530,7 +529,7 @@ parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
     //     notPromotedEdges.push_back(auxiliaryEdges[i]);
     // }
 
-    levelEulerTree->BatchLink(newPromotedEdges, newPromotedEdges.size());
+    levelEulerTree->BatchLink(newPromotedEdges);
 
     parlay::parallel_for(0, newPromotedEdges.size(), [&](size_t i) {
       UndirectedEdge e = {newPromotedEdges[i].first,
@@ -627,7 +626,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
     parlay::sequence<std::pair<int, int>> toDeletePairSequence =
         edgeBatchToPairArray(toDelete);
 
-    levelEulerTree->BatchCut(toDeletePairSequence, toDelete.size());
+    levelEulerTree->BatchCut(toDeletePairSequence);
   }
 
   parlay::sequence<Vertex> lcomponents =

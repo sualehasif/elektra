@@ -55,7 +55,7 @@ int main() {
         ett_input.push_back(std::make_pair(u, v));
       }
     }
-    ett.BatchLink(ett_input, ett_input.size());
+    ett.BatchLink(ett_input);
     CheckAllPairsConnectivity(reference_solution, ett);
 
     std::cout << "Round " << i << ": " << ett_input.size()
