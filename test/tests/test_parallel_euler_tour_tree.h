@@ -63,13 +63,13 @@ TEST(ParallelEulerTourTreeTest, BigStarGraphs) {
   }
   links[n - 2] = make_pair(n / 2, n / 2 + 1);
 
-  ett.BatchLink(links, links.size());
+  ett.BatchLink(links);
   EXPECT_TRUE(ett.IsConnected(0, 1));
   EXPECT_TRUE(ett.IsConnected(0, n / 2));
   EXPECT_TRUE(ett.IsConnected(0, n - 1));
   EXPECT_TRUE(ett.IsConnected(n / 2, n / 2 + 1));
 
-  ett.BatchCut(cuts, cuts.size());
+  ett.BatchCut(cuts);
   EXPECT_FALSE(ett.IsConnected(0, 1));
   EXPECT_FALSE(ett.IsConnected(0, n / 2));
   EXPECT_FALSE(ett.IsConnected(0, n - 1));

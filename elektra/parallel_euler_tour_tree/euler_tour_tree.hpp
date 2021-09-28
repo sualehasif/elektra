@@ -310,13 +310,13 @@ class EulerTourTree {
 
   // Adds all edges in the `len`-length array `links` to the forest. Adding
   // these edges must not create cycles in the graph.
-  void BatchLink(parlay::sequence<std::pair<int, int>>& links, int len);
+  void BatchLink(parlay::sequence<std::pair<int, int>>& links);
   // Removes all edges in the `len`-length array `cuts` from the forest. These
   // edges must be present in the forest and must be distinct.
-  void BatchCut(parlay::sequence<std::pair<int, int>>& cuts, int len);
+  void BatchCut(parlay::sequence<std::pair<int, int>>& cuts);
 
  private:
-  void BatchCutRecurse(parlay::sequence<std::pair<int, int>>& cuts, int len,
+  void BatchCutRecurse(parlay::sequence<std::pair<int, int>>& cuts,
                        parlay::sequence<bool>& ignored, Element** join_targets,
                        Element** edge_elements);
 
@@ -343,16 +343,15 @@ namespace {
 // on them later.
 constexpr int kBatchCutRecursiveFactor{100};
 
-void BatchCutSequential(EulerTourTree* ett, std::pair<int, int>* cuts,
-                        int len) {
-  for (int i = 0; i < len; i++) {
-    ett->Cut(cuts[i].first, cuts[i].second);
+void BatchCutSequential(EulerTourTree* ett, const parlay::sequence<std::pair<int, int>>& cuts) {
+  for (const auto cut: cuts) {
+    ett->Cut(cut.first, cut.second);
   }
 }
 
-void BatchLinkSequential(EulerTourTree* ett, pair<int, int>* links, int len) {
-  for (int i = 0; i < len; i++) {
-    ett->Link(links[i].first, links[i].second);
+void BatchLinkSequential(EulerTourTree* ett, const parlay::sequence<std::pair<int, int>>& links) {
+  for (const auto link: links) {
+    ett->Link(link.first, link.second);
   }
 }
 
@@ -428,10 +427,10 @@ struct secondF {
   E2 operator()(std::pair<E1, E2> a) { return a.second; }
 };
 
-void EulerTourTree::BatchLink(parlay::sequence<std::pair<int, int>>& links,
-                              int len) {
+void EulerTourTree::BatchLink(parlay::sequence<std::pair<int, int>>& links) {
+  const size_t len = links.size();
   if (len <= 75) {
-    BatchLinkSequential(this, links.begin(), len);
+    BatchLinkSequential(this, links);
     return;
   }
 
@@ -542,11 +541,12 @@ void EulerTourTree::Cut(int u, int v) {
 // `edge_elements[i]` stores a pointer to the sequence element corresponding to
 // edge `cuts[i]`.
 void EulerTourTree::BatchCutRecurse(parlay::sequence<std::pair<int, int>>& cuts,
-                                    int len, parlay::sequence<bool>& ignored,
+                                    parlay::sequence<bool>& ignored,
                                     Element** join_targets,
                                     Element** edge_elements) {
+  const size_t len = cuts.size();
   if (len <= 75) {
-    BatchCutSequential(this, cuts.begin(), len);
+    BatchCutSequential(this, cuts);
     return;
   }
 
@@ -674,15 +674,14 @@ void EulerTourTree::BatchCutRecurse(parlay::sequence<std::pair<int, int>>& cuts,
 
   // parlay::sequence<std::pair<int, int>>* next_cuts_seq_ptr = &next_cuts_seq;
 
-  BatchCutRecurse(next_cuts_seq, next_cuts_seq.size(), ignored, join_targets,
-                  edge_elements);
+  BatchCutRecurse(next_cuts_seq, ignored, join_targets, edge_elements);
   // pbbs::delete_array(next_cuts_seq.as_array(), next_cuts_seq.size());
 }
 
-void EulerTourTree::BatchCut(parlay::sequence<std::pair<int, int>>& cuts,
-                             int len) {
+void EulerTourTree::BatchCut(parlay::sequence<std::pair<int, int>>& cuts) {
+  const size_t len = cuts.size();
   if (len <= 75) {
-    BatchCutSequential(this, cuts.begin(), len);
+    BatchCutSequential(this, cuts);
     return;
   }
 
@@ -695,8 +694,7 @@ void EulerTourTree::BatchCut(parlay::sequence<std::pair<int, int>>& cuts,
   // Element** edge_elements{pbbs::new_array_no_init<Element*>(len)};
   auto edge_elements = parlay::sequence<Element*>::uninitialized(len);
 
-  BatchCutRecurse(cuts, len, ignored, join_targets.begin(),
-                  edge_elements.begin());
+  BatchCutRecurse(cuts, ignored, join_targets.begin(), edge_elements.begin());
   // pbbs::delete_array(edge_elements, len);
   // pbbs::delete_array(join_targets, 4 * len);
   // pbbs::delete_array(ignored, len);
