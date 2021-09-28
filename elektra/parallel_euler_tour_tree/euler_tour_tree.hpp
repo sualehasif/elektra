@@ -455,18 +455,17 @@ void EulerTourTree::BatchLink(parlay::sequence<std::pair<int, int>>& links) {
   // }
 
   parlay::parallel_for(0, len, [&](size_t i) {
-    links_both_dirs[2 * i] = {links[i].first, links[i].second};
+    links_both_dirs[2 * i] = links[i];
     links_both_dirs[2 * i + 1] = {links[i].second, links[i].first};
   });
 
   // intSort::iSort(links_both_dirs, 2 * len, num_vertices_ + 1,
   //                firstF<int, int>());
   // parlay::integer_sort(links_both_dirs, firstF<int, int>());
-  auto getFirst = [&](std::pair<int, int> a) {
-    assert(a.first > -1);
+  auto getFirst = [](std::pair<int, int> a) {
     return (uint)a.first;
   };
-  parlay::integer_sort(links_both_dirs, getFirst);
+  parlay::integer_sort_inplace(links_both_dirs, getFirst);
 
   // Element** split_successors{pbbs::new_array_no_init<Element*>(2 * len)};
   auto split_successors = parlay::sequence<Element*>::uninitialized(2 * len);
