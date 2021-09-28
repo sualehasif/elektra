@@ -1,27 +1,16 @@
+#pragma once
+
+#include "../../elektra/parallel_skip_list/skip_list.h"
+
+#include "gtest/gtest.h"
 #include <parlay/parallel.h>
 #include <parlay/random.h>
 #include <parlay/sequence.h>
-
-#include <string>
-
-#include "../../elektra/parallel_skip_list/skip_list.h"
-#include "gtest/gtest.h"
 
 namespace elektra::testing {
 namespace {
 
 using Element = parallel_skip_list::Element;
-
-// Create `n` skip list elements.
-parlay::sequence<Element> CreateElements(size_t n, size_t random_seed = 0) {
-  auto elements_seq = parlay::sequence<Element>::uninitialized(n);
-  Element* elements = elements_seq.data();
-  parlay::random r{random_seed};
-  parlay::parallel_for(0, n, [&](int i) {
-    new (&elements[i]) Element(r.ith_rand(i));
-  });
-  return elements_seq;
-}
 
 class ParallelSkipListTest : public ::testing::Test {
  protected:
@@ -33,6 +22,17 @@ class ParallelSkipListTest : public ::testing::Test {
     Element::Finish();
   }
 };
+
+// Create `n` skip list elements.
+parlay::sequence<Element> CreateElements(size_t n, size_t random_seed = 0) {
+  auto elements_seq = parlay::sequence<Element>::uninitialized(n);
+  Element* elements = elements_seq.data();
+  parlay::random r{random_seed};
+  parlay::parallel_for(0, n, [&](int i) {
+    new (&elements[i]) Element(r.ith_rand(i));
+  });
+  return elements_seq;
+}
 
 TEST_F(ParallelSkipListTest, DisjointElements) {
   auto elements = CreateElements(2);
