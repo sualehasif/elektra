@@ -25,8 +25,7 @@ class ParallelSkipListTest : public ::testing::Test {
     Element::Initialize();
     parlay::random r;
 
-    auto elements_seq = parlay::sequence<Element>::uninitialized(kNumElements);
-
+    elements_seq = parlay::sequence<Element>::uninitialized(kNumElements);
     elements = elements_seq.data();
 
     // parlay::parallel_for(0, kNumElements, [&](int i) {
@@ -36,16 +35,14 @@ class ParallelSkipListTest : public ::testing::Test {
     for (int i = 0; i < kNumElements; i++) {
       auto rand = r.ith_rand(i);
       new (&elements[i]) Element(rand);
-      std::cout << "Element " << i << ": " << elements[i].GetHeight()
-                << std::endl;
     }
     PrimeSieve();
-    std::cout << "here" << std::endl;
   }
 
   ~ParallelSkipListTest() override { Element::Finish(); }
 
   // Class members declared here can be used by all tests
+  parlay::sequence<Element> elements_seq{};
   Element* elements;
   // const int kNumElements{1000};
 
@@ -116,7 +113,6 @@ TEST_F(ParallelSkipListTest, ReperesentativeTest2_JoiningAllElements) {
   // could be parallelized
   // Join all elements together
 
-  std::cout << "here 2" << std::endl;
   for (int i = 0; i < kNumElements - 1; i++) {
     Element::Join(&elements[i], &elements[i + 1]);
   }
