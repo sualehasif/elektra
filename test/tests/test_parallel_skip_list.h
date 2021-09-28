@@ -34,9 +34,11 @@ parlay::sequence<Element> CreateElements(size_t n, size_t random_seed = 0) {
   return elements_seq;
 }
 
-TEST_F(ParallelSkipListTest, DisjointElements) {
-  auto elements = CreateElements(2);
+TEST_F(ParallelSkipListTest, IsDisconnectedInitially) {
+  auto elements = CreateElements(3);
   EXPECT_NE(elements[0].FindRepresentative(), elements[1].FindRepresentative());
+  EXPECT_NE(elements[0].FindRepresentative(), elements[2].FindRepresentative());
+  EXPECT_NE(elements[1].FindRepresentative(), elements[2].FindRepresentative());
 }
 
 // Join all elements together in a long chain.
