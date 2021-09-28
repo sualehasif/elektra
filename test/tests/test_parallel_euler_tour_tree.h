@@ -47,31 +47,33 @@ TEST(ParallelEulerTourTreeTest, ShortLineGraph) {
 // optionally tunable parameter.
 TEST(ParallelEulerTourTreeTest, BigStarGraphs) {
   const int n = 200;
+  ASSERT_EQ(n % 2, 0);
   pett::EulerTourTree ett = pett::EulerTourTree{n};
 
-  auto links = parlay::sequence<std::pair<int, int>>::uninitialized(199);
-  auto cuts = parlay::sequence<std::pair<int, int>>::uninitialized(198);
-  for (int i = 0; i <= 99; i++) {
-    links[i] = make_pair(i, 100);
-    cuts[i] = make_pair(i, 100);
+  auto links = parlay::sequence<std::pair<int, int>>::uninitialized(n - 1);
+  auto cuts = parlay::sequence<std::pair<int, int>>::uninitialized(n - 2);
+  // The centers of the two stars are vertices n / 2 and n / 2 + 1.
+  for (int i = 0; i <= n / 2 - 1; i++) {
+    links[i] = make_pair(i, n / 2);
+    cuts[i] = make_pair(i, n / 2);
   }
-  for (int i = 100; i <= 197; i++) {
-    links[i] = make_pair(101, i + 2);
-    cuts[i] = make_pair(101, i + 2);
+  for (int i = n / 2; i <= n - 2; i++) {
+    links[i] = make_pair(n / 2 + 1, i + 2);
+    cuts[i] = make_pair(n / 2 + 1, i + 2);
   }
-  links[198] = make_pair(100, 101);
+  links[n - 2] = make_pair(n / 2, n / 2 + 1);
 
   ett.BatchLink(links, links.size());
   EXPECT_TRUE(ett.IsConnected(0, 1));
-  EXPECT_TRUE(ett.IsConnected(0, 100));
-  EXPECT_TRUE(ett.IsConnected(0, 199));
-  EXPECT_TRUE(ett.IsConnected(100, 101));
+  EXPECT_TRUE(ett.IsConnected(0, n / 2));
+  EXPECT_TRUE(ett.IsConnected(0, n - 1));
+  EXPECT_TRUE(ett.IsConnected(n / 2, n / 2 + 1));
 
   ett.BatchCut(cuts, cuts.size());
   EXPECT_FALSE(ett.IsConnected(0, 1));
-  EXPECT_FALSE(ett.IsConnected(0, 100));
-  EXPECT_FALSE(ett.IsConnected(0, 199));
-  EXPECT_TRUE(ett.IsConnected(100, 101));
+  EXPECT_FALSE(ett.IsConnected(0, n / 2));
+  EXPECT_FALSE(ett.IsConnected(0, n - 1));
+  EXPECT_TRUE(ett.IsConnected(n / 2, n / 2 + 1));
 }
 
 }  // namespace
