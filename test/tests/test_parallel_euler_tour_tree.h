@@ -1,12 +1,12 @@
 #pragma once
 
-#include "../../elektra/parallel_euler_tour_tree/euler_tour_tree.hpp"
+#include <parlay/parallel.h>
+#include <parlay/sequence.h>
 
 #include <utility>
 
+#include "../../elektra/parallel_euler_tour_tree/euler_tour_tree.hpp"
 #include "gtest/gtest.h"
-#include <parlay/parallel.h>
-#include <parlay/sequence.h>
 
 namespace elektra::testing {
 namespace {
@@ -40,11 +40,12 @@ TEST(ParallelEulerTourTreeTest, ShortLineGraph) {
 // Adds edges creating two large star graphs linked by an edge, then removes the
 // star graph edges.
 //
-// This larger test is to check that parallel link and parallel cut works as expected.
-// TODO(tomtseng): The ETT operates on batches sequentially if the batch is smaller
-// than some size S. But we may want to tune S, and we don't want that to affect
-// this test. We should let this test manually override S by exposing the S as a
-// optionally tunable parameter.
+// This larger test is to check that parallel link and parallel cut works as
+// expected.
+// TODO(tomtseng): The ETT operates on batches sequentially if the batch is
+// smaller than some size S. But we may want to tune S, and we don't want that
+// to affect this test. We should let this test manually override S by exposing
+// the S as a optionally tunable parameter.
 TEST(ParallelEulerTourTreeTest, BigStarGraphs) {
   const int n = 200;
   ASSERT_EQ(n % 2, 0);
