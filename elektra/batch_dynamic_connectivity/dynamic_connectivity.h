@@ -1,7 +1,11 @@
 #include "connectivity.h"
 
 namespace batchDynamicConnectivity {
+template <typename T>
+using sequence = parlay::sequence<T>;
+using V = Vertex;
 
+using std::pair;
 // -------------
 // PUBLIC METHODS
 // -------------
@@ -12,9 +16,9 @@ namespace batchDynamicConnectivity {
 // vertices are connected
 // @description: This method checks if the batch of vertices are connected in
 // the graph
-parlay::sequence<char> BatchDynamicConnectivity::BatchConnected(
-    parlay::sequence<std::pair<Vertex, Vertex>> suv) const {
-    parlay::sequence<char> s(suv.size(), 0);
+sequence<char> BatchDynamicConnectivity::BatchConnected(
+    sequence<pair<V, V>> suv) const {
+  sequence<char> s(suv.size(), 0);
   // check if they are connected in the highest level forest
   BatchDynamicET *pMaxLevelEulerTree =
       parallel_spanning_forests_[max_level_ - 1];
@@ -28,95 +32,24 @@ parlay::sequence<char> BatchDynamicConnectivity::BatchConnected(
   return s;
 }
 
-// TODO: fix the getRepresentative function
-// parlay::sequence<Vertex> BatchDynamicConnectivity::BatchFindRepr(
-//     const parlay::sequence<Vertex> &sv) {
-//   auto pMaxLevelEulerTree = parallel_spanning_forests_[max_level_ - 1];
-//   // get representatives from the highest level foredt
-//   return parlay::map(sv, [&](Vertex v) {
-//     return (int64_t)pMaxLevelEulerTree->getRepresentative(v);
-//   });
-// }
-
-// TODO: get the concurrent union find for this
-template <typename Rank, typename Parent>
-treeSet BatchDynamicConnectivity::constructTree(
-    Rank &r, Parent &p, const parlay::sequence<UndirectedEdge> &se) {
-  // Given a sequence of edges, returns a set of a
-  // spanning forest of the graph formed by them
-  boost::disjoint_sets<Rank, Parent> dsu(r, p);
-  treeSet tree;
-
-  // BUG POSSIBLE: check whether this causes a problem.
-  for (auto v : se) {
-    dsu.make_set(v.first);
-    dsu.make_set(v.second);
-  }
-
-  for (auto v : se) {
-    Vertex first = v.first;
-    Vertex second = v.second;
-    // TODO is there a race condition here if we paralize this? How can we
-    // resolve that
-
-    if (dsu.find_set(first) != dsu.find_set(second)) {
-      tree.insert(v);
-      dsu.link(first, second);
-    }
-  }
-  return tree;
-}
-
-// TODO: add parallel DSU structure to implement this
-treeSet BatchDynamicConnectivity::getSpanningTree(
-    const parlay::sequence<UndirectedEdge> &se) {
-  // I am assuming the interface in
-  // https://github.com/ParAlg/gbbs/blob/master/gbbs/union_find.h?fbclid=IwAR0U_Nbe1SpQF7mbmN0CEGLyF-5v362oy1q-9eQLvjQz916jhfTH69bMx9s
-  // could be worth paralelizing this
-
-  typedef std::map<Vertex, size_t> rank_t;
-  typedef std::map<Vertex, Vertex> parent_t;
-
-  rank_t rank_map;
-  parent_t parent_map;
-
-  boost::associative_property_map<rank_t> rank_pmap(rank_map);
-  boost::associative_property_map<parent_t> parent_pmap(parent_map);
-
-  return constructTree(rank_pmap, parent_pmap, se);
-}
-
-parlay::sequence<std::pair<int, int>> edgeBatchToPairArray(
-    parlay::sequence<UndirectedEdge> &se) {
-  // turns a sequence of edges to an array of pairs
-  // useful for interfacing with EulerTourTrees
-  auto array = parlay::sequence<std::pair<int, int>>::uninitialized(se.size());
-
-  parlay::parallel_for(0, se.size(), [&](int i) {
-    array[i] = std::make_pair(se[i].first, se[i].second);
-  });
-
-  // parallel_for(int i = 0; i < se.size(); i++) {
-  //   array[i].first = se[i].first;
-  //   array[i].second = se[i].second;
-  // }
-  return array;
-}
-
+// BUG (Possible): the tree count check needs to happen on auxillary edges.
+// BUG (Possible): we need to check if the edges are already present in the
+// graph.
 void BatchDynamicConnectivity::BatchAddEdges(
-    const parlay::sequence<UndirectedEdge> &se) {
+    const sequence<UndirectedEdge> &se) {
+  // Look at the max level Euler Tour Tree in the parallel spanning forests.
   auto maxLevelEulerTree = parallel_spanning_forests_[max_level_ - 1];
 
-  parlay::sequence<UndirectedEdge> auxiliaryEdges =
+  sequence<UndirectedEdge> auxiliaryEdges =
       parlay::map(se, [&](UndirectedEdge e) {
         return UndirectedEdge(
-            (Vertex)maxLevelEulerTree->getRepresentative(e.first),
-            (Vertex)maxLevelEulerTree->getRepresentative(e.second));
+            (V)maxLevelEulerTree->getRepresentative(e.first),
+            (V)maxLevelEulerTree->getRepresentative(e.second));
       });
   auto tree = getSpanningTree(auxiliaryEdges);
 
-  parlay::sequence<std::pair<int, int>> treeEdges;
-  parlay::sequence<UndirectedEdge> nonTreeEdges;
+  sequence<pair<int, int>> treeEdges;
+  sequence<UndirectedEdge> nonTreeEdges;
 
   // update the tree and nonTree edges based on the ST computation
   parlay::parallel_for(0, se.size(), [&](int i) {
@@ -133,20 +66,6 @@ void BatchDynamicConnectivity::BatchAddEdges(
     }
   });
 
-  // parallel_for(int i = 0; i < se.size(); i++) {
-  //   if (tree.count(se[i])) {
-  //     treeEdges.push_back(se[i]);
-  //     detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
-  //                            detail::EdgeType::kTree};
-  //     edges_[se[i]] = ei;
-  //   } else {
-  //     nonTreeEdges.push_back(se[i]);
-  //     detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
-  //                            detail::EdgeType::kNonTree};
-  //     edges_[se[i]] = ei;
-  //   }
-  // }
-
   // add tree edges
   maxLevelEulerTree->BatchLink(treeEdges);
 
@@ -160,7 +79,7 @@ void BatchDynamicConnectivity::BatchAddEdges(
 }
 
 // TODO implement semisort or any sort
-auto BatchDynamicConnectivity::removeDuplicates(parlay::sequence<Vertex> &seq) {
+auto BatchDynamicConnectivity::removeDuplicates(sequence<V> &seq) {
   // TODO: possibly change this to use a not inplace sort
   // FIXME: Turn this into a integer sort by converting vertices to uints
   parlay::sort_inplace(seq);
@@ -169,7 +88,7 @@ auto BatchDynamicConnectivity::removeDuplicates(parlay::sequence<Vertex> &seq) {
   return newSeq;
 }
 
-UndirectedEdge BatchDynamicConnectivity::componentSearch(int level, Vertex v) {
+UndirectedEdge BatchDynamicConnectivity::componentSearch(int level, V v) {
   auto levelEulerTree = parallel_spanning_forests_[level];
   // TODO: make sure there is a return in every case.
   auto cc = levelEulerTree->ConnectedComponent(v);
@@ -188,21 +107,19 @@ UndirectedEdge BatchDynamicConnectivity::componentSearch(int level, Vertex v) {
   return UndirectedEdge(0, 0);
 }
 
-parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
-    const parlay::sequence<UndirectedEdge> &se,
-    parlay::sequence<Vertex> &components,
-    parlay::sequence<std::pair<int, int>> &promotedEdges, int level) {
+sequence<V> BatchDynamicConnectivity::parallelLevelSearch(
+    const sequence<UndirectedEdge> &se, sequence<V> &components,
+    sequence<pair<int, int>> &promotedEdges, int level) {
   auto levelEulerTree = parallel_spanning_forests_[level];
   levelEulerTree->BatchLink(promotedEdges);
 
-  auto ncomponents = parlay::map(components, [&](Vertex v) {
-    return (Vertex)levelEulerTree->getRepresentative(v);
-  });
+  auto ncomponents = parlay::map(
+      components, [&](V v) { return (V)levelEulerTree->getRepresentative(v); });
   components = ncomponents;
   components = removeDuplicates(components);
 
-  parlay::sequence<Vertex> componentsToConsider;
-  parlay::sequence<Vertex> largeComponents;
+  sequence<V> componentsToConsider;
+  sequence<V> largeComponents;
 
   parlay::parallel_for(0, components.size(), [&](int i) {
     if (levelEulerTree->ConnectedComponent(components[i]).size() <=
@@ -221,16 +138,16 @@ parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
   //   }
   // }
 
-  parlay::sequence<UndirectedEdge> R;
+  sequence<UndirectedEdge> R;
 
   while (componentsToConsider.size() != 0) {
-    parlay::sequence<std::pair<int, int>> edgesToDropLevel;
-    for (Vertex v : componentsToConsider) {
+    sequence<pair<int, int>> edgesToDropLevel;
+    for (V v : componentsToConsider) {
       // Move all the edges of small components down a level
       auto componentSearched = levelEulerTree->ConnectedComponent(v);
 
-      // FIXME: convert to a parlay::sequence for now
-      std::unordered_set<Vertex> cc;
+      // FIXME: convert to a sequence for now
+      std::unordered_set<V> cc;
       for (int i = 0; i < componentSearched.size(); ++i) {
         cc.insert(componentSearched[i]);
       }
@@ -257,8 +174,8 @@ parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
     });
     auto promIndices = getSpanningTree(auxiliaryEdges);
 
-    parlay::sequence<std::pair<int, int>> newPromotedEdges;
-    parlay::sequence<UndirectedEdge> notPromotedEdges;
+    sequence<pair<int, int>> newPromotedEdges;
+    sequence<UndirectedEdge> notPromotedEdges;
 
     parlay::parallel_for(0, promIndices.size(), [&](int i) {
       if (promIndices.find(auxiliaryEdges[i]) != promIndices.end())
@@ -306,13 +223,13 @@ parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
     //   promotedEdges.push_back(newPromotedEdges[i]);
     // }
 
-    auto ccu = parlay::map(componentsToConsider, [&](Vertex v) {
-      return (Vertex)levelEulerTree->getRepresentative(v);
+    auto ccu = parlay::map(componentsToConsider, [&](V v) {
+      return (V)levelEulerTree->getRepresentative(v);
     });
 
     componentsToConsider = removeDuplicates(ccu);
 
-    parlay::sequence<Vertex> newComponentsToConsider;
+    sequence<V> newComponentsToConsider;
 
     parlay::parallel_for(0, componentsToConsider.size(), [&](int i) {
       if (levelEulerTree->ConnectedComponent(componentsToConsider[i]).size() <=
@@ -324,7 +241,8 @@ parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
     });
 
     // parallel_for(int i = 0; i < componentsToConsider.size(); i++) {
-    //   if (levelEulerTree->ConnectedComponent(componentsToConsider[i]).size()
+    //   if
+    //   (levelEulerTree->ConnectedComponent(componentsToConsider[i]).size()
     //   <=
     //       1 << (level - 1)) {
     //     newComponentsToConsider.push_back(componentsToConsider[i]);
@@ -338,10 +256,10 @@ parlay::sequence<Vertex> BatchDynamicConnectivity::parallelLevelSearch(
 }
 
 void BatchDynamicConnectivity::BatchDeleteEdges(
-    const parlay::sequence<UndirectedEdge> &se) {
+    const sequence<UndirectedEdge> &se) {
   // TODO: split se into tree and non tree edges
   // delete edges from adjacency list
-  parlay::sequence<UndirectedEdge> treeEdges;
+  sequence<UndirectedEdge> treeEdges;
 
   auto min_tree_edge_level = max_level_;
 
@@ -369,21 +287,21 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
     auto toDelete = parlay::filter(
         treeEdges, [&](UndirectedEdge e) { return edges_[e].level <= level; });
 
-    parlay::sequence<std::pair<int, int>> toDeletePairSequence =
+    sequence<pair<int, int>> toDeletePairSequence =
         edgeBatchToPairArray(toDelete);
 
     levelEulerTree->BatchCut(toDeletePairSequence);
   }
 
-  parlay::sequence<Vertex> lcomponents =
+  sequence<V> lcomponents =
       parlay::map(treeEdges, [](UndirectedEdge e) { return e.first; });
-  parlay::sequence<Vertex> rcomponents =
+  sequence<V> rcomponents =
       parlay::map(treeEdges, [](UndirectedEdge e) { return e.second; });
   lcomponents.append(rcomponents);
 
   auto components = removeDuplicates(lcomponents);
 
-  parlay::sequence<std::pair<int, int>> promotedEdges;
+  sequence<pair<int, int>> promotedEdges;
   for (int i = min_tree_edge_level; i < max_level_; i++) {
     components = parallelLevelSearch(se, components, promotedEdges, i);
   }
