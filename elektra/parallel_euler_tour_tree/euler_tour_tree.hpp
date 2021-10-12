@@ -343,14 +343,16 @@ namespace {
 // on them later.
 constexpr int kBatchCutRecursiveFactor{100};
 
-void BatchCutSequential(EulerTourTree* ett, const parlay::sequence<std::pair<int, int>>& cuts) {
-  for (const auto cut: cuts) {
+void BatchCutSequential(EulerTourTree* ett,
+                        const parlay::sequence<std::pair<int, int>>& cuts) {
+  for (const auto& cut : cuts) {
     ett->Cut(cut.first, cut.second);
   }
 }
 
-void BatchLinkSequential(EulerTourTree* ett, const parlay::sequence<std::pair<int, int>>& links) {
-  for (const auto link: links) {
+void BatchLinkSequential(EulerTourTree* ett,
+                         const parlay::sequence<std::pair<int, int>>& links) {
+  for (const auto &link : links) {
     ett->Link(link.first, link.second);
   }
 }
@@ -462,9 +464,7 @@ void EulerTourTree::BatchLink(parlay::sequence<std::pair<int, int>>& links) {
   // intSort::iSort(links_both_dirs, 2 * len, num_vertices_ + 1,
   //                firstF<int, int>());
   // parlay::integer_sort(links_both_dirs, firstF<int, int>());
-  auto getFirst = [](std::pair<int, int> a) {
-    return (uint)a.first;
-  };
+  auto getFirst = [](std::pair<int, int> a) { return (uint)a.first; };
   parlay::integer_sort_inplace(links_both_dirs, getFirst);
 
   // Element** split_successors{pbbs::new_array_no_init<Element*>(2 * len)};

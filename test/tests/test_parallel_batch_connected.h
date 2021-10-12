@@ -53,7 +53,7 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeInsertion1) {
   expectedOut.push_back(true);
 
   auto result = x.BatchConnected(queries);
-  for (int i = 0; i < queries.size(); i++) {
+  for (int i = 0; i < (int)queries.size(); i++) {
     EXPECT_EQ(result[i], expectedOut[i]);
   }
 }
@@ -89,7 +89,7 @@ TEST_F(ParallelConnectivityTest, SimpleInsertionAndQuery1) {
   expectedOut.push_back(false);
 
   auto result = x.BatchConnected(queries);
-  for (int i = 0; i < queries.size(); i++) {
+  for (int i = 0; i < (int)queries.size(); i++) {
     EXPECT_EQ(result[i], expectedOut[i]);
   }
 }
@@ -120,7 +120,7 @@ TEST_F(ParallelConnectivityTest, SimpleInsertionAndQuery2) {
   }
 
   auto result = x.BatchConnected(queries);
-  for (int i = 0; i < queries.size(); i++) {
+  for (int i = 0; i < (int)queries.size(); i++) {
     EXPECT_EQ(result[i], expectedOut[i]);
   }
 }

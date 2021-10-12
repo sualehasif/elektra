@@ -92,7 +92,7 @@ UndirectedEdge BatchDynamicConnectivity::componentSearch(int level, V v) {
   auto levelEulerTree = parallel_spanning_forests_[level];
   // TODO: make sure there is a return in every case.
   auto cc = levelEulerTree->ConnectedComponent(v);
-  for (int i = 0; i < cc.size(); i++) {
+  for (int i = 0; i < (int)cc.size(); i++) {
     auto u = cc[i];
     for (auto w : non_tree_adjacency_lists_[level][u]) {
       if (levelEulerTree->getRepresentative(u) !=
@@ -148,7 +148,7 @@ sequence<V> BatchDynamicConnectivity::parallelLevelSearch(
 
       // FIXME: convert to a sequence for now
       std::unordered_set<V> cc;
-      for (int i = 0; i < componentSearched.size(); ++i) {
+      for (int i = 0; i < (int)componentSearched.size(); ++i) {
         cc.insert(componentSearched[i]);
       }
 
