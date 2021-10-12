@@ -40,6 +40,13 @@ void BatchDynamicConnectivity::BatchAddEdges(
   // Look at the max level Euler Tour Tree in the parallel spanning forests.
   auto maxLevelEulerTree = parallel_spanning_forests_[max_level_ - 1];
 
+  // you can print all the edges for debugging
+  // std::cout << "Adding edges to the graph" << std::endl;
+  // for (auto &e : se) {
+  //   std::cout << "Edge: " << e.first << " " << e.second << std::endl;
+  // }
+
+  // Construct the auxillary edges.
   sequence<UndirectedEdge> auxiliaryEdges =
       parlay::map(se, [&](UndirectedEdge e) {
         return UndirectedEdge(
@@ -47,6 +54,12 @@ void BatchDynamicConnectivity::BatchAddEdges(
             (V)maxLevelEulerTree->getRepresentative(e.second));
       });
   auto tree = getSpanningTree(auxiliaryEdges);
+
+  // print all the tree edges for debugging if wanted.
+  // std::cout << "Tree edges" << std::endl;
+  // for (auto &e : tree) {
+  //   std::cout << "Edge: " << e.first << " " << e.second << std::endl;
+  // }
 
   auto num_edges_inserted = se.size();
 
