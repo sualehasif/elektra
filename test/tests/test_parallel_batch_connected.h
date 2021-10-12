@@ -1,4 +1,4 @@
-<#include <parlay/parallel.h>
+#include <parlay/parallel.h>
 #include <parlay/random.h>
 #include <parlay/sequence.h>
 
@@ -19,8 +19,8 @@ class ParallelConnectivityTest : public ::testing::Test {
  protected:
   ParallelConnectivityTest() {
     std::cout << "Parallel Connectivity: Testing" << std::endl;
-    std::cout << "Testing on " << parlay::num_workers()
-              << " Parlay workers." << std::endl;
+    std::cout << "Testing on " << parlay::num_workers() << " Parlay workers."
+              << std::endl;
     rng.seed(0);
   }
 
