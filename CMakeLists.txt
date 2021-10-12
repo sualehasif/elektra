@@ -31,10 +31,9 @@ set(CMAKE_CXX_FLAGS
     -Wno-unused-value \
     ")
 
-# Compile with no parallelism if debugging or asked to be linear
-if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR SEQUENTIAL)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPARLAY_SEQUENTIAL")
-endif()
+# # Compile with no parallelism if debugging or asked to be linear
+# if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR SEQUENTIAL) set(CMAKE_CXX_FLAGS
+# "${CMAKE_CXX_FLAGS} -DPARLAY_SEQUENTIAL") endif()
 
 message(STATUS "--------------- General configuration -------------")
 message(STATUS "CMake Generator: ${CMAKE_GENERATOR}")

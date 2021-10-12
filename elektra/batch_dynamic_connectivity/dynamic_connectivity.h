@@ -48,8 +48,13 @@ void BatchDynamicConnectivity::BatchAddEdges(
       });
   auto tree = getSpanningTree(auxiliaryEdges);
 
+  auto num_edges_inserted = se.size();
+
   sequence<pair<int, int>> treeEdges;
   sequence<UndirectedEdge> nonTreeEdges;
+
+  treeEdges.reserve(tree.size());
+  nonTreeEdges.reserve(se.size() - tree.size());
 
   // update the tree and nonTree edges based on the ST computation
   parlay::parallel_for(0, se.size(), [&](int i) {
