@@ -127,5 +127,8 @@ TEST_F(ParallelConnectivityTest, SimpleInsertionAndQuery2) {
   }
 }
 
+// TEST_F(ParallelConnectivityTest, RandomInsertionAndQuery1) {}
+// TEST_F(ParallelConnectivityTest, RandomInsertionAndQuery2) {}
+
 }  // namespace
 }  // namespace elektra::testing

@@ -147,7 +147,7 @@ class BatchDynamicConnectivity {
   const int64_t num_vertices_;
 
   // TODO: convert this to int8_t
-  const int64_t max_level_;
+  const int8_t max_level_;
 
   // `spanning_forests_[i]` stores F_i, the spanning forest for the i-th
   // subgraph. In particular, `spanning_forests[0]` is a spanning forest for the
@@ -199,11 +199,15 @@ class BatchDynamicConnectivity {
 
   treeSet getSpanningTree(const parlay::sequence<UndirectedEdge> &se);
 
+  void BatchDynamicConnectivity::replacementSearch(
+      int level, parlay::sequence<int> components,
+      parlay::sequence<pair<int, int>> &promotedEdges);
+
   template <typename Rank, typename Parent>
   treeSet constructTree(Rank &r, Parent &p,
                         const parlay::sequence<UndirectedEdge> &se);
 
-  auto removeDuplicates(parlay::sequence<Vertex> &seq);
+  auto removeDuplicates(parlay::sequence<int> &seq);
 };
 
 parlay::sequence<std::unordered_set<Vertex>> generateInitialVertexLayer(
