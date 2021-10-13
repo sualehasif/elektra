@@ -3,7 +3,7 @@
 
 #include <unordered_set>
 
-#include "elektra/macros.h"
+#include "../elektra/macros.h"
 
 template <typename T>
 using sequence = parlay::sequence<T>;

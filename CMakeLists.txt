@@ -58,6 +58,7 @@ message(STATUS "CMAKE_INSTALL_PREFIX: \
 include(CTest)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/elektra)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/benchmarks)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/test)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/parlaylib/include/)
 include_directories(

@@ -20,7 +20,7 @@ struct UndirectedEdge {
    *  @param[in] v The other endpoint of the edge.
    */
   UndirectedEdge(Vertex u, Vertex v) : first(u), second(v){};
-  UndirectedEdge() = delete;
+  // UndirectedEdge() = delete;
 
   /** One endpoint of the edge. */
   const Vertex first;
