@@ -43,7 +43,7 @@ void IncrementallUpdateConnectivity(edgeList edges, int batch_size,
 }
 
 template <typename Connectivity>
-void RunBenchmark(int argc, char** argv) {
+inline void RunBenchmark(int argc, char** argv) {
   commandLine P{argc, argv, "[-iters] graph_filename"};
   char* graph_filename{P.getArgument(0)};
 

@@ -5,6 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/elektra",
+                "${workspaceFolder}/benchmarks",
                 "${workspaceFolder}/external/parlaylib/include/parlay",
                 "${workspaceFolder}/external/googletest/googletest/include/",
                 "${workspaceFolder}"
