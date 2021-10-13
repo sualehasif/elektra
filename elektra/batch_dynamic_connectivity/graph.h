@@ -4,6 +4,8 @@
 #include <ostream>
 #include <utility>
 
+#include "macros.h"
+
 /** Represents a vertex in a graph. */
 typedef int64_t Vertex;
 
