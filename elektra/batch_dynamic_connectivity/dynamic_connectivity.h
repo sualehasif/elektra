@@ -109,7 +109,7 @@ void BatchDynamicConnectivity::BatchAddEdges(
 auto BatchDynamicConnectivity::removeDuplicates(sequence<int> &seq) {
   // TODO: possibly change this to use a not inplace sort
   // FIXME: Turn this into a integer sort by converting vertices to uints
-  parlay::integer_sort_inplace(seq);
+  parlay::integer_sort_inplace(seq, [](int x) { return (unsigned)x; });
 
   auto newSeq = parlay::unique(seq);
   return newSeq;
@@ -118,13 +118,22 @@ auto BatchDynamicConnectivity::removeDuplicates(sequence<int> &seq) {
 UndirectedEdge BatchDynamicConnectivity::componentSearch(int level, V v) {
   auto levelEulerTree = parallel_spanning_forests_[level];
   // TODO: make sure there is a return in every case.
-  auto cc = levelEulerTree->ConnectedComponent(v);
+  auto cc = levelEulerTree->ComponentEdges(v);
+  // `ComponentEdges()` + `seen_vertices` is a silly way to iterate over
+  // vertices of a component but we're going to refactor this anyway
+  std::unordered_set<V> seen_vertices;
   for (int i = 0; i < (int)cc.size(); i++) {
-    auto u = cc[i];
-    for (auto w : non_tree_adjacency_lists_[level][u]) {
-      if (levelEulerTree->getRepresentative(u) !=
-          levelEulerTree->getRepresentative(v)) {
-        return UndirectedEdge(u, w);
+    auto e = cc[i];
+    for (auto u : {e.first, e.second}) {
+      if (seen_vertices.count(u) > 0) {
+        continue;
+      }
+      seen_vertices.insert(u);
+      for (auto w : non_tree_adjacency_lists_[level][u]) {
+        if (levelEulerTree->getRepresentative(u) !=
+            levelEulerTree->getRepresentative(v)) {
+          return UndirectedEdge(u, w);
+        }
       }
     }
   }
@@ -177,20 +186,21 @@ void BatchDynamicConnectivity::replacementSearch(
       if (component_indicator[i] == 1) return;
 
       auto c = components[i];
-      auto cc = ett->ConnectedComponent(c);
+      auto cc = ett->ComponentEdges(c);
+      const int ccSize = cc.size() + 1;
 
       // size check to ensure that we are only running over small components
-      if (cc.size() > critical_component_size) return;
+      if (ccSize > critical_component_size) return;
 
       // doing a search over the components.
       parlay::parallel_for(0, search_size, [&](int j) {
         auto idx = j + total_search_stride;
         // if we have already searched this component, skip it.
-        if (idx >= cc.size()) {
+        if (idx >= ccSize) {
           component_indicator[i] = 1;
           return;
         } else {
-          auto e = cc[idx];
+          auto e = UndirectedEdge(cc[idx]);
           if (edges_[e].type == detail::EdgeType::kNonTree) {
             auto u = e.first;
             auto v = e.second;

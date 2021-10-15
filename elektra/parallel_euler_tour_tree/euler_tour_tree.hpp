@@ -24,8 +24,8 @@ class Element : public parallel_skip_list::ElementBase<Element> {
       : parallel_skip_list::ElementBase<Element>{random_int},
         id_{id},
         values_{new int[height_]} {
-    const bool isVertex{id.first == id.second};
-    values_[0] = isVertex;
+    const bool isUndirectedEdge{id.first < id.second};
+    values_[0] = isUndirectedEdge;
   }
 
   // If this element represents a vertex v, then id == (v, v). Otherwise if
@@ -37,26 +37,52 @@ class Element : public parallel_skip_list::ElementBase<Element> {
   // splice out in the current round of recursion.
   bool split_mark_{false};
 
-  // Get all vertices held in the skip list that contains this element.
-  parlay::sequence<int> GetVertices();
+  // Get all edges {u, v} in the sequence that contains this element, assuming
+  // that the sequence represents an ETT component.
+  parlay::sequence<std::pair<int, int>> GetEdges();
 
  private:
   friend class parallel_skip_list::ElementBase<Element>;
   static void DerivedInitialize() {}
   static void DerivedFinish() {}
 
-  // Updates `values_`.
+  // Updates `values_` and returns FindRepresentative().
+  Element* UpdateValues();
   void UpdateTopDown(int level);
   void UpdateTopDownSequential(int level);
-  // Gets vertices held in child elements of this element and writes them into
+  // Gets edges held in descendants of this element and writes them into
   // the sequence starting at the offset. `values_` needs to be up to date.
-  void GetVerticesBelow(parlay::sequence<int>* s, int offset, int level) const;
-  // Augment the skip list with the function "count the number of vertices in
-  // this list" (i.e., `values_[0]` is 1 if element represents a vertex, else is
-  // 0; `values_[i]` sums children's `values_[i - 1]`).
-  // We update `values_` lazily since we only use it in `GetVertices()`.
+  void GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int offset, int level) const;
+  // Augment the skip list with the function "count the number of edges (u, v)
+  // such that u < v in this list" (i.e., `values_[0]` is 1 if element
+  // represents such an edge, else is 0; `values_[i]` sums children's `values_[i -
+  // 1]`).
+  // We update `values_` lazily since we only use it in `GetEdges()`.
   int* values_{nullptr};
 };
+
+Element* Element::UpdateValues() {
+  // get element at the top level of the list
+  Element* const top_element{FindRepresentative()};
+  const int level = top_element->height_ - 1;
+
+  // fill in `values_` for all elements in list
+  {
+    Element* curr{top_element};
+    // do {
+    //   cilk_spawn curr->UpdateTopDown(level);
+    //   curr = curr->neighbors_[level].next;
+    // } while (curr != nullptr && curr != top_element);
+    // cilk_sync;
+
+    do {
+      parlay::par_do([&]() { curr->UpdateTopDown(level); },
+                     [&]() { curr = curr->neighbors_[level].next; });
+    } while (curr != nullptr && curr != top_element);
+  }
+
+  return top_element;
+}
 
 void Element::UpdateTopDownSequential(int level) {
   if (level == 0) {
@@ -108,11 +134,11 @@ void Element::UpdateTopDown(int level) {
   values_[level] = sum;
 }
 
-void Element::GetVerticesBelow(parlay::sequence<int>* s, int offset,
-                               int level) const {
+void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int offset,
+                            int level) const {
   if (level == 0) {
     if (values_[0]) {
-      (*s)[offset] = id_.first;
+      (*s)[offset] = id_;
     }
     return;
   }
@@ -121,20 +147,20 @@ void Element::GetVerticesBelow(parlay::sequence<int>* s, int offset,
     // run sequentially once we're near the bottom of the list and not doing as
     // much work per thread
     do {
-      curr->GetVerticesBelow(s, offset, level - 1);
+      curr->GetEdgesBelow(s, offset, level - 1);
       offset += curr->values_[level - 1];
       curr = curr->neighbors_[level - 1].next;
     } while (curr != nullptr && curr->height_ < level + 1);
   } else {  // run in parallel
     // do {
-    //   cilk_spawn curr->GetVerticesBelow(s, offset, level - 1);
+    //   cilk_spawn curr->GetEdgesBelow(s, offset, level - 1);
     //   offset += curr->values_[level - 1];
     //   curr = curr->neighbors_[level - 1].next;
     // } while (curr != nullptr && curr->height_ < level + 1);
     // cilk_sync;
 
     do {
-      parlay::par_do([&]() { curr->GetVerticesBelow(s, offset, level - 1); },
+      parlay::par_do([&]() { curr->GetEdgesBelow(s, offset, level - 1); },
                      [&]() {
                        offset += curr->values_[level - 1];
                        curr = curr->neighbors_[level - 1].next;
@@ -143,41 +169,25 @@ void Element::GetVerticesBelow(parlay::sequence<int>* s, int offset,
   }
 }
 
-parlay::sequence<int> Element::GetVertices() {
-  // get element at the top level of the list
-  Element* const top_element{FindRepresentative()};
+parlay::sequence<std::pair<int, int>> Element::GetEdges() {
+  Element* const top_element{UpdateValues()};
   const int level = top_element->height_ - 1;
 
-  // fill in `values_` for all elements in list
-  {
-    Element* curr{top_element};
-    // do {
-    //   cilk_spawn curr->UpdateTopDown(level);
-    //   curr = curr->neighbors_[level].next;
-    // } while (curr != nullptr && curr != top_element);
-    // cilk_sync;
-
-    do {
-      parlay::par_do([&]() { curr->UpdateTopDown(level); },
-                     [&]() { curr = curr->neighbors_[level].next; });
-    } while (curr != nullptr && curr != top_element);
-  }
-
-  size_t num_vertices{0};
+  size_t num_edges{0};
   {
     Element* curr = top_element;
     do {
-      num_vertices += curr->values_[level];
+      num_edges += curr->values_[level];
       curr = curr->neighbors_[level].next;
     } while (curr != nullptr && curr != top_element);
   }
 
-  parlay::sequence<int> vertices(num_vertices);
+  parlay::sequence<std::pair<int, int>> edges(num_edges);
   {
     int offset{0};
     Element* curr = top_element;
     // do {
-    //   cilk_spawn curr->GetVerticesBelow(&vertices, offset, level);
+    //   cilk_spawn curr->GetEdgesBelow(&edges, offset, level);
     //   offset += curr->values_[level];
     //   curr = curr->neighbors_[level].next;
     // } while (curr != nullptr && curr != top_element);
@@ -185,14 +195,14 @@ parlay::sequence<int> Element::GetVertices() {
 
     do {
       parlay::par_do(
-          [&]() { curr->GetVerticesBelow(&vertices, offset, level); },
+          [&]() { curr->GetEdgesBelow(&edges, offset, level); },
           [&]() {
             offset += curr->values_[level];
             curr = curr->neighbors_[level].next;
           });
     } while (curr != nullptr && curr != top_element);
   }
-  return vertices;
+  return edges;
 }
 
 // The element allocator is used to allocate and deallocate elements.
@@ -295,8 +305,8 @@ class EulerTourTree {
 
   // Returns true if `u` and `v` are in the same tree in the represented forest.
   bool IsConnected(int u, int v) const;
-  // Returns all vertices in the connected component that contains vertex `v`.
-  parlay::sequence<int> ConnectedComponent(int v);
+  // Returns all edges in the connected component of vertex `v`.
+  parlay::sequence<std::pair<int, int>> ComponentEdges(int v);
 
   // Adds edge {`u`, `v`} to forest. The addition of this edge must not create a
   // cycle in the graph.
@@ -396,8 +406,8 @@ int EulerTourTree::getRepresentative(int u) const {
   return el->id_.first;
 }
 
-parlay::sequence<int> EulerTourTree::ConnectedComponent(int v) {
-  return vertices_[v].GetVertices();
+parlay::sequence<std::pair<int, int>> EulerTourTree::ComponentEdges(int v) {
+  return vertices_[v].GetEdges();
 }
 
 void EulerTourTree::Link(int u, int v) {

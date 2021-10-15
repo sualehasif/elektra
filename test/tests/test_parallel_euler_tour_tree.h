@@ -6,12 +6,17 @@
 #include <utility>
 
 #include "../../elektra/parallel_euler_tour_tree/euler_tour_tree.hpp"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace elektra::testing {
 namespace {
 
 namespace pett = parallel_euler_tour_tree;
+
+using ::testing::IsEmpty;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 
 TEST(ParallelEulerTourTreeTest, IsDisconnectedInitially) {
   const pett::EulerTourTree ett = pett::EulerTourTree{3};
@@ -75,6 +80,17 @@ TEST(ParallelEulerTourTreeTest, BigStarGraphs) {
   EXPECT_FALSE(ett.IsConnected(0, n / 2));
   EXPECT_FALSE(ett.IsConnected(0, n - 1));
   EXPECT_TRUE(ett.IsConnected(n / 2, n / 2 + 1));
+}
+
+TEST(ParallelEulerTourTreeTest, ComponentEdges) {
+  pett::EulerTourTree ett = pett::EulerTourTree{6};
+  ett.Link(0, 2);
+  ett.Link(1, 2);
+  ett.Link(3, 5);
+
+  EXPECT_THAT(ett.ComponentEdges(0), UnorderedElementsAre(Pair(0, 2), Pair(1, 2)));
+  EXPECT_THAT(ett.ComponentEdges(3), UnorderedElementsAre(Pair(3, 5)));
+  EXPECT_THAT(ett.ComponentEdges(4), IsEmpty());
 }
 
 }  // namespace

@@ -61,9 +61,11 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/elektra)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/test)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/parlaylib/include/)
 include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/googletest/googlemock/include)
+include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/external/googletest/googletest/include)
 
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/googletest/googletest/)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/googletest/)
 
 find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
@@ -84,7 +86,7 @@ target_link_libraries(elektra ${Boost_LIBRARIES})
 
 # Testing
 add_executable(elektra_test test/elektra_test.cpp)
-target_link_libraries(elektra_test gtest_main)
+target_link_libraries(elektra_test gmock_main gtest_main)
 include(GoogleTest)
 gtest_discover_tests(elektra_test)
 
