@@ -5,6 +5,7 @@
 #include <parlay/primitives.h>
 #include <parlay/sequence.h>
 
+#include <limits>
 #include <utility>
 
 #include "concurrentMap.h"
@@ -28,6 +29,17 @@ class Element : public parallel_skip_list::ElementBase<Element> {
     values_[0] = isUndirectedEdge;
   }
 
+  // Returns a representative vertex from the sequence the element lives in.
+  // Whereas `FindRepresentative()` returns a representative element that might
+  // be an edge, this function returns a vertex ID. For implementation
+  // simplicity, this function also assumes that the sequence is circular (as is
+  // the case for a sequence representing an ETT component that is not currently
+  // performing a join or split).
+  int FindRepresentativeVertex() const;
+  // Get all edges {u, v} in the sequence that contains this element, assuming
+  // that the sequence represents an ETT component.
+  parlay::sequence<std::pair<int, int>> GetEdges();
+
   // If this element represents a vertex v, then id == (v, v). Otherwise if
   // this element represents a directed edge (u, v), then id == (u,v).
   std::pair<int, int> id_;
@@ -36,10 +48,6 @@ class Element : public parallel_skip_list::ElementBase<Element> {
   // When batch splitting, we mark this as `true` for an edge that we will
   // splice out in the current round of recursion.
   bool split_mark_{false};
-
-  // Get all edges {u, v} in the sequence that contains this element, assuming
-  // that the sequence represents an ETT component.
-  parlay::sequence<std::pair<int, int>> GetEdges();
 
  private:
   friend class parallel_skip_list::ElementBase<Element>;
@@ -205,6 +213,43 @@ parlay::sequence<std::pair<int, int>> Element::GetEdges() {
   return edges;
 }
 
+int Element::FindRepresentativeVertex() const {
+  const Element* current_element{this};
+  const Element* seen_element{nullptr};
+  int current_level{current_element->height_ - 1};
+
+  // walk up while moving forward
+  while (current_element->neighbors_[current_level].next != nullptr &&
+         seen_element != current_element) {
+    if (seen_element == nullptr) {
+      seen_element = current_element;
+    }
+    current_element = current_element->neighbors_[current_level].next;
+    const int top_level{current_element->height_ - 1};
+    if (current_level < top_level) {
+      current_level = top_level;
+      seen_element = nullptr;
+    }
+  }
+
+  // expect list to be a cycle for simplicity
+  assert(seen_element == current_element);
+  // look for minimum ID vertex in top level, or try again at lower levels if no
+  // vertex is found
+  int min_vertex{std::numeric_limits<int>::max()};
+  while (current_level >= 0 && min_vertex == std::numeric_limits<int>::max()) {
+    do {
+      const std::pair<int, int>& id{current_element->id_};
+      if (id.first == id.second && id.first < min_vertex) {
+        min_vertex = id.first;
+      }
+      current_element = current_element->neighbors_[current_level].next;
+    } while (current_element != seen_element);
+    current_level--;
+  }
+  return min_vertex == std::numeric_limits<int>::max() ? -1 : min_vertex;
+}
+
 // The element allocator is used to allocate and deallocate elements.
 // It is used to allocate the elements in the skip list.
 // This is borrowed from parlay's type allocator.
@@ -316,7 +361,7 @@ class EulerTourTree {
   void Cut(int u, int v);
 
   // Returns the representative of the vertex with id `u`.
-  int getRepresentative(int u) const;
+  int GetRepresentative(int u) const;
 
   // Adds all edges in the `len`-length array `links` to the forest. Adding
   // these edges must not create cycles in the graph.
@@ -398,12 +443,8 @@ bool EulerTourTree::IsConnected(int u, int v) const {
   return vertices_[u].FindRepresentative() == vertices_[v].FindRepresentative();
 }
 
-// RESOLVED: fix this because this is bad. Check whether casting etc is valid
-// and all.
-int EulerTourTree::getRepresentative(int u) const {
-  auto el = vertices_[u].FindRepresentative();
-  assert(el->id_.first == el->id_.second);
-  return el->id_.first;
+int EulerTourTree::GetRepresentative(int u) const {
+  return vertices_[u].FindRepresentativeVertex();
 }
 
 parlay::sequence<std::pair<int, int>> EulerTourTree::ComponentEdges(int v) {
