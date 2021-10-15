@@ -6,6 +6,7 @@
 #include <parlay/sequence.h>
 
 #include <limits>
+#include <unordered_set>
 #include <utility>
 
 #include "concurrentMap.h"
@@ -350,6 +351,8 @@ class EulerTourTree {
 
   // Returns true if `u` and `v` are in the same tree in the represented forest.
   bool IsConnected(int u, int v) const;
+  // Returns all vertices in the connected component of vertex `v`.
+  parlay::sequence<int> ComponentVertices(int v);
   // Returns all edges in the connected component of vertex `v`.
   parlay::sequence<std::pair<int, int>> ComponentEdges(int v);
 
@@ -445,6 +448,30 @@ bool EulerTourTree::IsConnected(int u, int v) const {
 
 int EulerTourTree::GetRepresentative(int u) const {
   return vertices_[u].FindRepresentativeVertex();
+}
+
+parlay::sequence<int> EulerTourTree::ComponentVertices(int v) {
+  // TODO(tomtseng) this is a bad, sequential way to get vertices of a
+  // component, i'm just not optimizing this right now because we're not using
+  // this anywhere important
+  const auto edges{ComponentEdges(v)};
+  auto vertices{parlay::sequence<int>::uninitialized(edges.size() + 1)};
+  if (edges.empty()) {
+    vertices[0] = v;
+  } else {
+    size_t curr_idx{0};
+    std::unordered_set<int> seen_vertices;
+    for (const auto& edge: edges) {
+      for (const auto u: {edge.first, edge.second}) {
+        if (seen_vertices.count(u) > 0) {
+          continue;
+        }
+        seen_vertices.insert(u);
+        vertices[curr_idx++] = u;
+      }
+    }
+  }
+  return vertices;
 }
 
 parlay::sequence<std::pair<int, int>> EulerTourTree::ComponentEdges(int v) {

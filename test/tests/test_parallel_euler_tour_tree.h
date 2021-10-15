@@ -82,14 +82,17 @@ TEST(ParallelEulerTourTreeTest, BigStarGraphs) {
   EXPECT_TRUE(ett.IsConnected(n / 2, n / 2 + 1));
 }
 
-TEST(ParallelEulerTourTreeTest, ComponentEdges) {
+TEST(ParallelEulerTourTreeTest, ComponentVerticesAndEdges) {
   pett::EulerTourTree ett = pett::EulerTourTree{6};
   ett.Link(0, 2);
   ett.Link(1, 2);
   ett.Link(3, 5);
 
+  EXPECT_THAT(ett.ComponentVertices(0), UnorderedElementsAre(0, 1, 2));
   EXPECT_THAT(ett.ComponentEdges(0), UnorderedElementsAre(Pair(0, 2), Pair(1, 2)));
+  EXPECT_THAT(ett.ComponentVertices(3), UnorderedElementsAre(3, 5));
   EXPECT_THAT(ett.ComponentEdges(3), UnorderedElementsAre(Pair(3, 5)));
+  EXPECT_THAT(ett.ComponentVertices(4), UnorderedElementsAre(4));
   EXPECT_THAT(ett.ComponentEdges(4), IsEmpty());
 }
 

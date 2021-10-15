@@ -118,22 +118,13 @@ auto BatchDynamicConnectivity::removeDuplicates(sequence<int> &seq) {
 UndirectedEdge BatchDynamicConnectivity::componentSearch(int level, V v) {
   auto levelEulerTree = parallel_spanning_forests_[level];
   // TODO: make sure there is a return in every case.
-  auto cc = levelEulerTree->ComponentEdges(v);
-  // `ComponentEdges()` + `seen_vertices` is a silly way to iterate over
-  // vertices of a component but we're going to refactor this anyway
-  std::unordered_set<V> seen_vertices;
+  auto cc = levelEulerTree->ComponentVertices(v);
   for (int i = 0; i < (int)cc.size(); i++) {
-    auto e = cc[i];
-    for (auto u : {e.first, e.second}) {
-      if (seen_vertices.count(u) > 0) {
-        continue;
-      }
-      seen_vertices.insert(u);
-      for (auto w : non_tree_adjacency_lists_[level][u]) {
-        if (levelEulerTree->GetRepresentative(u) !=
-            levelEulerTree->GetRepresentative(v)) {
-          return UndirectedEdge(u, w);
-        }
+    auto u = cc[i];
+    for (auto w : non_tree_adjacency_lists_[level][u]) {
+      if (levelEulerTree->GetRepresentative(u) !=
+          levelEulerTree->GetRepresentative(v)) {
+        return UndirectedEdge(u, w);
       }
     }
   }
