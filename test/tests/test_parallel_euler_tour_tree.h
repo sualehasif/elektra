@@ -93,5 +93,29 @@ TEST(ParallelEulerTourTreeTest, ComponentEdges) {
   EXPECT_THAT(ett.ComponentEdges(4), IsEmpty());
 }
 
+TEST(ParallelEulerTourTreeTest, GetRepresentative) {
+  const int n = 8;
+  pett::EulerTourTree ett = pett::EulerTourTree{n};
+
+  ett.Link(0, 1);
+  ett.Link(0, 2);
+  ett.Link(1, 3);
+  ett.Link(1, 4);
+  ett.Link(6, 7);
+
+  std::vector<int> reps(n);
+  for (int i = 0; i < n; i++) {
+    reps[i] = ett.GetRepresentative(i);
+  }
+  EXPECT_EQ(reps[0], reps[1]);
+  EXPECT_EQ(reps[0], reps[2]);
+  EXPECT_EQ(reps[0], reps[3]);
+  EXPECT_EQ(reps[0], reps[4]);
+  EXPECT_NE(reps[0], reps[5]);
+  EXPECT_NE(reps[0], reps[6]);
+  EXPECT_NE(reps[5], reps[6]);
+  EXPECT_EQ(reps[6], reps[7]);
+}
+
 }  // namespace
 }  // namespace elektra::testing
