@@ -199,7 +199,7 @@ class BatchDynamicConnectivity {
 
   treeSet getSpanningTree(const parlay::sequence<UndirectedEdge> &se);
 
-  void BatchDynamicConnectivity::replacementSearch(
+  void replacementSearch(
       int level, parlay::sequence<int> components,
       parlay::sequence<pair<int, int>> &promotedEdges);
 
