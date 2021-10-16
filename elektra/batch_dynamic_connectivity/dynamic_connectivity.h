@@ -58,8 +58,8 @@ void BatchDynamicConnectivity::BatchAddEdges(
   sequence<UndirectedEdge> auxiliaryEdges =
       parlay::map(se, [&](UndirectedEdge e) {
         return UndirectedEdge(
-            (V)maxLevelEulerTree->getRepresentative(e.first),
-            (V)maxLevelEulerTree->getRepresentative(e.second));
+            (V)maxLevelEulerTree->GetRepresentative(e.first),
+            (V)maxLevelEulerTree->GetRepresentative(e.second));
       });
   auto tree = getSpanningTree(auxiliaryEdges);
 
@@ -109,7 +109,7 @@ void BatchDynamicConnectivity::BatchAddEdges(
 auto BatchDynamicConnectivity::removeDuplicates(sequence<int> &seq) {
   // TODO: possibly change this to use a not inplace sort
   // FIXME: Turn this into a integer sort by converting vertices to uints
-  parlay::integer_sort_inplace(seq);
+  parlay::integer_sort_inplace(seq, [](int x) { return (unsigned)x; });
 
   auto newSeq = parlay::unique(seq);
   return newSeq;
@@ -118,12 +118,12 @@ auto BatchDynamicConnectivity::removeDuplicates(sequence<int> &seq) {
 UndirectedEdge BatchDynamicConnectivity::componentSearch(int level, V v) {
   auto levelEulerTree = parallel_spanning_forests_[level];
   // TODO: make sure there is a return in every case.
-  auto cc = levelEulerTree->ConnectedComponent(v);
+  auto cc = levelEulerTree->ComponentVertices(v);
   for (int i = 0; i < (int)cc.size(); i++) {
     auto u = cc[i];
     for (auto w : non_tree_adjacency_lists_[level][u]) {
-      if (levelEulerTree->getRepresentative(u) !=
-          levelEulerTree->getRepresentative(v)) {
+      if (levelEulerTree->GetRepresentative(u) !=
+          levelEulerTree->GetRepresentative(v)) {
         return UndirectedEdge(u, w);
       }
     }
@@ -177,26 +177,27 @@ void BatchDynamicConnectivity::replacementSearch(
       if (component_indicator[i] == 1) return;
 
       auto c = components[i];
-      auto cc = ett->ConnectedComponent(c);
+      auto cc = ett->ComponentEdges(c);
+      const int ccSize = cc.size() + 1;
 
       // size check to ensure that we are only running over small components
-      if (cc.size() > critical_component_size) return;
+      if (ccSize > critical_component_size) return;
 
       // doing a search over the components.
       parlay::parallel_for(0, search_size, [&](int j) {
         auto idx = j + total_search_stride;
         // if we have already searched this component, skip it.
-        if (idx >= cc.size()) {
+        if (idx >= ccSize) {
           component_indicator[i] = 1;
           return;
         } else {
-          auto e = cc[idx];
+          auto e = UndirectedEdge(cc[idx]);
           if (edges_[e].type == detail::EdgeType::kNonTree) {
             auto u = e.first;
             auto v = e.second;
 
-            auto u_rep = ett->getRepresentative(u);
-            auto v_rep = ett->getRepresentative(v);
+            auto u_rep = ett->GetRepresentative(u);
+            auto v_rep = ett->GetRepresentative(v);
 
             auto u_parent = UF.find_set(u_rep);
             auto v_parent = UF.find_set(v_rep);
@@ -299,11 +300,11 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
 
     sequence<int> lcomponents =
         parlay::map(edgesToReplace, [&](UndirectedEdge e) {
-          return levelEulerTree->getRepresentative(e.first);
+          return levelEulerTree->GetRepresentative(e.first);
         });
     sequence<int> rcomponents =
         parlay::map(edgesToReplace, [&](UndirectedEdge e) {
-          return levelEulerTree->getRepresentative(e.second);
+          return levelEulerTree->GetRepresentative(e.second);
         });
     lcomponents.append(rcomponents);
 
@@ -335,7 +336,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
 //   levelEulerTree->BatchLink(promotedEdges);
 
 //   auto ncomponents = parlay::map(
-//       components, [&](V v) { return (V)levelEulerTree->getRepresentative(v);
+//       components, [&](V v) { return (V)levelEulerTree->GetRepresentative(v);
 //       });
 //   components = ncomponents;
 //   // components = removeDuplicates(components);
@@ -386,8 +387,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
 
 //     auto maxLevelEulerTree = parallel_spanning_forests_[max_level_];
 //     auto auxiliaryEdges = parlay::map(R, [&](UndirectedEdge e) {
-//       return UndirectedEdge(maxLevelEulerTree->getRepresentative(e.first),
-//                             maxLevelEulerTree->getRepresentative(e.second));
+//       return UndirectedEdge(maxLevelEulerTree->GetRepresentative(e.first),
+//                             maxLevelEulerTree->GetRepresentative(e.second));
 //     });
 //     auto promIndices = getSpanningTree(auxiliaryEdges);
 
@@ -421,7 +422,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
 //     });
 
 //     auto ccu = parlay::map(components_to_consider, [&](V v) {
-//       return (V)levelEulerTree->getRepresentative(v);
+//       return (V)levelEulerTree->GetRepresentative(v);
 //     });
 
 //     // components_to_consider = removeDuplicates(ccu);
