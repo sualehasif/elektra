@@ -312,6 +312,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
     sequence<pair<int, int>> promoted_edges;
 
     // Doing a replacement search for the disconnected edge at level l.
+    // BUG: push down all the tree edges at level i.
     replacementSearch(l, components_to_consider, promoted_edges);
 
     levelEulerTree->BatchLink(promoted_edges);
