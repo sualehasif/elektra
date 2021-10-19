@@ -127,6 +127,47 @@ TEST_F(ParallelConnectivityTest, SimpleInsertionAndQuery2) {
   }
 }
 
+TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion1) {
+  parlay::sequence<UndirectedEdge> edges;
+
+  edges.push_back(UndirectedEdge(0, 1));
+  edges.push_back(UndirectedEdge(1, 2));
+  edges.push_back(UndirectedEdge(3, 4));
+
+  BatchDynamicConnectivity x(5, edges);
+
+  parlay::sequence<std::pair<Vertex, Vertex>> queries;
+  parlay::sequence<char> expectedOut;
+
+  queries.push_back(std::make_pair(0, 2));
+
+  expectedOut.push_back(true);
+
+  auto result = x.BatchConnected(queries);
+  for (int i = 0; i < (int)queries.size(); i++) {
+    EXPECT_EQ(result[i], expectedOut[i]);
+  }
+
+  // do some deletions
+  parlay::sequence<UndirectedEdge> deletions;
+  deletions.push_back(UndirectedEdge{1, 2});
+
+  // delete the edge in the graph
+  x.BatchDeleteEdges(deletions);
+
+  // do queries again
+  queries.clear();
+  expectedOut.clear();
+
+  queries.push_back(std::make_pair(0, 2));
+  expectedOut.push_back(false);
+
+  result = x.BatchConnected(queries);
+  for (int i = 0; i < (int)queries.size(); i++) {
+    EXPECT_EQ(result[i], expectedOut[i]);
+  }
+}
+
 // TEST_F(ParallelConnectivityTest, RandomInsertionAndQuery1) {}
 // TEST_F(ParallelConnectivityTest, RandomInsertionAndQuery2) {}
 

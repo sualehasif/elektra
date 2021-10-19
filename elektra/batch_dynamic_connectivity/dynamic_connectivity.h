@@ -9,6 +9,7 @@ template <typename T>
 using sequence = parlay::sequence<T>;
 using V = Vertex;
 
+using std::min;
 using std::pair;
 // -------------
 // PUBLIC METHODS
@@ -170,6 +171,12 @@ void BatchDynamicConnectivity::replacementSearch(
   for (int i = 0; i < (int)components.size(); i++) {
     UF.make_set(components[i]);
   }
+  // print the elements of components for debugging
+  std::cout << "Components" << std::endl;
+  for (auto &c : components) {
+    std::cout << c << " ";
+  }
+  std::cout << std::endl;
 
   while (parlay::count(component_indicator, 1) < components.size()) {
     parlay::parallel_for(0, components.size(), [&](int i) {
@@ -178,20 +185,20 @@ void BatchDynamicConnectivity::replacementSearch(
 
       auto c = components[i];
       auto cc = ett->ComponentEdges(c);
-      const int ccSize = cc.size() + 1;
+      const int ccSize = cc.size();
 
       // size check to ensure that we are only running over small components
       if (ccSize > critical_component_size) return;
 
       // doing a search over the components.
-      parlay::parallel_for(0, search_size, [&](int j) {
+      parlay::parallel_for(0, min(ccSize, search_size) + 1, [&](int j) {
         auto idx = j + total_search_stride;
         // if we have already searched this component, skip it.
         if (idx >= ccSize) {
           component_indicator[i] = 1;
           return;
         } else {
-          auto e = UndirectedEdge(cc[idx]);
+          auto e = UndirectedEdge{cc[idx].first, cc[idx].second};
           if (edges_[e].type == detail::EdgeType::kNonTree) {
             auto u = e.first;
             auto v = e.second;
@@ -316,14 +323,16 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
     // BUG: push down all the tree edges at level i.
     replacementSearch(l, components_to_consider, promoted_edges);
 
-    levelEulerTree->BatchLink(promoted_edges);
-
-    // TODO: possibly coursen the loop
-    // update the tree edges with the promoted edges for all the higher levels
-    parlay::parallel_for(l + 1, max_level_, [&](int i) {
-      auto levelEulerTree = parallel_spanning_forests_[i];
+    if (promoted_edges.size() > 0) {
+      // We have some promoted edges.
       levelEulerTree->BatchLink(promoted_edges);
-    });
+      // TODO: possibly coursen the loop
+      // update the tree edges with the promoted edges for all the higher levels
+      parlay::parallel_for(l + 1, max_level_, [&](int i) {
+        auto levelEulerTree = parallel_spanning_forests_[i];
+        levelEulerTree->BatchLink(promoted_edges);
+      });
+    }
   }
 
   return;
@@ -336,7 +345,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
 //   levelEulerTree->BatchLink(promotedEdges);
 
 //   auto ncomponents = parlay::map(
-//       components, [&](V v) { return (V)levelEulerTree->GetRepresentative(v);
+//       components, [&](V v) { return
+//       (V)levelEulerTree->GetRepresentative(v);
 //       });
 //   components = ncomponents;
 //   // components = removeDuplicates(components);
@@ -372,12 +382,15 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
 //       tree
 //         auto e = ed.first;
 //         auto details = ed.second;
-//         if (details.level == level && details.type == detail::EdgeType::kTree
+//         if (details.level == level && details.type ==
+//         detail::EdgeType::kTree
 //         &&
-//             (cc.find(e.first) != cc.end() || cc.find(e.second) != cc.end()))
+//             (cc.find(e.first) != cc.end() || cc.find(e.second) !=
+//             cc.end()))
 //             {
 //           edges_[e] = detail::EdgeInfo{
-//               static_cast<detail::Level>(details.level - 1), edges_[e].type};
+//               static_cast<detail::Level>(details.level - 1),
+//               edges_[e].type};
 //           edgesToDropLevel.push_back(make_pair(e.first, e.second));
 //         }
 //       }
