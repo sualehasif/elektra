@@ -305,7 +305,7 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion3) {
   }
 }
 
-TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion3) {
+TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion4) {
   parlay::sequence<UndirectedEdge> edges;
 
   auto num_vertices = 5;
@@ -394,6 +394,7 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion3) {
   result = x.BatchConnected(queries);
   for (int i = 0; i < (int)queries.size(); i++) {
     EXPECT_EQ(result[i], expectedOut[i]);
+    // }
   }
 }
 
