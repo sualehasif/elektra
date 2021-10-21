@@ -36,7 +36,7 @@ parlay::sequence<UndirectedEdge> intPairBatchToEdgeArray(
     parlay::sequence<intPair>& se) {
   // turns a sequence of edges to an array of pairs
   // useful for interfacing with EulerTourTrees
-  auto array = parlay::sequence<UndirectedEdge>::uninitialized(se.size());
+  parlay::sequence<UndirectedEdge> array;
 
   for (size_t i = 0; i < se.size(); i++) {
     array.push_back(UndirectedEdge(se[i].first, se[i].second));
@@ -48,7 +48,7 @@ parlay::sequence<UndirectedEdge> intPairBatchToEdgeArray(
 // then batch cut and batch link the first `batch_size` edges in `edges`.
 // Report the median batch cut and batch link time.
 template <typename Connectivity>
-void IncrementallUpdateConnectivity(edgeList edges, int batch_size,
+void incrementallUpdateConnectivity(edgeList edges, int batch_size,
                                     int num_iters, int n, int m) {
   vector<double> link_times(num_iters);
 
@@ -59,6 +59,9 @@ void IncrementallUpdateConnectivity(edgeList edges, int batch_size,
   std::uniform_int_distribution<> distrib(1, m - batch_size);
 
   for (int j = 0; j < num_iters; j++) {
+    // print the iteration number
+    std::cout << "iteration " << j << std::endl;
+
     timer link_t;
 
     // construct a slice of edges to insert (because Connectivity doesnt support
@@ -66,11 +69,21 @@ void IncrementallUpdateConnectivity(edgeList edges, int batch_size,
     auto start_slice = distrib(gen);
     auto slice = edges.cut(start_slice, start_slice + batch_size - 1);
     edgeList el{slice.begin(), slice.end()};
+
+    // print the edges to be inserted
+    std::cout << "inserting edges: " << std::endl;
+    for (auto e : el) {
+      std::cout << e.first << " " << e.second << std::endl;
+    }
+
     auto edges_to_link = intPairBatchToEdgeArray(el);
+
+    std::cout << "here" << std::endl;
 
     // batch link and time
     link_t.start();
     connect.BatchAddEdges(edges_to_link);
+
     link_times[j] = link_t.stop();
   }
   const std::string batch_str{std::to_string(batch_size)};
@@ -78,20 +91,30 @@ void IncrementallUpdateConnectivity(edgeList edges, int batch_size,
 }
 
 template <typename Connectivity>
-inline void RunBenchmark(int argc, char** argv) {
-  commandLine P{argc, argv, "[-iters] graph_filename"};
+inline void RunBenchmark(int argc, char** argv, std::string name) {
+  commandLine P{argc, argv, "[-iters] [-workers] graph_filename"};
   char* graph_filename{P.getArgument(0)};
 
-  int num_iters{P.getOptionIntValue("-iters", 4)};
+  int num_iters{P.getOptionIntValue("-iters", 5)};
   int nworkers{P.getOptionIntValue("-workers", 1)};
 
-  std::cout << "Running with " << nworkers << " workers" << std::endl;
+  // We start a benchmark
+  std::cout << " ---- Starting benchmark ---- " << std::endl;
+  std::cout << "  Benchmarks Name: " << name << std::endl;
+  std::cout << "  num_iters: " << num_iters << std::endl;
+  std::cout << "  Running with " << nworkers << " workers" << std::endl;
+  std::cout << "  graph_filename: " << graph_filename << std::endl;
+
   auto vertex_and_edge_list = io::read_unweighted_edge_list(graph_filename);
 
   const int n = vertex_and_edge_list.first;
 
   sequence<intPair> edges = vertex_and_edge_list.second;
   const int m = edges.size();
+
+  // print the number of vertices and edges
+  std::cout << "  n: " << n << std::endl;
+  std::cout << "  m: " << m << std::endl;
 
   std::random_device rd;
   std::mt19937 gen(rd());  // Standard mersenne_twister_engine seeded with rd()
@@ -101,8 +124,8 @@ inline void RunBenchmark(int argc, char** argv) {
 
   //   Connectivity* connect = new Connectivity(n);
 
-  for (int batch_size = 100; batch_size < m; batch_size *= 10) {
-    IncrementallUpdateConnectivity<Connectivity>(edges, batch_size, num_iters,
+  for (int batch_size = 2; batch_size < m; batch_size *= 10) {
+    incrementallUpdateConnectivity<Connectivity>(edges, batch_size, num_iters,
                                                  n, m);
   }
   //   UpdateForest(&forest, edges, m, num_iters, m);
