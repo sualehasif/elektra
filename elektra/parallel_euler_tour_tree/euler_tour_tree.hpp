@@ -61,12 +61,12 @@ class Element : public parallel_skip_list::ElementBase<Element> {
   void UpdateTopDownSequential(int level);
   // Gets edges held in descendants of this element and writes them into
   // the sequence starting at the offset. `values_` needs to be up to date.
-  void GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int offset, int level) const;
+  void GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int offset,
+                     int level) const;
   // Augment the skip list with the function "count the number of edges (u, v)
   // such that u < v in this list" (i.e., `values_[0]` is 1 if element
-  // represents such an edge, else is 0; `values_[i]` sums children's `values_[i -
-  // 1]`).
-  // We update `values_` lazily since we only use it in `GetEdges()`.
+  // represents such an edge, else is 0; `values_[i]` sums children's `values_[i
+  // - 1]`). We update `values_` lazily since we only use it in `GetEdges()`.
   int* values_{nullptr};
 };
 
@@ -143,8 +143,8 @@ void Element::UpdateTopDown(int level) {
   values_[level] = sum;
 }
 
-void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int offset,
-                            int level) const {
+void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s,
+                            int offset, int level) const {
   if (level == 0) {
     if (values_[0]) {
       (*s)[offset] = id_;
@@ -203,12 +203,11 @@ parlay::sequence<std::pair<int, int>> Element::GetEdges() {
     // cilk_sync;
 
     do {
-      parlay::par_do(
-          [&]() { curr->GetEdgesBelow(&edges, offset, level); },
-          [&]() {
-            offset += curr->values_[level];
-            curr = curr->neighbors_[level].next;
-          });
+      parlay::par_do([&]() { curr->GetEdgesBelow(&edges, offset, level); },
+                     [&]() {
+                       offset += curr->values_[level];
+                       curr = curr->neighbors_[level].next;
+                     });
     } while (curr != nullptr && curr != top_element);
   }
   return edges;
@@ -271,6 +270,8 @@ class EdgeMap {
   bool Delete(int u, int v);
   Element* Find(int u, int v);
 
+  int IsEmpty() const;
+
   // Deallocate all elements held in the map. This assumes that all elements
   // in the map were allocated through `allocator`.
   void FreeElements();
@@ -285,6 +286,9 @@ EdgeMap::EdgeMap(int num_vertices)
            std::make_pair(-1, -1), std::make_pair(-2, -2)} {}
 
 EdgeMap::~EdgeMap() { map_.del(); }
+
+// Check whether the hash table is empty.
+int EdgeMap::IsEmpty() const { return map_.n_elms == 0; }
 
 bool EdgeMap::Insert(int u, int v, Element* edge) {
   if (u > v) {
@@ -373,6 +377,12 @@ class EulerTourTree {
   // edges must be present in the forest and must be distinct.
   void BatchCut(parlay::sequence<std::pair<int, int>>& cuts);
 
+  // Returns if the forest is empty.
+  bool IsEmpty() const;
+
+  // Prints the tree to stdout.
+  void Print();
+
  private:
   void BatchCutRecurse(parlay::sequence<std::pair<int, int>>& cuts,
                        parlay::sequence<bool>& ignored, Element** join_targets,
@@ -410,7 +420,7 @@ void BatchCutSequential(EulerTourTree* ett,
 
 void BatchLinkSequential(EulerTourTree* ett,
                          const parlay::sequence<std::pair<int, int>>& links) {
-  for (const auto &link : links) {
+  for (const auto& link : links) {
     ett->Link(link.first, link.second);
   }
 }
@@ -461,8 +471,8 @@ parlay::sequence<int> EulerTourTree::ComponentVertices(int v) {
   } else {
     size_t curr_idx{0};
     std::unordered_set<int> seen_vertices;
-    for (const auto& edge: edges) {
-      for (const auto u: {edge.first, edge.second}) {
+    for (const auto& edge : edges) {
+      for (const auto u : {edge.first, edge.second}) {
         if (seen_vertices.count(u) > 0) {
           continue;
         }
@@ -477,6 +487,27 @@ parlay::sequence<int> EulerTourTree::ComponentVertices(int v) {
 parlay::sequence<std::pair<int, int>> EulerTourTree::ComponentEdges(int v) {
   return vertices_[v].GetEdges();
 }
+
+// Prints the tree to stdout.
+void EulerTourTree::Print() {
+  // make a set of all edges
+  std::unordered_set<std::pair<int, int>, HashIntPairStruct> edges;
+
+  for (int i = 0; i < num_vertices_; i++) {
+    for (const auto& edge : vertices_[i].GetEdges()) {
+      edges.insert(edge);
+    }
+  }
+
+  // print all the edges
+  for (const auto& edge : edges) {
+    std::cout << "(" << edge.first << ", " << edge.second << "), ";
+  }
+  std::cout << std::endl;
+}
+
+// Checks if the tree is empty.
+bool EulerTourTree::IsEmpty() const { return edges_.IsEmpty(); }
 
 void EulerTourTree::Link(int u, int v) {
   Element* uv = ElementAllocator::alloc();

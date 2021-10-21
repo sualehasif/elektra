@@ -138,10 +138,10 @@ class BatchDynamicConnectivity {
 
   parlay::sequence<Vertex> BatchFindRepr(const parlay::sequence<Vertex> &sv);
 
-  void printStructure();
-  void printLevel(int8_t level);
-  void printNonTreeEdges();
-  void printNonTreeEdgesForLevel();
+  void PrintStructure();
+  void PrintLevel(int8_t level);
+  void PrintNonTreeEdges();
+  void PrintNonTreeEdgesForLevel(int8_t level);
 
  private:
   const int64_t num_vertices_;
@@ -154,11 +154,11 @@ class BatchDynamicConnectivity {
   // whole graph.
   parlay::sequence<BatchDynamicET *> parallel_spanning_forests_;
 
-  // `adjacency_lists_by_level_[i][v]` contains the vertices connected to vertex
+  // `non_tree_adjacency_lists_[i][v]` contains the vertices connected to vertex
   // v by level-i non-tree edges.
-  // `adjacency_lists_by_level_` is a vector of size `max_level_`. (i.e. the
+  // `non_tree_adjacency_lists_` is a vector of size `max_level_`. (i.e. the
   // first index represents the levels.)
-  // `adjacency_lists_by_level_[i]` is a vector of size `num_vertices_`. (i.e.
+  // `non_tree_adjacency_lists_[i]` is a vector of size `num_vertices_`. (i.e.
   // the second index represents the vertices.)
   // TODO: make this concurrent map
   parlay::sequence<parlay::sequence<std::unordered_set<Vertex>>>
@@ -199,9 +199,8 @@ class BatchDynamicConnectivity {
 
   treeSet getSpanningTree(const parlay::sequence<UndirectedEdge> &se);
 
-  void replacementSearch(
-      int level, parlay::sequence<int> components,
-      parlay::sequence<pair<int, int>> &promotedEdges);
+  void replacementSearch(int level, parlay::sequence<int> components,
+                         parlay::sequence<pair<int, int>> &promotedEdges);
 
   template <typename Rank, typename Parent>
   treeSet constructTree(Rank &r, Parent &p,
@@ -338,6 +337,66 @@ parlay::sequence<std::pair<int, int>> edgeBatchToPairArray(
     array[i] = std::make_pair(se[i].first, se[i].second);
   });
   return array;
+}
+
+// We print the structure
+void BatchDynamicConnectivity::PrintStructure() {
+  // print the structure of the graph
+  // for each level, print the edges in the level
+
+  std::cout << " -- Printing the structure of the ETT -- " << std::endl;
+  std::cout << " -- --          tree edges         -- -- " << std::endl;
+  for (int i = 0; i < max_level_; i++) {
+    PrintLevel(i);
+  }
+  std::cout << " -- --       non tree edges         -- -- " << std::endl;
+  PrintNonTreeEdges();
+  std::cout << " -- done -- " << std::endl;
+}
+
+// We print the edges in each level of our structure
+void BatchDynamicConnectivity::PrintLevel(int8_t level) {
+  // print the edges in the level
+  auto pLevelEulerTree = parallel_spanning_forests_[level];
+
+  // if (pLevelEulerTree == nullptr || level >= max_level_ || level < 0 ||
+  //     pLevelEulerTree->IsEmpty()) {
+  //   return;
+  // }
+
+  std::cout << "Level " << (int)level << ": " << std::endl;
+  pLevelEulerTree->Print();
+}
+
+// We print the non tree edges
+void BatchDynamicConnectivity::PrintNonTreeEdges() {
+  // print the non tree edges
+  for (int8_t i = 0; i < max_level_; i++) {
+    PrintNonTreeEdgesForLevel(i);
+  }
+}
+
+// We print the non tree edges in each level of our structure
+void BatchDynamicConnectivity::PrintNonTreeEdgesForLevel(int8_t level) {
+  std::cout << "Level " << (int)level << ": " << std::endl;
+  // contains all the non-tree edges in the level
+  auto vtxLayer = non_tree_adjacency_lists_[level];
+
+  // scan through and build a set of all the edges
+  std::unordered_set<UndirectedEdge, UndirectedEdgeHash> edges;
+
+  for (int i = 0; i < num_vertices_; i++) {
+    auto vtxSet = vtxLayer[i];
+    for (auto v : vtxSet) {
+      edges.insert(UndirectedEdge(i, v));
+    }
+  }
+
+  // print the edges
+  for (auto e : edges) {
+    std::cout << "(" << e.first << ", " << e.second << "), ";
+  }
+  std::cout << std::endl;
 }
 
 }  // namespace batchDynamicConnectivity
