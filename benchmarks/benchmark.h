@@ -60,7 +60,7 @@ void incrementallUpdateConnectivity(edgeList edges, int batch_size,
 
   for (int j = 0; j < num_iters; j++) {
     // print the iteration number
-    std::cout << "iteration " << j << std::endl;
+    // std::cout << "iteration " << j << std::endl;
 
     timer link_t;
 
@@ -71,14 +71,12 @@ void incrementallUpdateConnectivity(edgeList edges, int batch_size,
     edgeList el{slice.begin(), slice.end()};
 
     // print the edges to be inserted
-    std::cout << "inserting edges: " << std::endl;
-    for (auto e : el) {
-      std::cout << e.first << " " << e.second << std::endl;
-    }
+    // std::cout << "inserting edges: " << std::endl;
+    // for (auto e : el) {
+    //   std::cout << e.first << " " << e.second << std::endl;
+    // }
 
     auto edges_to_link = intPairBatchToEdgeArray(el);
-
-    std::cout << "here" << std::endl;
 
     // batch link and time
     link_t.start();

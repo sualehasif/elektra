@@ -8,7 +8,7 @@
 using BatchDynamicConnectivity =
     batchDynamicConnectivity::BatchDynamicConnectivity;
 int main(int argc, char** argv) {
-  std::cout << "Hello, from elektra!\n";
+  std::cout << "Hello, from elektra!\n\n";
   elektra::benchmark::RunBenchmark<BatchDynamicConnectivity>(
       argc, argv, "Dynamic Connectivity");
 }
