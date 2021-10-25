@@ -11,6 +11,7 @@ using V = Vertex;
 
 using std::min;
 using std::pair;
+using std::vector;
 // -------------
 // PUBLIC METHODS
 // -------------
@@ -105,14 +106,13 @@ void BatchDynamicConnectivity::BatchAddEdges(
   });
 }
 
-// TODO implement semisort or any sort
 // template <typename T>
-auto BatchDynamicConnectivity::removeDuplicates(sequence<int> &seq) {
-  // TODO: possibly change this to use a not inplace sort
-  // FIXME: Turn this into a integer sort by converting vertices to uints
+sequence<int> BatchDynamicConnectivity::removeDuplicates(sequence<int> &seq) {
+  // TODO: possibly change this to use a semisort and not inplace sort
+  // sort the sequence
   parlay::integer_sort_inplace(seq, [](int x) { return (unsigned)x; });
-
   auto newSeq = parlay::unique(seq);
+
   return newSeq;
 }
 
@@ -144,9 +144,19 @@ void BatchDynamicConnectivity::replacementSearch(
   int search_size = 256;
   int total_search_stride = 0;
 
+  // print out the components to consider
+  std::cout << "Components to consider" << std::endl;
+  for (auto &c : components) {
+    std::cout << c << " ";
+  }
+  std::cout << std::endl;
+
+  // TODO: I think this shoudl be 1 << (level - 1)
   int critical_component_size = 1 << level;
 
-  sequence<char> component_indicator(components.size(), 0);
+  // make a vector of the components to consider with size components.size() and
+  // initialized to 0
+  vector<char> component_indicator(components.size(), 0);
 
   sequence<pair<int, int>> push_down_edges;
 
@@ -171,12 +181,31 @@ void BatchDynamicConnectivity::replacementSearch(
   for (int i = 0; i < (int)components.size(); i++) {
     UF.make_set(components[i]);
   }
-  // print the elements of components for debugging
-  std::cout << "Components" << std::endl;
-  for (auto &c : components) {
-    std::cout << c << " ";
+
+  // set up non-tree edges to search through
+  // The first sequence indexes by the component number
+  // The second sequence indexes by the edges in the component
+  vector<vector<UndirectedEdge>> nonTreeEdges;
+
+  for (int i = 0; i < (int)components.size(); i++) {
+    nonTreeEdges.push_back(vector<UndirectedEdge>());
   }
-  std::cout << std::endl;
+
+  for (int i = 0; i < (int)components.size(); i++) {
+    auto comp_id = components[i];
+    // get the ComponentVertices for the component
+    auto cc = ett->ComponentVertices(comp_id);
+
+    // for each vertex in the component
+    for (int j = 0; j < (int)cc.size(); j++) {
+      auto u = cc[j];
+      // for each edge in the component
+      for (auto w : non_tree_adjacency_lists_[level][u]) {
+        // push the edge into the nonTreeEdges vector
+        nonTreeEdges[i].push_back(UndirectedEdge(u, w));
+      }
+    }
+  }
 
   while (parlay::count(component_indicator, 1) < components.size()) {
     parlay::parallel_for(0, components.size(), [&](int i) {
@@ -184,40 +213,39 @@ void BatchDynamicConnectivity::replacementSearch(
       if (component_indicator[i] == 1) return;
 
       auto c = components[i];
-      auto cc = ett->ComponentEdges(c);
-      const int ccSize = cc.size();
+      auto nonTreeEdges_i = nonTreeEdges[i];
+      const int num_edges = nonTreeEdges_i.size();
 
       // size check to ensure that we are only running over small components
-      if (ccSize > critical_component_size) return;
+      if (num_edges > critical_component_size) return;
 
       // doing a search over the components.
-      parlay::parallel_for(0, min(ccSize, search_size) + 1, [&](int j) {
+      parlay::parallel_for(0, min(num_edges, search_size) + 1, [&](int j) {
         auto idx = j + total_search_stride;
         // if we have already searched this component, skip it.
-        if (idx >= ccSize) {
+        if (idx >= num_edges) {
           component_indicator[i] = 1;
           return;
         } else {
-          auto e = UndirectedEdge{cc[idx].first, cc[idx].second};
-          if (edges_[e].type == detail::EdgeType::kNonTree) {
-            auto u = e.first;
-            auto v = e.second;
+          auto e = UndirectedEdge{nonTreeEdges_i[idx].first,
+                                  nonTreeEdges_i[idx].second};
+          auto u = e.first;
+          auto v = e.second;
 
-            auto u_rep = ett->GetRepresentative(u);
-            auto v_rep = ett->GetRepresentative(v);
+          auto u_rep = ett->GetRepresentative(u);
+          auto v_rep = ett->GetRepresentative(v);
 
-            auto u_parent = UF.find_set(u_rep);
-            auto v_parent = UF.find_set(v_rep);
+          auto u_parent = UF.find_set(u_rep);
+          auto v_parent = UF.find_set(v_rep);
 
-            if (u_parent != v_parent) {
-              // link the two components together
-              UF.link(u_parent, v_parent);
-              // this should just be promoted.
-              promoted_edges.push_back(make_pair(u, v));
-            } else {
-              // this failed and will be pushed down a level.
-              push_down_edges.push_back(make_pair(u, v));
-            }
+          if (u_parent != v_parent) {
+            // link the two components together
+            UF.link(u_parent, v_parent);
+            // this should just be promoted.
+            promoted_edges.push_back(make_pair(u, v));
+          } else {
+            // this failed and will be pushed down a level.
+            push_down_edges.push_back(make_pair(u, v));
           }
         }
       });
@@ -232,20 +260,50 @@ void BatchDynamicConnectivity::replacementSearch(
     // update the search size
     search_size *= 2;
   }
+
+  // print the promoted edges
+  std::cout << "Promoted edges" << std::endl;
+  for (auto &e : promoted_edges) {
+    std::cout << e.first << " " << e.second << std::endl;
+  }
+  std::cout << std::endl;
+  // print "yay"
+  std::cout << "yay" << std::endl;
 }
 
-void BatchDynamicConnectivity::BatchDeleteEdges(
-    const sequence<UndirectedEdge> &se) {
+void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
+  // first make sure all the edges are correctly oriented and remove all the
+  // edges that are not in the graph
+  // TODO(Sualeh): Do this in parallel
+
+  parlay::parallel_for(0, (int)se.size(), [&](int i) {
+    auto e = se[i];
+    auto u = e.first;
+    auto v = e.second;
+
+    if (edges_.find(UndirectedEdge(v, u)) != edges_.end()) {
+      // swap the edges
+      se[i] = UndirectedEdge(v, u);
+    } else if (edges_.find(e) == edges_.end()) {
+      // if the edge is not in the graph, skip it
+      se[i] = UndirectedEdge(-1, -1);
+    }
+  });
+
+  // filter out the (-1, -1) edges
+  parlay::filter(se, [&](UndirectedEdge e) { return e.first != -1; });
+
   // split se into tree and non tree edges
   sequence<UndirectedEdge> treeEdges;
   // reserve space for the sequence
   treeEdges.reserve(se.size());
 
-  int8_t min_tree_edge_level = max_level_;
+  int min_tree_edge_level = (int)max_level_;
   // std::atomic<int8_t> min_tree_edge_level(max_level_);
 
   std::mutex m;
   std::unique_lock<std::mutex> lock(m, std::defer_lock);
+
   // delete edges from the non tree adjacency lists.
   parlay::parallel_for(0, se.size(), [&](int i) {
     auto level = edges_[se[i]].level;
@@ -281,6 +339,9 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
     }
   });
 
+  // print here
+  std::cout << "min tree edge level: " << min_tree_edge_level << std::endl;
+
   // delete edges from the tree at each level from the minimum tree edge level
   // to the maximum tree edge level
   for (int l = min_tree_edge_level; l < max_level_; l++) {
@@ -294,6 +355,10 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
     sequence<pair<int, int>> toDeletePairSequence =
         edgeBatchToPairArray(toDelete);
 
+    for (auto &e : toDeletePairSequence) {
+      std::cout << e.first << " " << e.second << std::endl;
+    }
+
     levelEulerTree->BatchCut(toDeletePairSequence);
   }
 
@@ -304,6 +369,12 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
 
     auto edgesToReplace = parlay::filter(
         treeEdges, [&](UndirectedEdge e) { return edges_[e].level == l; });
+
+    // print out the edges to replace
+    std::cout << "Edges to replace" << std::endl;
+    for (auto &e : edgesToReplace) {
+      std::cout << e.first << " " << e.second << std::endl;
+    }
 
     sequence<int> lcomponents =
         parlay::map(edgesToReplace, [&](UndirectedEdge e) {
@@ -316,6 +387,18 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
     lcomponents.append(rcomponents);
 
     auto components_to_consider = removeDuplicates(lcomponents);
+
+    // print out the components to consider
+    std::cout << "Components to consider" << std::endl;
+    for (auto &c : components_to_consider) {
+      std::cout << "Component " << c << " contains the edges:" << std::endl;
+      auto ett = parallel_spanning_forests_[l];
+      auto cc = ett->ComponentEdges(c);
+      for (auto &e : cc) {
+        std::cout << e.first << " " << e.second << std::endl;
+      }
+    }
+
     // FIXME: we might have to reserve space here.
     sequence<pair<int, int>> promoted_edges;
 

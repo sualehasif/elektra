@@ -127,7 +127,7 @@ TEST_F(ParallelConnectivityTest, SimpleInsertionAndQuery2) {
   }
 }
 
-TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion1) {
+TEST_F(ParallelConnectivityTest, DISABLED_SimpleEdgeDeletion1) {
   parlay::sequence<UndirectedEdge> edges;
 
   edges.push_back(UndirectedEdge(0, 1));
@@ -168,7 +168,7 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion1) {
   }
 }
 
-TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion2) {
+TEST_F(ParallelConnectivityTest, DISABLED_SimpleEdgeDeletion2) {
   parlay::sequence<UndirectedEdge> edges;
 
   // we are looking at a graph with a triangle with an edge sticking out of it
@@ -205,9 +205,6 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion2) {
 
   // delete the edge in the graph
   x.BatchDeleteEdges(deletions);
-
-  // print our graph
-  x.PrintStructure();
 
   // do queries again
   queries.clear();
@@ -316,7 +313,7 @@ TEST_F(ParallelConnectivityTest, DISABLED_SimpleEdgeDeletion3) {
   }
 }
 
-TEST_F(ParallelConnectivityTest, DISABLED_SimpleEdgeDeletion4) {
+TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion4) {
   parlay::sequence<UndirectedEdge> edges;
 
   auto num_vertices = 5;

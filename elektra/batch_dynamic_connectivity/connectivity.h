@@ -134,7 +134,7 @@ class BatchDynamicConnectivity {
    *
    *  @param[in] edge Edge to be deleted.
    */
-  void BatchDeleteEdges(const parlay::sequence<UndirectedEdge> &se);
+  void BatchDeleteEdges(parlay::sequence<UndirectedEdge> &se);
 
   parlay::sequence<Vertex> BatchFindRepr(const parlay::sequence<Vertex> &sv);
 
@@ -206,7 +206,7 @@ class BatchDynamicConnectivity {
   treeSet constructTree(Rank &r, Parent &p,
                         const parlay::sequence<UndirectedEdge> &se);
 
-  auto removeDuplicates(parlay::sequence<int> &seq);
+  parlay::sequence<int> removeDuplicates(parlay::sequence<int> &seq);
 };
 
 parlay::sequence<std::unordered_set<Vertex>> generateInitialVertexLayer(
@@ -344,7 +344,7 @@ void BatchDynamicConnectivity::PrintStructure() {
   // print the structure of the graph
   // for each level, print the edges in the level
 
-  std::cout << " -- Printing the structure of the ETT -- " << std::endl;
+  std::cout << "\n\n -- Printing the structure of the ETT -- " << std::endl;
   std::cout << " -- --          tree edges         -- -- " << std::endl;
   for (int i = 0; i < max_level_; i++) {
     PrintLevel(i);
@@ -352,6 +352,7 @@ void BatchDynamicConnectivity::PrintStructure() {
   std::cout << " -- --       non tree edges         -- -- " << std::endl;
   PrintNonTreeEdges();
   std::cout << " -- done -- " << std::endl;
+  std::cout << "\n\n" << std::endl;
 }
 
 // We print the edges in each level of our structure
@@ -388,7 +389,10 @@ void BatchDynamicConnectivity::PrintNonTreeEdgesForLevel(int8_t level) {
   for (int i = 0; i < num_vertices_; i++) {
     auto vtxSet = vtxLayer[i];
     for (auto v : vtxSet) {
-      edges.insert(UndirectedEdge(i, v));
+      // order the insertion to avoid duplicates
+      if (v > i) {
+        edges.insert(UndirectedEdge(i, v));
+      }
     }
   }
 

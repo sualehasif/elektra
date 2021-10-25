@@ -18,13 +18,13 @@ struct UndirectedEdge {
    *  @param[in] v The other endpoint of the edge.
    */
   UndirectedEdge(Vertex u, Vertex v) : first(u), second(v){};
-  UndirectedEdge(std::pair<Vertex, Vertex> e) : first(e.first), second(e.second){};
-  UndirectedEdge() = delete;
+  UndirectedEdge(std::pair<Vertex, Vertex> e)
+      : first(e.first), second(e.second){};
 
   /** One endpoint of the edge. */
-  const Vertex first;
+  Vertex first;
   /** The other endpoint of the edge. */
-  const Vertex second;
+  Vertex second;
 };
 /** Defines how to print UndirectedEdge in an output stream. */
 std::ostream& operator<<(std::ostream& out, const UndirectedEdge& edge);
