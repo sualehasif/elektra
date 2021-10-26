@@ -16,7 +16,7 @@ namespace parallel_skip_list {
 // each element of the skip list. To do this, we use the curiously recurring
 // template pattern (CRTP). By passing in the derived class through a template,
 // the skip list can hold pointers to the instances of derived class. A minimal
-// instantiation is given in "skip_list.hpp".
+// instantiation is given in the class "parallel_skip_list::Element".
 //
 // Derived classes must provide a (perhaps empty) `DerivedInitialize()` and
 // `DerivedFinish()` function, which will be called in `Initialize()` and
@@ -107,13 +107,36 @@ class ElementBase {
   int height_;
 };
 
+// Basic phase-concurrent skip list. See interface of `ElementBase<T>`.
+class Element : public ElementBase<Element> {
+ public:
+  explicit Element(size_t random_int) : ElementBase<Element>{random_int} {}
+
+ private:
+  friend class ElementBase<Element>;
+  static void DerivedInitialize() {}
+  static void DerivedFinish() {}
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 //                           Implementation below.                           //
 ///////////////////////////////////////////////////////////////////////////////
 
 namespace _internal {
 
-int GenerateHeight(size_t random_int);
+constexpr int kMaxHeight{concurrent_array_allocator::kMaxArrayLength};
+
+int GenerateHeight(size_t random_int) {
+  int h{1};
+  // Geometric(1/2) distribution.
+  // Note: could also consider Geometric(3/4) (so 1/4 of elements go up to next
+  // level) by reading two bits at once
+  while (random_int & 1) {
+    random_int >>= 1;
+    h++;
+  }
+  return std::min(h, kMaxHeight);
+}
 
 }  // namespace _internal
 
@@ -306,105 +329,5 @@ Derived* ElementBase<Derived>::Split() {
   }
   return successor;
 }
-
-// Basic phase-concurrent skip list. See interface of `ElementBase<T>`.
-class Element : public ElementBase<Element> {
- public:
-  explicit Element(size_t random_int) : ElementBase<Element>{random_int} {}
-
- private:
-  friend class ElementBase<Element>;
-  static void DerivedInitialize() {}
-  static void DerivedFinish() {}
-};
-
-// Batch-parallel augmented skip list. Currently, the augmentation is
-// hardcoded to the sum function with the value 1 assigned to each element. As
-// such, `GetSum()` returns the size of the list.
-//
-// TODO(tomtseng): Allow user to pass in their own arbitrary associative
-// augmentation functions. The contract for `GetSum` on a cyclic list should be
-// that the function will be applied starting from `this`, because where we
-// begin applying the function matters for non-commutative functions.
-class AugmentedElement : private ElementBase<AugmentedElement> {
-  friend class ElementBase<AugmentedElement>;
-
- public:
-  using ElementBase<AugmentedElement>::Initialize;
-  using ElementBase<AugmentedElement>::Finish;
-
-  // See comments on `ElementBase<>`.
-  AugmentedElement();
-  explicit AugmentedElement(size_t random_int);
-  ~AugmentedElement();
-
-  // For each `{left, right}` in the `len`-length array `joins`, concatenate the
-  // list that `left` lives in to the list that `right` lives in.
-  //
-  // `left` must be the last node in its list, and `right` must be the first
-  // node of in its list. Each `left` must be unique, and each `right` must be
-  // unique.
-  static void BatchJoin(std::pair<AugmentedElement*, AugmentedElement*>* joins,
-                        int len);
-
-  // For each `v` in the `len`-length array `splits`, split `v`'s list right
-  // after `v`.
-  static void BatchSplit(AugmentedElement** splits, int len);
-
-  // For each `i`=0,1,...,`len`-1, assign value `new_values[i]` to element
-  // `elements[i]`.
-  static void BatchUpdate(AugmentedElement** elements, int* new_values,
-                          int len);
-
-  // Get the result of applying the augmentation function over the subsequence
-  // between `left` and `right` inclusive.
-  //
-  // `left` and `right` must live in the same list, and `left` must precede
-  // `right` in the list.
-  //
-  // This function does not modify the data structure, so it may run
-  // concurrently with other `GetSubsequenceSum` calls and const function calls.
-  static int GetSubsequenceSum(const AugmentedElement* left,
-                               const AugmentedElement* right);
-
-  // Get result of applying the augmentation function over the whole list that
-  // the element lives in.
-  int GetSum() const;
-
-  using ElementBase<AugmentedElement>::FindRepresentative;
-  using ElementBase<AugmentedElement>::GetPreviousElement;
-  using ElementBase<AugmentedElement>::GetNextElement;
-
- private:
-  static void DerivedInitialize();
-  static void DerivedFinish();
-
-  // Update aggregate value of node and clear `join_update_level` after joins.
-  void UpdateTopDown(int level);
-  void UpdateTopDownSequential(int level);
-
-  int* values_;
-  // When updating augmented values, this marks the lowest index at which the
-  // `values_` needs to be updated.
-  int update_level_;
-};
-
-namespace _internal {
-
-constexpr int kMaxHeight{concurrent_array_allocator::kMaxArrayLength};
-
-int GenerateHeight(size_t random_int) {
-  int h{1};
-  // Geometric(1/2) distribution.
-  // Note: could also consider Geometric(3/4) (so 1/4 of elements go up to next
-  // level) by reading two bits at once
-  while (random_int & 1) {
-    random_int >>= 1;
-    h++;
-  }
-  return std::min(h, kMaxHeight);
-}
-
-}  // namespace _internal
 
 }  // namespace parallel_skip_list
