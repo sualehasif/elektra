@@ -63,7 +63,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/parlaylib/include/)
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/external/googletest/googletest/include)
 
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/googletest/googletest/)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/googletest)
 
 find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
