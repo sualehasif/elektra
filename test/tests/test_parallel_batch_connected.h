@@ -18,7 +18,6 @@ using BatchDynamicConnectivity =
 class ParallelConnectivityTest : public ::testing::Test {
  protected:
   ParallelConnectivityTest() {
-    std::cout << "Parallel Connectivity: Testing" << std::endl;
     std::cout << "Testing on " << parlay::num_workers() << " Parlay workers."
               << std::endl;
     rng.seed(0);
@@ -127,7 +126,7 @@ TEST_F(ParallelConnectivityTest, SimpleInsertionAndQuery2) {
   }
 }
 
-TEST_F(ParallelConnectivityTest, DISABLED_SimpleEdgeDeletion1) {
+TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion1) {
   parlay::sequence<UndirectedEdge> edges;
 
   edges.push_back(UndirectedEdge(0, 1));
@@ -168,7 +167,7 @@ TEST_F(ParallelConnectivityTest, DISABLED_SimpleEdgeDeletion1) {
   }
 }
 
-TEST_F(ParallelConnectivityTest, DISABLED_SimpleEdgeDeletion2) {
+TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion2) {
   parlay::sequence<UndirectedEdge> edges;
 
   // we are looking at a graph with a triangle with an edge sticking out of it
@@ -179,7 +178,7 @@ TEST_F(ParallelConnectivityTest, DISABLED_SimpleEdgeDeletion2) {
 
   BatchDynamicConnectivity x(4, edges);
 
-  x.PrintStructure();
+  // x.PrintStructure();
 
   parlay::sequence<std::pair<Vertex, Vertex>> queries;
   parlay::sequence<char> expectedOut;
@@ -232,7 +231,7 @@ TEST_F(ParallelConnectivityTest, DISABLED_SimpleEdgeDeletion2) {
   }
 }
 
-TEST_F(ParallelConnectivityTest, DISABLED_SimpleEdgeDeletion3) {
+TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion3) {
   parlay::sequence<UndirectedEdge> edges;
 
   auto num_vertices = 5;
@@ -352,6 +351,9 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion4) {
     EXPECT_EQ(result[i], expectedOut[i]);
   }
 
+  // Print the graph
+  // x.PrintStructure();
+
   // do some deletions
   //     o 0
   //    /
@@ -366,6 +368,9 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion4) {
 
   // delete the edge in the graph
   x.BatchDeleteEdges(deletions);
+
+  // Print the graph
+  // x.PrintStructure();
 
   // do queries again
   queries.clear();
@@ -402,7 +407,6 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion4) {
   result = x.BatchConnected(queries);
   for (int i = 0; i < (int)queries.size(); i++) {
     EXPECT_EQ(result[i], expectedOut[i]);
-    // }
   }
 }
 

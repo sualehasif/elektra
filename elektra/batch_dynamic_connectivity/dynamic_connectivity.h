@@ -86,11 +86,22 @@ void BatchDynamicConnectivity::BatchAddEdges(
       detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
                              detail::EdgeType::kTree};
       edges_[se[i]] = ei;
+
+      // TODO(sualeh): Think about whether you can get away without inserting
+      // the reverse edge add the reverse edge to the edges_ map
+      detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
+                                 detail::EdgeType::kTree};
+      edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
     } else {
       nonTreeEdges.push_back(se[i]);
       detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
                              detail::EdgeType::kNonTree};
       edges_[se[i]] = ei;
+
+      // add the reverse edge to the edges_ map
+      detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
+                                 detail::EdgeType::kNonTree};
+      edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
     }
   });
 
@@ -104,6 +115,13 @@ void BatchDynamicConnectivity::BatchAddEdges(
     non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].second].insert(
         nonTreeEdges[i].first);
   });
+
+  // set the level of the nonTreeEdges to max_level_ - 1
+  // parlay::parallel_for(0, nonTreeEdges.size(), [&](int i) {
+  //   detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
+  //                          detail::EdgeType::kNonTree};
+  //   edges_[nonTreeEdges[i]] = ei;
+  // });
 }
 
 // template <typename T>
@@ -261,20 +279,19 @@ void BatchDynamicConnectivity::replacementSearch(
     search_size *= 2;
   }
 
+#ifdef DEBUG
   // print the promoted edges
   std::cout << "Promoted edges" << std::endl;
   for (auto &e : promoted_edges) {
     std::cout << e.first << " " << e.second << std::endl;
   }
   std::cout << std::endl;
-  // print "yay"
-  std::cout << "yay" << std::endl;
+#endif
 }
 
 void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
   // first make sure all the edges are correctly oriented and remove all the
   // edges that are not in the graph
-  // TODO(Sualeh): Do this in parallel
 
   parlay::parallel_for(0, (int)se.size(), [&](int i) {
     auto e = se[i];
@@ -317,8 +334,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
     // non tree adjacency list
     // TODO: could this possibly do this with edges_[se[i]] == kTree?
     if (ul.find(v) != ul.end()) {
-      ul.erase(ul.find(v));
-      vl.erase(vl.find(u));
+      non_tree_adjacency_lists_[level][u].erase(v);
+      non_tree_adjacency_lists_[level][v].erase(u);
     } else {
       treeEdges.push_back(se[i]);
 
@@ -370,11 +387,14 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
     auto edgesToReplace = parlay::filter(
         treeEdges, [&](UndirectedEdge e) { return edges_[e].level == l; });
 
+#ifdef DEBUG
     // print out the edges to replace
     std::cout << "Edges to replace" << std::endl;
     for (auto &e : edgesToReplace) {
-      std::cout << e.first << " " << e.second << std::endl;
+      std::cout << "(" << e.first << ", " << e.second << "), ";
     }
+    std::cout << std::endl << std::endl;
+#endif
 
     sequence<int> lcomponents =
         parlay::map(edgesToReplace, [&](UndirectedEdge e) {
@@ -388,16 +408,21 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
 
     auto components_to_consider = removeDuplicates(lcomponents);
 
-    // print out the components to consider
-    std::cout << "Components to consider" << std::endl;
+// print out the components to consider if debug is defined
+#ifdef DEBUG
+    std::cout << " ----------------------" << std::endl;
+    std::cout << "Components to consider:" << std::endl;
+
     for (auto &c : components_to_consider) {
-      std::cout << "Component " << c << " contains the edges:" << std::endl;
+      std::cout << "Component " << c << " contains the edges:";
       auto ett = parallel_spanning_forests_[l];
       auto cc = ett->ComponentEdges(c);
       for (auto &e : cc) {
-        std::cout << e.first << " " << e.second << std::endl;
+        std::cout << "(" << e.first << ", " << e.second << "), ";
       }
+      std::cout << std::endl;
     }
+#endif
 
     // FIXME: we might have to reserve space here.
     sequence<pair<int, int>> promoted_edges;
@@ -414,6 +439,44 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
       parlay::parallel_for(l + 1, max_level_, [&](int i) {
         auto levelEulerTree = parallel_spanning_forests_[i];
         levelEulerTree->BatchLink(promoted_edges);
+      });
+
+      // remove the promoted edges from the non-tree edge lists
+      parlay::parallel_for(0, promoted_edges.size(), [&](int i) {
+        auto e = promoted_edges[i];
+        auto level = edges_[UndirectedEdge{e.first, e.second}].level;
+        auto u = promoted_edges[i].first;
+        auto v = promoted_edges[i].second;
+
+// if DEBUG is defined
+#ifdef DEBUG
+        // print
+        std::cout << "Removing edge " << e.first << " " << e.second
+                  << std::endl;
+        // level
+        std::cout << "level: " << (int)level << std::endl;
+#endif
+
+        // update the edges_ map to reflect that it is a tree edge
+        detail::EdgeInfo ei = {level, detail::EdgeType::kTree};
+        edges_[UndirectedEdge{e.first, e.second}] = ei;
+        edges_[UndirectedEdge{e.second, e.first}] = ei;
+
+        auto ul = non_tree_adjacency_lists_[level][u];
+        auto vl = non_tree_adjacency_lists_[level][v];
+
+        // if (u, v) is a tree edge, then we need to remove it from the
+        // non tree adjacency list
+
+        assert(ul.find(v) != ul.end() || vl.find(u) != vl.end());
+
+        non_tree_adjacency_lists_[level][u].erase(v);
+        non_tree_adjacency_lists_[level][v].erase(u);
+
+        ul = non_tree_adjacency_lists_[level][u];
+        vl = non_tree_adjacency_lists_[level][v];
+
+        assert(ul.find(v) == ul.end() && vl.find(u) == vl.end());
       });
     }
   }
