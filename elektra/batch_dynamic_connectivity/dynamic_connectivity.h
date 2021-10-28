@@ -80,7 +80,33 @@ void BatchDynamicConnectivity::BatchAddEdges(
   nonTreeEdges.reserve(se.size() - tree.size());
 
   // update the tree and nonTree edges based on the ST computation
-  parlay::parallel_for(0, se.size(), [&](int i) {
+  // parlay::parallel_for(0, se.size(), [&](int i) {
+  //   if (tree.count(se[i])) {
+  //     treeEdges.push_back(make_pair(se[i].first, se[i].second));
+  //     detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
+  //                            detail::EdgeType::kTree};
+  //     edges_[se[i]] = ei;
+
+  //     // TODO(sualeh): Think about whether you can get away without inserting
+  //     // the reverse edge add the reverse edge to the edges_ map
+  //     detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
+  //                                detail::EdgeType::kTree};
+  //     edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
+  //   } else {
+  //     nonTreeEdges.push_back(se[i]);
+  //     detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
+  //                            detail::EdgeType::kNonTree};
+  //     edges_[se[i]] = ei;
+
+  //     // add the reverse edge to the edges_ map
+  //     detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
+  //                                detail::EdgeType::kNonTree};
+  //     edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
+  //   }
+  // });
+
+  // the loop above serially
+  for (int i = 0; i < (int)se.size(); i++) {
     if (tree.count(se[i])) {
       treeEdges.push_back(make_pair(se[i].first, se[i].second));
       detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
@@ -103,7 +129,7 @@ void BatchDynamicConnectivity::BatchAddEdges(
                                  detail::EdgeType::kNonTree};
       edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
     }
-  });
+  }
 
   // add tree edges
   maxLevelEulerTree->BatchLink(treeEdges);
@@ -140,7 +166,7 @@ UndirectedEdge BatchDynamicConnectivity::componentSearch(int level, V v) {
   auto cc = levelEulerTree->ComponentVertices(v);
   for (int i = 0; i < (int)cc.size(); i++) {
     auto u = cc[i];
-    for (auto w : non_tree_adjacency_lists_[level][u]) {
+    for (auto w : non_tree_adjacency_lists_[level][u].entries()) {
       if (levelEulerTree->GetRepresentative(u) !=
           levelEulerTree->GetRepresentative(v)) {
         return UndirectedEdge(u, w);
@@ -218,7 +244,7 @@ void BatchDynamicConnectivity::replacementSearch(
     for (int j = 0; j < (int)cc.size(); j++) {
       auto u = cc[j];
       // for each edge in the component
-      for (auto w : non_tree_adjacency_lists_[level][u]) {
+      for (auto w : non_tree_adjacency_lists_[level][u].entries()) {
         // push the edge into the nonTreeEdges vector
         nonTreeEdges[i].push_back(UndirectedEdge(u, w));
       }
@@ -333,10 +359,12 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
     // if (u, v) is not a tree edge, then we need to remove it from the
     // non tree adjacency list
     // TODO: could this possibly do this with edges_[se[i]] == kTree?
-    if (ul.find(v) != ul.end()) {
-      non_tree_adjacency_lists_[level][u].erase(v);
-      non_tree_adjacency_lists_[level][v].erase(u);
+    if (ul.find(v) >= 0) {
+      non_tree_adjacency_lists_[level][u].deleteVal(v);
+      non_tree_adjacency_lists_[level][v].deleteVal(u);
+
     } else {
+      // if it is a tree edge, then we need to add it to the tree edges
       treeEdges.push_back(se[i]);
 
       // atomic compare and swap to find the minimum tree edge level
@@ -356,8 +384,9 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
     }
   });
 
-  // print here
+  // print min and max level here
   std::cout << "min tree edge level: " << min_tree_edge_level << std::endl;
+  std::cout << "max tree edge level: " << (int)max_level_ << std::endl;
 
   // delete edges from the tree at each level from the minimum tree edge level
   // to the maximum tree edge level
@@ -367,6 +396,13 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
     // get the edges to delete which have level at max l.
     auto toDelete = parlay::filter(
         treeEdges, [&](UndirectedEdge e) { return edges_[e].level <= l; });
+
+    // #ifdef DEBUG
+    std::cout << "Deleting edges from level " << l << std::endl;
+    for (auto &e : toDelete) {
+      std::cout << e.first << " " << e.second << std::endl;
+    }
+    // #endif
 
     // FIXME: We do an extraneously expensive copy here because of API design.
     sequence<pair<int, int>> toDeletePairSequence =
@@ -468,15 +504,15 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
         // if (u, v) is a tree edge, then we need to remove it from the
         // non tree adjacency list
 
-        assert(ul.find(v) != ul.end() || vl.find(u) != vl.end());
+        assert(ul.find(v) >= 0 || vl.find(u) >= 0);
 
-        non_tree_adjacency_lists_[level][u].erase(v);
-        non_tree_adjacency_lists_[level][v].erase(u);
+        non_tree_adjacency_lists_[level][u].deleteVal(v);
+        non_tree_adjacency_lists_[level][v].deleteVal(u);
 
         ul = non_tree_adjacency_lists_[level][u];
         vl = non_tree_adjacency_lists_[level][v];
 
-        assert(ul.find(v) == ul.end() && vl.find(u) == vl.end());
+        assert(ul.find(v) < 0 && vl.find(u) < 0);
       });
     }
   }

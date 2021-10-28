@@ -147,12 +147,16 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion1) {
     EXPECT_EQ(result[i], expectedOut[i]);
   }
 
+  // x.PrintStructure();
+
   // do some deletions
   parlay::sequence<UndirectedEdge> deletions;
   deletions.push_back(UndirectedEdge{1, 2});
 
   // delete the edge in the graph
   x.BatchDeleteEdges(deletions);
+
+  // x.PrintStructure();
 
   // do queries again
   queries.clear();
