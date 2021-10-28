@@ -6,12 +6,17 @@
 #include <utility>
 
 #include "../../elektra/parallel_euler_tour_tree/euler_tour_tree.hpp"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace elektra::testing {
 namespace {
 
 namespace pett = parallel_euler_tour_tree;
+
+using ::testing::IsEmpty;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 
 TEST(ParallelEulerTourTreeTest, IsDisconnectedInitially) {
   const pett::EulerTourTree ett = pett::EulerTourTree{3};
@@ -75,6 +80,44 @@ TEST(ParallelEulerTourTreeTest, BigStarGraphs) {
   EXPECT_FALSE(ett.IsConnected(0, n / 2 - 1));
   EXPECT_FALSE(ett.IsConnected(0, n - 1));
   EXPECT_TRUE(ett.IsConnected(n / 2 - 1, n / 2));
+}
+
+TEST(ParallelEulerTourTreeTest, ComponentVerticesAndEdges) {
+  pett::EulerTourTree ett = pett::EulerTourTree{6};
+  ett.Link(0, 2);
+  ett.Link(1, 2);
+  ett.Link(3, 5);
+
+  EXPECT_THAT(ett.ComponentVertices(0), UnorderedElementsAre(0, 1, 2));
+  EXPECT_THAT(ett.ComponentEdges(0), UnorderedElementsAre(Pair(0, 2), Pair(1, 2)));
+  EXPECT_THAT(ett.ComponentVertices(3), UnorderedElementsAre(3, 5));
+  EXPECT_THAT(ett.ComponentEdges(3), UnorderedElementsAre(Pair(3, 5)));
+  EXPECT_THAT(ett.ComponentVertices(4), UnorderedElementsAre(4));
+  EXPECT_THAT(ett.ComponentEdges(4), IsEmpty());
+}
+
+TEST(ParallelEulerTourTreeTest, GetRepresentative) {
+  const int n = 8;
+  pett::EulerTourTree ett = pett::EulerTourTree{n};
+
+  ett.Link(0, 1);
+  ett.Link(0, 2);
+  ett.Link(1, 3);
+  ett.Link(1, 4);
+  ett.Link(6, 7);
+
+  std::vector<int> reps(n);
+  for (int i = 0; i < n; i++) {
+    reps[i] = ett.GetRepresentative(i);
+  }
+  EXPECT_EQ(reps[0], reps[1]);
+  EXPECT_EQ(reps[0], reps[2]);
+  EXPECT_EQ(reps[0], reps[3]);
+  EXPECT_EQ(reps[0], reps[4]);
+  EXPECT_NE(reps[0], reps[5]);
+  EXPECT_NE(reps[0], reps[6]);
+  EXPECT_NE(reps[5], reps[6]);
+  EXPECT_EQ(reps[6], reps[7]);
 }
 
 }  // namespace

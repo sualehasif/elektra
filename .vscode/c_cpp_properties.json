@@ -5,6 +5,8 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/elektra",
+                "${workspaceFolder}/test",
+                "${workspaceFolder}/test/tests",
                 "${workspaceFolder}/external/parlaylib/include/parlay",
                 "${workspaceFolder}/external/googletest/googletest/include/",
                 "${workspaceFolder}"
@@ -13,7 +15,8 @@
             "compilerPath": "/usr/bin/clang",
             "cStandard": "c11",
             "cppStandard": "c++14",
-            "intelliSenseMode": "linux-clang-x64"
+            "intelliSenseMode": "linux-clang-x64",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
         }
     ],
     "version": 4
