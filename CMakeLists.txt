@@ -1,7 +1,6 @@
-cmake_minimum_required(VERSION 3.0.0)
+cmake_minimum_required(VERSION 3.11.0)
 
-set(CMAKE_C_COMPILER "/usr/bin/clang")
-set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
+# set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
 
 project(
   elektra
@@ -21,7 +20,7 @@ include(CheckCXXCompilerFlag)
 include(GNUInstallDirs)
 
 # Setting up the C++ CMAKE_CXX_FLAGS initial
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 
 # Setting up some unused checks
 set(CMAKE_CXX_FLAGS
@@ -36,6 +35,10 @@ set(CMAKE_CXX_FLAGS
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPARLAY_SEQUENTIAL")
 endif()
+
+# Add Pthread 
+find_package (Threads REQUIRED)
+add_compile_options(-pthread)
 
 message(STATUS "--------------- General configuration -------------")
 message(STATUS "CMake Generator: ${CMAKE_GENERATOR}")
@@ -72,6 +75,8 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/googletest/)
 find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
+
+
 include(FetchContent)
 FetchContent_Declare(
   googletest
@@ -84,7 +89,7 @@ enable_testing()
 
 add_executable(elektra elektra.cpp)
 
-target_link_libraries(elektra ${Boost_LIBRARIES})
+target_link_libraries(elektra ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
 # Testing
 add_executable(elektra_test test/elektra_test.cpp)
