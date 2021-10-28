@@ -50,11 +50,13 @@ void BatchDynamicConnectivity::BatchAddEdges(
   // Look at the max level Euler Tour Tree in the parallel spanning forests.
   auto maxLevelEulerTree = parallel_spanning_forests_[max_level_ - 1];
 
+#ifdef DEBUG
   // you can print all the edges for debugging
-  // std::cout << "Adding edges to the graph" << std::endl;
-  // for (auto &e : se) {
-  //   std::cout << "Edge: " << e.first << " " << e.second << std::endl;
-  // }
+  std::cout << "Adding edges to the graph" << std::endl;
+  for (auto &e : se) {
+    std::cout << "Edge: " << e.first << " " << e.second << std::endl;
+  }
+#endif
 
   // Construct the auxillary edges.
   sequence<UndirectedEdge> auxiliaryEdges =
@@ -63,13 +65,17 @@ void BatchDynamicConnectivity::BatchAddEdges(
             (V)maxLevelEulerTree->GetRepresentative(e.first),
             (V)maxLevelEulerTree->GetRepresentative(e.second));
       });
+
+  std::cout << "Getting the Spanning Tree" << std::endl;
   auto tree = getSpanningTree(auxiliaryEdges);
 
-  // print all the tree edges for debugging if wanted.
-  // std::cout << "Tree edges" << std::endl;
-  // for (auto &e : tree) {
-  //   std::cout << "Edge: " << e.first << " " << e.second << std::endl;
-  // }
+// print all the tree edges for debugging if wanted.
+#ifdef DEBUG
+  std::cout << "Tree edges" << std::endl;
+  for (auto &e : tree) {
+    std::cout << "Edge: " << e.first << " " << e.second << std::endl;
+  }
+#endif
 
   auto num_edges_inserted = se.size();
 
@@ -106,6 +112,7 @@ void BatchDynamicConnectivity::BatchAddEdges(
   // });
 
   // the loop above serially
+  std::cout << "Adding edges to the graph" << std::endl;
   for (int i = 0; i < (int)se.size(); i++) {
     if (tree.count(se[i])) {
       treeEdges.push_back(make_pair(se[i].first, se[i].second));
@@ -132,22 +139,35 @@ void BatchDynamicConnectivity::BatchAddEdges(
   }
 
   // add tree edges
+  std::cout << "Adding tree edges to the ETT" << std::endl;
   maxLevelEulerTree->BatchLink(treeEdges);
 
   // add to adjacancy list
-  parlay::parallel_for(0, nonTreeEdges.size(), [&](int i) {
+  std::cout << "Adding the non-tree edges to the hashtable" << std::endl;
+  // parlay::parallel_for(0, nonTreeEdges.size(), [&](int i) {
+  //   non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].first].insert(
+  //       nonTreeEdges[i].second);
+  //   non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].second].insert(
+  //       nonTreeEdges[i].first);
+  // });
+
+  std::cout << "part 1" << std::endl;
+  std::cout << "nonTreeEdges.size() = " << nonTreeEdges.size() << std::endl;
+  for (int i = 0; i < (int)nonTreeEdges.size(); i++) {
+    if (i % 1000 == 0) {
+      std::cout << "i = " << i << std::endl;
+    }
     non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].first].insert(
         nonTreeEdges[i].second);
+  }
+
+  std::cout << "part 2" << std::endl;
+  for (int i = 0; i < (int)nonTreeEdges.size(); i++) {
     non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].second].insert(
         nonTreeEdges[i].first);
-  });
+  }
 
-  // set the level of the nonTreeEdges to max_level_ - 1
-  // parlay::parallel_for(0, nonTreeEdges.size(), [&](int i) {
-  //   detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
-  //                          detail::EdgeType::kNonTree};
-  //   edges_[nonTreeEdges[i]] = ei;
-  // });
+  std::cout << "Done" << std::endl;
 }
 
 // template <typename T>

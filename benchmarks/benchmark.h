@@ -85,7 +85,7 @@ void incrementallUpdateConnectivity(edgeList edges, int batch_size,
     link_times[j] = link_t.stop();
   }
   const std::string batch_str{std::to_string(batch_size)};
-  timer::report_time("link-" + batch_str, median(link_times));
+  timer::report_time("  link-" + batch_str, median(link_times));
 }
 
 template <typename Connectivity>
@@ -123,6 +123,7 @@ inline void RunBenchmark(int argc, char** argv, std::string name) {
   //   Connectivity* connect = new Connectivity(n);
 
   for (int batch_size = 2; batch_size < m; batch_size *= 10) {
+    std::cout << "batch_size: " << batch_size << std::endl;
     incrementallUpdateConnectivity<Connectivity>(edges, batch_size, num_iters,
                                                  n, m);
   }
