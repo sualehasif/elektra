@@ -188,12 +188,14 @@ void BatchDynamicConnectivity::replacementSearch(
   int search_size = 256;
   int total_search_stride = 0;
 
+#ifdef DEBUG
   // print out the components to consider
   std::cout << "Components to consider" << std::endl;
   for (auto &c : components) {
     std::cout << c << " ";
   }
   std::cout << std::endl;
+#endif
 
   // TODO: I think this shoudl be 1 << (level - 1)
   int critical_component_size = 1 << level;
@@ -384,9 +386,11 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
     }
   });
 
+#ifdef DEBUG
   // print min and max level here
   std::cout << "min tree edge level: " << min_tree_edge_level << std::endl;
   std::cout << "max tree edge level: " << (int)max_level_ << std::endl;
+#endif
 
   // delete edges from the tree at each level from the minimum tree edge level
   // to the maximum tree edge level
@@ -397,20 +401,22 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
     auto toDelete = parlay::filter(
         treeEdges, [&](UndirectedEdge e) { return edges_[e].level <= l; });
 
-    // #ifdef DEBUG
+#ifdef DEBUG
     std::cout << "Deleting edges from level " << l << std::endl;
     for (auto &e : toDelete) {
       std::cout << e.first << " " << e.second << std::endl;
     }
-    // #endif
+#endif
 
     // FIXME: We do an extraneously expensive copy here because of API design.
     sequence<pair<int, int>> toDeletePairSequence =
         edgeBatchToPairArray(toDelete);
 
+#ifdef DEBUG
     for (auto &e : toDeletePairSequence) {
       std::cout << e.first << " " << e.second << std::endl;
     }
+#endif
 
     levelEulerTree->BatchCut(toDeletePairSequence);
   }
