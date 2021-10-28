@@ -29,6 +29,21 @@
             "externalConsole": false,
             "MIMode": "lldb",
             "preLaunchTask": "debugBuild",
+        },
+        {
+            "name": "Benchmark debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/elektra",
+            "args": [
+                "../benchmarks/graphs/basic.txt"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "debugBuild",
         }
     ]
 }

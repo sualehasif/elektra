@@ -4,6 +4,8 @@
 #include <ostream>
 #include <utility>
 
+#include "macros.h"
+
 /** Represents a vertex in a graph. */
 typedef int Vertex;
 
@@ -18,8 +20,7 @@ struct UndirectedEdge {
    *  @param[in] v The other endpoint of the edge.
    */
   UndirectedEdge(Vertex u, Vertex v) : first(u), second(v){};
-  UndirectedEdge(std::pair<Vertex, Vertex> e)
-      : first(e.first), second(e.second){};
+  // UndirectedEdge() = delete;
 
   /** One endpoint of the edge. */
   Vertex first;
