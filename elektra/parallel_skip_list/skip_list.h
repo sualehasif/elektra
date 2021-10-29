@@ -94,14 +94,7 @@ class ElementBase {
   // for the first element at the next level up.
   Derived* FindRightParent(int level) const;
 
-  // We might think to make this an `ArrayAllocator<T>` instead of a
-  // pointer to one, but then we run into a Static Initialization Order Fiasco.
-  // When run, our program could choose to initialize `ArrayAllocator<T>`,
-  // which uses `list_allocator<T>`, before `list_allocator<T>` is initialized.
-  // TODO(tomtseng): try making a concurrent_array_allocator rather than a
-  // pointer to one --- I used a pointer for neighbor_allocator_ back when our
-  // allocator libraries were a bit different
-  static concurrent_array_allocator::Allocator<Neighbors>* neighbor_allocator_;
+  static concurrent_array_allocator::Allocator<Neighbors> neighbor_allocator_;
   static parlay::random default_randomness_;
 
   // neighbors_[i] holds neighbors at level i, where level 0 is the lowest level
@@ -144,27 +137,19 @@ int GenerateHeight(size_t random_int) {
 }  // namespace _internal
 
 template <typename Derived>
-concurrent_array_allocator::Allocator<typename ElementBase<Derived>::Neighbors>*
-    ElementBase<Derived>::neighbor_allocator_{nullptr};
+concurrent_array_allocator::Allocator<typename ElementBase<Derived>::Neighbors>
+    ElementBase<Derived>::neighbor_allocator_{};
 
 template <typename Derived>
 parlay::random ElementBase<Derived>::default_randomness_{};
 
 template <typename Derived>
 void ElementBase<Derived>::Initialize() {
-  if (neighbor_allocator_ == nullptr) {
-    neighbor_allocator_ =
-        new concurrent_array_allocator::Allocator<Neighbors>{};
-  }
   Derived::DerivedInitialize();
 }
 
 template <typename Derived>
 void ElementBase<Derived>::Finish() {
-  if (neighbor_allocator_ != nullptr) {
-    delete neighbor_allocator_;
-    neighbor_allocator_ = nullptr;
-  }
   Derived::DerivedFinish();
 }
 
@@ -178,7 +163,7 @@ ElementBase<Derived>::ElementBase() {
   size_t random_int{default_randomness_.rand()};
   default_randomness_ = default_randomness_.next();  // race if run concurrently
   height_ = _internal::GenerateHeight(random_int);
-  neighbors_ = neighbor_allocator_->Allocate(height_);
+  neighbors_ = neighbor_allocator_.Allocate(height_);
   for (int i = 0; i < height_; i++) {
     neighbors_[i].prev = neighbors_[i].next = nullptr;
   }
@@ -187,7 +172,7 @@ ElementBase<Derived>::ElementBase() {
 template <typename Derived>
 ElementBase<Derived>::ElementBase(size_t random_int) {
   height_ = _internal::GenerateHeight(random_int);
-  neighbors_ = neighbor_allocator_->Allocate(height_);
+  neighbors_ = neighbor_allocator_.Allocate(height_);
   for (int i = 0; i < height_; i++) {
     neighbors_[i].prev = neighbors_[i].next = nullptr;
   }
@@ -195,7 +180,7 @@ ElementBase<Derived>::ElementBase(size_t random_int) {
 
 template <typename Derived>
 ElementBase<Derived>::~ElementBase() {
-  neighbor_allocator_->Free(neighbors_, height_);
+  neighbor_allocator_.Free(neighbors_, height_);
 }
 
 template <typename Derived>
