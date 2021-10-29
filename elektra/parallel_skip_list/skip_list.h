@@ -98,6 +98,9 @@ class ElementBase {
   // pointer to one, but then we run into a Static Initialization Order Fiasco.
   // When run, our program could choose to initialize `ArrayAllocator<T>`,
   // which uses `list_allocator<T>`, before `list_allocator<T>` is initialized.
+  // TODO(tomtseng): try making a concurrent_array_allocator rather than a
+  // pointer to one --- I used a pointer for neighbor_allocator_ back when our
+  // allocator libraries were a bit different
   static concurrent_array_allocator::Allocator<Neighbors>* neighbor_allocator_;
   static parlay::random default_randomness_;
 
