@@ -1,7 +1,6 @@
-cmake_minimum_required(VERSION 3.0.0)
+cmake_minimum_required(VERSION 3.11.0)
 
-set(CMAKE_C_COMPILER "/usr/bin/clang")
-set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
+# set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
 
 project(
   elektra
@@ -13,14 +12,15 @@ project(
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+# Set up the CMAKE Generator
+set(CMAKE_GENERATOR "Ninja")
+set(CMAKE_MAKE_PROGRAM "Ninja")
+
 include(CheckCXXCompilerFlag)
 include(GNUInstallDirs)
 
-# Set up the CMAKE Generator
-set(CMAKE_GENERATOR "Ninja")
-
 # Setting up the C++ CMAKE_CXX_FLAGS initial
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 
 # Setting up some unused checks
 set(CMAKE_CXX_FLAGS
@@ -32,8 +32,13 @@ set(CMAKE_CXX_FLAGS
     ")
 
 # # Compile with no parallelism if debugging or asked to be linear
-# if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR SEQUENTIAL) set(CMAKE_CXX_FLAGS
-# "${CMAKE_CXX_FLAGS} -DPARLAY_SEQUENTIAL") endif()
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPARLAY_SEQUENTIAL")
+endif()
+
+# Add Pthread 
+find_package (Threads REQUIRED)
+add_compile_options(-pthread)
 
 message(STATUS "--------------- General configuration -------------")
 message(STATUS "CMake Generator: ${CMAKE_GENERATOR}")
@@ -61,12 +66,16 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/elektra)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/test)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/parlaylib/include/)
 include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/googletest/googlemock/include)
+include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}/external/googletest/googletest/include)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/googletest)
 
 find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
+
+
 
 include(FetchContent)
 FetchContent_Declare(
@@ -80,13 +89,17 @@ enable_testing()
 
 add_executable(elektra elektra.cpp)
 
-target_link_libraries(elektra ${Boost_LIBRARIES})
+target_link_libraries(elektra ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
 # Testing
 add_executable(elektra_test test/elektra_test.cpp)
-target_link_libraries(elektra_test gtest_main)
+target_link_libraries(elektra_test gmock_main gtest_main)
 include(GoogleTest)
 gtest_discover_tests(elektra_test)
+
+# Set up the CMAKE Generator
+set(CMAKE_GENERATOR "Ninja")
+set(CMAKE_MAKE_PROGRAM "Ninja")
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
