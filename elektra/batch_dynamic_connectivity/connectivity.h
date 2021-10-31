@@ -142,7 +142,6 @@ class BatchDynamicConnectivity {
  private:
   const int64_t num_vertices_;
 
-  // TODO: convert this to int8_t
   const int8_t max_level_;
 
   // `spanning_forests_[i]` stores F_i, the spanning forest for the i-th
