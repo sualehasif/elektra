@@ -13,17 +13,6 @@ namespace augmented_skip_list {
 
 using Element = parallel_skip_list::AugmentedElement;
 
-class AugmentedParallelSkipListTest : public ::testing::Test {
- protected:
-  AugmentedParallelSkipListTest() {
-    Element::Initialize();
-  }
-
-  ~AugmentedParallelSkipListTest() override {
-    Element::Finish();
-  }
-};
-
 // Create `n` skip list elements.
 parlay::sequence<Element> CreateElements(size_t n, size_t random_seed = 0) {
   auto elements_seq = parlay::sequence<Element>::uninitialized(n);
@@ -63,7 +52,7 @@ parlay::sequence<Element*> CreateSplits(
 }
 
 // Check that lists of size 1 have the correct sum.
-TEST_F(AugmentedParallelSkipListTest, SumLengthOneLists) {
+TEST(AugmentedParallelSkipListTest, SumLengthOneLists) {
   auto elements = CreateElements(3);
   EXPECT_EQ(elements[0].GetSum(), 1);
   EXPECT_EQ(elements[1].GetSum(), 1);
@@ -72,7 +61,7 @@ TEST_F(AugmentedParallelSkipListTest, SumLengthOneLists) {
 
 // Check that lists have the correct sum after batch joins and splits to form
 // linear lists.
-TEST_F(AugmentedParallelSkipListTest, SumLinearList) {
+TEST(AugmentedParallelSkipListTest, SumLinearList) {
   auto elements = CreateElements(8);
   parlay::sequence<std::pair<Element*, Element*>> joins = CreateJoins(elements, {
         {0, 1},
@@ -111,7 +100,7 @@ TEST_F(AugmentedParallelSkipListTest, SumLinearList) {
 
 // Check that lists have the correct sum after joins and splits to form circular
 // lists.
-TEST_F(AugmentedParallelSkipListTest, SumCircularList) {
+TEST(AugmentedParallelSkipListTest, SumCircularList) {
   auto elements = CreateElements(6);
   parlay::sequence<std::pair<Element*, Element*>> joins = CreateJoins(elements, {
         {0, 1},

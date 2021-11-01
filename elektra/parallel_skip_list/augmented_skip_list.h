@@ -22,9 +22,6 @@ class AugmentedElement : private ElementBase<AugmentedElement> {
   friend class ElementBase<AugmentedElement>;
 
  public:
-  using ElementBase<AugmentedElement>::Initialize;
-  using ElementBase<AugmentedElement>::Finish;
-
   // See comments on `ElementBase<>`.
   AugmentedElement();
   explicit AugmentedElement(size_t random_int);
@@ -75,8 +72,6 @@ class AugmentedElement : private ElementBase<AugmentedElement> {
   using ElementBase<AugmentedElement>::GetNextElement;
 
  private:
-  static void DerivedInitialize();
-  static void DerivedFinish();
   static int* AllocateValues(int height);
 
   static void UpdateTopDownImpl(int level, AugmentedElement* curr, bool is_loop_start = true);
@@ -113,10 +108,6 @@ inline bool write_min(T* a, T b) {
 }  // namespace _internal
 
 concurrent_array_allocator::Allocator<int> AugmentedElement::values_allocator_{};
-
-void AugmentedElement::DerivedInitialize() {}
-
-void AugmentedElement::DerivedFinish() {}
 
 int* AugmentedElement::AllocateValues(int height) {
   int* values{values_allocator_.Allocate(height)};

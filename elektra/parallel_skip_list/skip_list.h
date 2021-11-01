@@ -17,24 +17,9 @@ namespace parallel_skip_list {
 // template pattern (CRTP). By passing in the derived class through a template,
 // the skip list can hold pointers to the instances of derived class. A minimal
 // instantiation is given in the class "parallel_skip_list::Element".
-//
-// Derived classes must provide a (perhaps empty) `DerivedInitialize()` and
-// `DerivedFinish()` function, which will be called in `Initialize()` and
-// `Finish()` respectively. These should provide initialization and cleanup for
-// static variables in the element class.
-//
-// `Initialize()` should be called before creating any `ElementBase<Derived>`
-// elements. This means that elements must not be created as global or static
-// variables. `Finish()` can be called after we are done with all
-// `ElementBase<Derived>` elements.
 template <typename Derived>
 class ElementBase {
  public:
-  // Call this before creating any `ElementBase<Derived>` elements.
-  static void Initialize();
-  // Call this after being done with `ElementBase<Derived>`.
-  static void Finish();
-
   // Running this concurrently may lead to poor randomness in the height
   // distribution of skip list elements.
   ElementBase();
@@ -110,8 +95,6 @@ class Element : public ElementBase<Element> {
 
  private:
   friend class ElementBase<Element>;
-  static void DerivedInitialize() {}
-  static void DerivedFinish() {}
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -142,16 +125,6 @@ concurrent_array_allocator::Allocator<typename ElementBase<Derived>::Neighbors>
 
 template <typename Derived>
 parlay::random ElementBase<Derived>::default_randomness_{};
-
-template <typename Derived>
-void ElementBase<Derived>::Initialize() {
-  Derived::DerivedInitialize();
-}
-
-template <typename Derived>
-void ElementBase<Derived>::Finish() {
-  Derived::DerivedFinish();
-}
 
 template <typename Derived>
 size_t ElementBase<Derived>::GetHeight() const {

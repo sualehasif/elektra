@@ -52,8 +52,6 @@ class Element : public parallel_skip_list::ElementBase<Element> {
 
  private:
   friend class parallel_skip_list::ElementBase<Element>;
-  static void DerivedInitialize() {}
-  static void DerivedFinish() {}
 
   // Updates `values_` and returns FindRepresentative().
   Element* UpdateValues();
@@ -429,7 +427,6 @@ void BatchLinkSequential(EulerTourTree* ett,
 
 EulerTourTree::EulerTourTree(int num_vertices)
     : num_vertices_{num_vertices}, edges_{num_vertices_}, randomness_{} {
-  Element::Initialize();
   // TODO: figure out the appropriate new array function for this.
   // vertices_ = pbbs::new_array_no_init<Element>(num_vertices_);
 
@@ -449,7 +446,6 @@ EulerTourTree::EulerTourTree(int num_vertices)
 
 EulerTourTree::~EulerTourTree() {
   edges_.FreeElements();
-  Element::Finish();
 }
 
 bool EulerTourTree::IsConnected(int u, int v) const {
