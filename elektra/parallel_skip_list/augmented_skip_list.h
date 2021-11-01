@@ -2,6 +2,8 @@
 
 #include "parallel_skip_list/skip_list.h"
 
+#include <algorithm>
+
 #include <parlay/parallel.h>
 #include <parlay/sequence.h>
 #include <parlay/utilities.h>
@@ -27,6 +29,13 @@ class AugmentedElement : private ElementBase<AugmentedElement> {
   AugmentedElement();
   explicit AugmentedElement(size_t random_int);
   ~AugmentedElement();
+
+  // Can run concurrently with other `JoinWithoutUpdate` calls, but augmented
+  // values must be updated separately afterwards.
+  static void JoinWithoutUpdate(AugmentedElement* left, AugmentedElement* right);
+  // Can run concurrently with other `SplitWithoutUpdate` calls, but augmented
+  // values must be updated separately afterwards.
+  AugmentedElement* SplitWithoutUpdate();
 
   // For each `{left, right}` in the `len`-length array `joins`, concatenate the
   // list that `left` lives in to the list that `right` lives in.
@@ -129,6 +138,14 @@ AugmentedElement::AugmentedElement(size_t random_int) :
 
 AugmentedElement::~AugmentedElement() {
   values_allocator_.Free(values_, height_);
+}
+
+void AugmentedElement::JoinWithoutUpdate(AugmentedElement* left, AugmentedElement* right) {
+  Join(left, right);
+}
+
+AugmentedElement* AugmentedElement::SplitWithoutUpdate() {
+  return Split();
 }
 
 void AugmentedElement::UpdateTopDownSequential(int level) {
