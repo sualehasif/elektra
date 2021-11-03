@@ -11,7 +11,7 @@
 namespace elektra::testing {
 namespace augmented_skip_list {
 
-using Element = parallel_skip_list::AugmentedElement;
+using Element = parallel_skip_list::AugmentedElement<>;
 
 // Create `n` skip list elements.
 parlay::sequence<Element> CreateElements(size_t n, size_t random_seed = 0) {
@@ -117,8 +117,8 @@ TEST(AugmentedParallelSkipListTest, SumCircularList) {
 
   parlay::sequence<Element*> splits = CreateSplits(elements, {1, 2, 5});
   Element::BatchSplit(splits);
-  EXPECT_EQ(elements[0].GetSum(), 1);
-  EXPECT_EQ(elements[1].GetSum(), 1);
+  EXPECT_EQ(elements[0].GetSum(), 2);
+  EXPECT_EQ(elements[2].GetSum(), 1);
   EXPECT_EQ(elements[3].GetSum(), 3);
 }
 

@@ -18,7 +18,9 @@ namespace parallel_skip_list {
 // augmentation functions. The contract for `GetSum` on a cyclic list should be
 // that the function will be applied starting from `this`, because where we
 // begin applying the function matters for non-commutative functions.
-class AugmentedElement : private ElementBase<AugmentedElement> {
+template<typename Value = long long>
+class AugmentedElement : private ElementBase<AugmentedElement<Value>> {
+  using Element = AugmentedElement<Value>;
   friend class ElementBase<AugmentedElement>;
 
  public:
@@ -29,10 +31,10 @@ class AugmentedElement : private ElementBase<AugmentedElement> {
 
   // Can run concurrently with other `JoinWithoutUpdate` calls, but augmented
   // values must be updated separately afterwards.
-  static void JoinWithoutUpdate(AugmentedElement* left, AugmentedElement* right);
+  static void JoinWithoutUpdate(Element* left, Element* right);
   // Can run concurrently with other `SplitWithoutUpdate` calls, but augmented
   // values must be updated separately afterwards.
-  AugmentedElement* SplitWithoutUpdate();
+  Element* SplitWithoutUpdate();
 
   // For each `{left, right}` in the `len`-length array `joins`, concatenate the
   // list that `left` lives in to the list that `right` lives in.
@@ -40,18 +42,17 @@ class AugmentedElement : private ElementBase<AugmentedElement> {
   // `left` must be the last node in its list, and `right` must be the first
   // node of in its list. Each `left` must be unique, and each `right` must be
   // unique.
-  static void BatchJoin(
-      const parlay::sequence<std::pair<AugmentedElement*, AugmentedElement*>>& joins);
+  static void BatchJoin(const parlay::sequence<std::pair<Element*, Element*>>& joins);
 
   // For each `v` in the `len`-length array `splits`, split `v`'s list right
   // after `v`.
-  static void BatchSplit(const parlay::sequence<AugmentedElement*>& splits);
+  static void BatchSplit(const parlay::sequence<Element*>& splits);
 
   // For each `i`=0,1,...,`len`-1, assign value `new_values[i]` to element
   // `elements[i]`.
   static void BatchUpdate(
-      const parlay::sequence<AugmentedElement*>& elements,
-      const parlay::sequence<int>& new_values);
+      const parlay::sequence<Element*>& elements,
+      const parlay::sequence<Value>& new_values);
 
   // Get the result of applying the augmentation function over the subsequence
   // between `left` and `right` inclusive.
@@ -61,30 +62,35 @@ class AugmentedElement : private ElementBase<AugmentedElement> {
   //
   // This function does not modify the data structure, so it may run
   // concurrently with other `GetSubsequenceSum` calls and const function calls.
-  static int GetSubsequenceSum(const AugmentedElement* left, const AugmentedElement* right);
+  static Value GetSubsequenceSum(const Element* left, const Element* right);
 
   // Get result of applying the augmentation function over the whole list that
   // the element lives in.
-  int GetSum() const;
+  Value GetSum() const;
 
-  using ElementBase<AugmentedElement>::FindRepresentative;
-  using ElementBase<AugmentedElement>::GetPreviousElement;
-  using ElementBase<AugmentedElement>::GetNextElement;
+  using ElementBase<Element>::FindRepresentative;
+  using ElementBase<Element>::GetPreviousElement;
+  using ElementBase<Element>::GetNextElement;
 
  private:
-  static int* AllocateValues(int height);
+  static Value* AllocateValues(int height);
 
-  static void UpdateTopDownImpl(int level, AugmentedElement* curr, bool is_loop_start = true);
+  static void UpdateTopDownImpl(int level, Element* curr, bool is_loop_start = true);
   // Update aggregate value of node and clear `join_update_level` after joins.
   void UpdateTopDown(int level);
   void UpdateTopDownSequential(int level);
 
-  static concurrent_array_allocator::Allocator<int> values_allocator_;
+  static concurrent_array_allocator::Allocator<Value> values_allocator_;
 
-  int* values_;
+  Value* values_;
   // When updating augmented values, this marks the lowest index at which the
   // `values_` needs to be updated.
   int update_level_;
+
+  using ElementBase<Element>::Join;
+  using ElementBase<Element>::Split;
+  using ElementBase<Element>::height_;
+  using ElementBase<Element>::neighbors_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -107,39 +113,50 @@ inline bool write_min(T* a, T b) {
 
 }  // namespace _internal
 
-concurrent_array_allocator::Allocator<int> AugmentedElement::values_allocator_{};
+template <typename Value>
+concurrent_array_allocator::Allocator<Value> AugmentedElement<Value>::values_allocator_{};
 
-int* AugmentedElement::AllocateValues(int height) {
-  int* values{values_allocator_.Allocate(height)};
+template <typename Value>
+Value* AugmentedElement<Value>::AllocateValues(int height) {
+  Value* values{values_allocator_.Allocate(height)};
   for (int i = 0; i < height; i++) {
     values[i] = 1;
   }
   return values;
 }
 
-AugmentedElement::AugmentedElement() :
+template <typename Value>
+AugmentedElement<Value>::AugmentedElement() :
   ElementBase<AugmentedElement>{}, update_level_{_internal::NA} {
   values_ = AllocateValues(height_);
 }
 
-AugmentedElement::AugmentedElement(size_t random_int) :
+template <typename Value>
+AugmentedElement<Value>::AugmentedElement(size_t random_int) :
   ElementBase<AugmentedElement>{random_int}, update_level_{_internal::NA} {
   values_ = AllocateValues(height_);
 }
 
-AugmentedElement::~AugmentedElement() {
+template <typename Value>
+AugmentedElement<Value>::~AugmentedElement() {
   values_allocator_.Free(values_, height_);
 }
 
-void AugmentedElement::JoinWithoutUpdate(AugmentedElement* left, AugmentedElement* right) {
+template <typename Value>
+void AugmentedElement<Value>::JoinWithoutUpdate(
+    AugmentedElement<Value>* left,
+    AugmentedElement<Value>* right
+) {
   Join(left, right);
 }
 
-AugmentedElement* AugmentedElement::SplitWithoutUpdate() {
+template <typename Value>
+AugmentedElement<Value>* AugmentedElement<Value>::SplitWithoutUpdate() {
   return Split();
 }
 
-void AugmentedElement::UpdateTopDownSequential(int level) {
+template <typename Value>
+void AugmentedElement<Value>::UpdateTopDownSequential(int level) {
   if (level == 0) {
     if (height_ == 1) {
       update_level_ = _internal::NA;
@@ -150,7 +167,7 @@ void AugmentedElement::UpdateTopDownSequential(int level) {
   if (update_level_ < level) {
     UpdateTopDownSequential(level - 1);
   }
-  int sum{values_[level - 1]};
+  Value sum{values_[level - 1]};
   AugmentedElement* curr{neighbors_[level - 1].next};
   while (curr != nullptr && curr->height_ < level + 1) {
     if (curr->update_level_ != _internal::NA && curr->update_level_ < level) {
@@ -166,11 +183,12 @@ void AugmentedElement::UpdateTopDownSequential(int level) {
   }
 }
 
-// Helper function for AugmentedElement::UpdateTopDown that updates the
-// augmented values of the descendants of `curr`.
-void AugmentedElement::UpdateTopDownImpl(
+// Helper function for UpdateTopDown() that updates the augmented values of the
+// descendants of `curr`.
+template <typename Value>
+void AugmentedElement<Value>::UpdateTopDownImpl(
     int level,
-    AugmentedElement* curr,
+    AugmentedElement<Value>* curr,
     bool is_loop_start)
 {
   while (is_loop_start || (curr != nullptr && curr->height_ < level + 1)) {
@@ -190,7 +208,8 @@ void AugmentedElement::UpdateTopDownImpl(
 // `level`-th node. `update_level_` is used to determine what nodes need
 // updating. `update_level_` is reset to `NA` for all traversed nodes at end of
 // this function.
-void AugmentedElement::UpdateTopDown(int level) {
+template <typename Value>
+void AugmentedElement<Value>::UpdateTopDown(int level) {
   if (level <= 6) {
     UpdateTopDownSequential(level);
     return;
@@ -200,8 +219,8 @@ void AugmentedElement::UpdateTopDown(int level) {
 
   // Now that children have correct augmented valeus, update self's augmented
   // value.
-  int sum{values_[level - 1]};
-  AugmentedElement* curr = neighbors_[level - 1].next;
+  Value sum{values_[level - 1]};
+  AugmentedElement<Value>* curr = neighbors_[level - 1].next;
   while (curr != nullptr && curr->height_ < level + 1) {
     sum += curr->values_[level - 1];
     curr = curr->neighbors_[level - 1].next;
@@ -222,9 +241,10 @@ void AugmentedElement::UpdateTopDown(int level) {
 // `v->FindLeftParent(0)->FindLeftParent(2)`, and so on. This functionality is
 // used privately to keep the augmented values correct when the list has
 // structurally changed.
-void AugmentedElement::BatchUpdate(
-    const parlay::sequence<AugmentedElement*>& elements,
-    const parlay::sequence<int>& new_values) {
+template <typename Value>
+void AugmentedElement<Value>::BatchUpdate(
+    const parlay::sequence<AugmentedElement<Value>*>& elements,
+    const parlay::sequence<Value>& new_values) {
   const size_t len{elements.size()};
   if (!new_values.empty()) {
     parlay::parallel_for(0, len, [&](size_t i) {
@@ -237,11 +257,11 @@ void AugmentedElement::BatchUpdate(
   // without duplicates, the set of all ancestors of `elements` with no left
   // parents. From there we can walk down from those ancestors to update all
   // required augmented values.
-  auto top_nodes{parlay::sequence<AugmentedElement*>::uninitialized(len)};
+  auto top_nodes{parlay::sequence<AugmentedElement<Value>*>::uninitialized(len)};
 
   parlay::parallel_for(0, len, [&](const size_t i) {
     int level{0};
-    AugmentedElement* curr{elements[i]};
+    AugmentedElement<Value>* curr{elements[i]};
     while (true) {
       int curr_update_level{curr->update_level_};
       if (curr_update_level == _internal::NA && CAS(&curr->update_level_, _internal::NA, level)) {
@@ -274,8 +294,9 @@ void AugmentedElement::BatchUpdate(
   });
 }
 
-void AugmentedElement::BatchJoin(
-    const parlay::sequence<std::pair<AugmentedElement*, AugmentedElement*>>& joins)
+template <typename Value>
+void AugmentedElement<Value>::BatchJoin(
+    const parlay::sequence<std::pair<AugmentedElement<Value>*, AugmentedElement<Value>*>>& joins)
 {
   const size_t len{joins.size()};
   auto join_lefts{parlay::sequence<AugmentedElement*>::uninitialized(len)};
@@ -286,13 +307,14 @@ void AugmentedElement::BatchJoin(
   BatchUpdate(join_lefts, {});
 }
 
-void AugmentedElement::BatchSplit(const parlay::sequence<AugmentedElement*>& splits) {
+template <typename Value>
+void AugmentedElement<Value>::BatchSplit(const parlay::sequence<AugmentedElement<Value>*>& splits) {
   const size_t len{splits.size()};
   parlay::parallel_for(0, len, [&](const size_t i) {
     splits[i]->Split();
   });
   parlay::parallel_for(0, len, [&](const size_t i) {
-    AugmentedElement* curr{splits[i]};
+    AugmentedElement<Value>* curr{splits[i]};
     // `can_proceed` breaks ties when there are duplicate splits. When two
     // splits occur at the same place, only one of them should walk up and
     // update.
@@ -300,7 +322,7 @@ void AugmentedElement::BatchSplit(const parlay::sequence<AugmentedElement*>& spl
         curr->update_level_ == _internal::NA && CAS(&curr->update_level_, _internal::NA, 0)};
     if (can_proceed) {
       // Update values of `curr`'s ancestors.
-      int sum{curr->values_[0]};
+      Value sum{curr->values_[0]};
       int level{0};
       while (true) {
         if (level < curr->height_ - 1) {
@@ -322,10 +344,13 @@ void AugmentedElement::BatchSplit(const parlay::sequence<AugmentedElement*>& spl
   });
 }
 
-int AugmentedElement::GetSubsequenceSum(
-    const AugmentedElement* left, const AugmentedElement* right) {
+template <typename Value>
+Value AugmentedElement<Value>::GetSubsequenceSum(
+    const AugmentedElement<Value>* left,
+    const AugmentedElement<Value>* right
+) {
   int level{0};
-  int sum{right->values_[level]};
+  Value sum{right->values_[level]};
   while (left != right) {
     level = std::min(left->height_, right->height_) - 1;
     if (level == left->height_ - 1) {
@@ -339,15 +364,16 @@ int AugmentedElement::GetSubsequenceSum(
   return sum;
 }
 
-int AugmentedElement::GetSum() const {
+template <typename Value>
+Value AugmentedElement<Value>::GetSum() const {
   // Here we use knowledge of the implementation of `FindRepresentative()`.
   // `FindRepresentative()` gives some element that reaches the top level of the
   // list. For acyclic lists, the element is the leftmost one.
-  AugmentedElement* root{FindRepresentative()};
+  AugmentedElement<Value>* root{FindRepresentative()};
   // Sum the values across the top level of the list.
   int level{root->height_ - 1};
-  int sum{root->values_[level]};
-  AugmentedElement* curr{root->neighbors_[level].next};
+  Value sum{root->values_[level]};
+  AugmentedElement<Value>* curr{root->neighbors_[level].next};
   while (curr != nullptr && curr != root) {
     sum += curr->values_[level];
     curr = curr->neighbors_[level].next;
