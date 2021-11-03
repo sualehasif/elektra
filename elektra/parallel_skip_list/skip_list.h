@@ -91,7 +91,8 @@ class ElementBase {
 // Basic phase-concurrent skip list. See interface of `ElementBase<T>`.
 class Element : public ElementBase<Element> {
  public:
-  explicit Element(size_t random_int) : ElementBase<Element>{random_int} {}
+  // Inherits constructors.
+  using ElementBase<Element>::ElementBase;
 
  private:
   friend class ElementBase<Element>;

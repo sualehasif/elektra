@@ -11,7 +11,7 @@
 namespace elektra::testing {
 namespace augmented_skip_list {
 
-using Element = parallel_skip_list::AugmentedElement<>;
+using Element = parallel_skip_list::AugmentedElement;
 
 // Create `n` skip list elements.
 parlay::sequence<Element> CreateElements(size_t n, size_t random_seed = 0) {
