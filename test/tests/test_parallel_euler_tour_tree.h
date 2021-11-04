@@ -1,25 +1,89 @@
-#pragma once
-
 #include <parlay/parallel.h>
+#include <parlay/random.h>
 #include <parlay/sequence.h>
 
+#include <random>
+#include <string>
 #include <utility>
 
 #include "../../elektra/parallel_euler_tour_tree/euler_tour_tree.hpp"
+#include "../../elektra/utilities/simple_forest_connectivity.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+// TODO: parallelize the loops in this based on the original.
+
 namespace elektra::testing {
 namespace {
-
-namespace pett = parallel_euler_tour_tree;
+using EulerTourTree = parallel_euler_tour_tree::EulerTourTree;
 
 using ::testing::IsEmpty;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 
+TEST(ParallelEulerTourTreeTest, RandomLinksAndCuts) {
+  // Generate `link_attempts_per_round` edges randomly, keeping each one that
+  // doesn't add a cycle into the forest. Then call `BatchLink` on all of
+  // them.
+
+  constexpr int num_vertices{100};
+  constexpr int num_rounds{2};
+  constexpr int link_attempts_per_round{200};
+  constexpr int cut_ratio{3};
+
+  EulerTourTree ett{num_vertices};
+  SimpleForestConnectivity reference_solution{num_vertices};
+  std::unordered_set<std::pair<int, int>, HashIntPairStruct> edges{};
+  std::mt19937 rng{0};
+  std::uniform_int_distribution<std::mt19937::result_type> vert_dist{0, num_vertices - 1};
+  std::uniform_int_distribution<std::mt19937::result_type> coin{0, 1};
+
+  for (int i = 0; i < num_rounds; i++) {
+    parlay::sequence<std::pair<int, int>> links = parlay::sequence<std::pair<int, int>>{};
+    for (int j = 0; j < link_attempts_per_round; j++) {
+      const unsigned long u{vert_dist(rng)}, v{vert_dist(rng)};
+      if (!reference_solution.IsConnected(u, v)) {
+        reference_solution.Link(u, v);
+        edges.emplace(u, v);
+        links.push_back(std::make_pair(u, v));
+      }
+    }
+    ett.BatchLink(links);
+
+    for (int u = 0; u < num_vertices; u++) {
+      for (int v = 0; v < num_vertices; v++) {
+        EXPECT_EQ(reference_solution.IsConnected(u, v), ett.IsConnected(u, v));
+      }
+    }
+
+    // Call `BatchCut` over each `cut_ratio`-th edge.
+    parlay::sequence<std::pair<int, int>> cuts = parlay::sequence<std::pair<int, int>>{};
+    int cnt{0};
+    for (auto e : edges) {
+      if (++cnt % cut_ratio == 0) {
+        cuts.push_back(e);
+      }
+    }
+    for (size_t j = 0; j < cuts.size(); j++) {
+      pair<int, int> cut{cuts[j]};
+      edges.erase(cut);
+      if (coin(rng) == 1) {
+        cuts[j] = make_pair(cut.second, cut.first);
+      }
+      reference_solution.Cut(cut.first, cut.second);
+    }
+    ett.BatchCut(cuts);
+
+    for (int u = 0; u < num_vertices; u++) {
+      for (int v = 0; v < num_vertices; v++) {
+        EXPECT_EQ(reference_solution.IsConnected(u, v), ett.IsConnected(u, v));
+      }
+    }
+  }
+}
+
 TEST(ParallelEulerTourTreeTest, IsDisconnectedInitially) {
-  const pett::EulerTourTree ett = pett::EulerTourTree{3};
+  const EulerTourTree ett = EulerTourTree{3};
   EXPECT_FALSE(ett.IsConnected(0, 1));
   EXPECT_FALSE(ett.IsConnected(0, 2));
   EXPECT_FALSE(ett.IsConnected(1, 2));
@@ -29,7 +93,7 @@ TEST(ParallelEulerTourTreeTest, IsDisconnectedInitially) {
 // and test that it's disconnected.
 TEST(ParallelEulerTourTreeTest, ShortLineGraph) {
   const int n = 7;
-  pett::EulerTourTree ett = pett::EulerTourTree{n};
+  EulerTourTree ett = EulerTourTree{n};
 
   for (int i = 0; i < n - 1; i++) {
     ett.Link(i, i + 1);
@@ -54,7 +118,7 @@ TEST(ParallelEulerTourTreeTest, ShortLineGraph) {
 TEST(ParallelEulerTourTreeTest, BigStarGraphs) {
   const int n = 200;
   ASSERT_EQ(n % 2, 0);
-  pett::EulerTourTree ett = pett::EulerTourTree{n};
+  EulerTourTree ett = EulerTourTree{n};
 
   auto links = parlay::sequence<std::pair<int, int>>::uninitialized(n - 1);
   auto cuts = parlay::sequence<std::pair<int, int>>::uninitialized(n - 2);
@@ -74,16 +138,19 @@ TEST(ParallelEulerTourTreeTest, BigStarGraphs) {
   EXPECT_TRUE(ett.IsConnected(0, n / 2 - 1));
   EXPECT_TRUE(ett.IsConnected(0, n - 1));
   EXPECT_TRUE(ett.IsConnected(n / 2 - 1, n / 2));
+  EXPECT_EQ(ett.ComponentSize(5), 200);
 
   ett.BatchCut(cuts);
   EXPECT_FALSE(ett.IsConnected(0, 1));
   EXPECT_FALSE(ett.IsConnected(0, n / 2 - 1));
   EXPECT_FALSE(ett.IsConnected(0, n - 1));
   EXPECT_TRUE(ett.IsConnected(n / 2 - 1, n / 2));
+  EXPECT_EQ(ett.ComponentSize(5), 1);
+  EXPECT_EQ(ett.ComponentSize(n / 2 - 1), 2);
 }
 
 TEST(ParallelEulerTourTreeTest, ComponentVerticesAndEdges) {
-  pett::EulerTourTree ett = pett::EulerTourTree{6};
+  EulerTourTree ett = EulerTourTree{6};
   ett.Link(0, 2);
   ett.Link(1, 2);
   ett.Link(3, 5);
@@ -98,7 +165,7 @@ TEST(ParallelEulerTourTreeTest, ComponentVerticesAndEdges) {
 
 TEST(ParallelEulerTourTreeTest, GetRepresentative) {
   const int n = 8;
-  pett::EulerTourTree ett = pett::EulerTourTree{n};
+  EulerTourTree ett = EulerTourTree{n};
 
   ett.Link(0, 1);
   ett.Link(0, 2);
