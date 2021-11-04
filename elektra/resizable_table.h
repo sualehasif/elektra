@@ -178,7 +178,8 @@ class resizable_table {
     size_t h = firstIndex(k);
     while (1) {
       if (std::get<0>(table[h]) == empty_key &&
-          elektra::atomic_compare_and_swap(&table[h], empty, kv)) {
+          elektra::atomic_compare_and_swap(&std::get<0>(table[h]), empty_key, std::get<0>(kv))) {
+        std::get<1>(table[h]) = std::get<1>(kv);
         size_t wn = parlay::worker_id();
         cts[wn * kResizableTableCacheLineSz]++;
         return 1;

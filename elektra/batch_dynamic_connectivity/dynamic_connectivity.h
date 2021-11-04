@@ -9,8 +9,11 @@ template <typename T>
 using sequence = parlay::sequence<T>;
 using V = Vertex;
 
+using std::make_pair;
+using std::make_tuple;
 using std::min;
 using std::pair;
+using std::tuple;
 using std::vector;
 // -------------
 // PUBLIC METHODS
@@ -118,23 +121,27 @@ void BatchDynamicConnectivity::BatchAddEdges(
       treeEdges.push_back(make_pair(se[i].first, se[i].second));
       detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
                              detail::EdgeType::kTree};
-      edges_[se[i]] = ei;
+      edges_.insert(
+          make_tuple(pair<Vertex, Vertex>(se[i].first, se[i].second), ei));
 
       // TODO(sualeh): Think about whether you can get away without inserting
       // the reverse edge add the reverse edge to the edges_ map
       detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
                                  detail::EdgeType::kTree};
-      edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
+      edges_.insert(
+          make_tuple(pair<Vertex, Vertex>(se[i].second, se[i].first), ei_rev));
     } else {
       nonTreeEdges.push_back(se[i]);
       detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
                              detail::EdgeType::kNonTree};
-      edges_[se[i]] = ei;
+      edges_.insert(
+          make_tuple(pair<Vertex, Vertex>(se[i].first, se[i].second), ei));
 
       // add the reverse edge to the edges_ map
       detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
                                  detail::EdgeType::kNonTree};
-      edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
+      edges_.insert(
+          make_tuple(pair<Vertex, Vertex>(se[i].second, se[i].first), ei_rev));
     }
   }
 
@@ -346,10 +353,10 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
     auto u = e.first;
     auto v = e.second;
 
-    if (edges_.find(UndirectedEdge(v, u)) != edges_.end()) {
+    if (edges_.find(pair<Vertex, Vertex>(v, u)) != empty_edge) {
       // swap the edges
       se[i] = UndirectedEdge(v, u);
-    } else if (edges_.find(e) == edges_.end()) {
+    } else if (edges_.find(pair<Vertex, Vertex>(u, v)) == empty_edge) {
       // if the edge is not in the graph, skip it
       se[i] = UndirectedEdge(-1, -1);
     }

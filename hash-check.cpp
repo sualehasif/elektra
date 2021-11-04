@@ -49,5 +49,19 @@ int main() {
               << std::endl;
   }
 
+  if (table.find(std::make_pair(2, 4)).type == EdgeType::kTree) {
+    std::cout << "Edge (1, 2) is in the spanning forest of the graph."
+              << std::endl;
+  } else {
+    std::cout << "Edge (1, 2) is not in the spanning forest of the graph."
+              << std::endl;
+  }
+
+  if (table.find(std::make_pair(2, 4)).level == 2) {
+    std::cout << "Edge (1, 2) has weight 2" << std::endl;
+  } else {
+    std::cout << "Edge (1, 2) has incorrect weight" << std::endl;
+  }
+
   return 0;
 }

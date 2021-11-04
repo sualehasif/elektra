@@ -13,7 +13,9 @@
 #include <vector>
 
 #include "graph.h"
+#include "hash_pair.h"
 #include "parallel_euler_tour_tree/euler_tour_tree.hpp"
+#include "resizable_table.h"
 
 #define INITIAL_SIZE 50
 
@@ -143,6 +145,9 @@ class BatchDynamicConnectivity {
   const int64_t num_vertices_;
 
   const int8_t max_level_;
+  const std::tuple<std::pair<Vertex, Vertex>, detail::EdgeInfo> empty_edge =
+      std::make_tuple(std::make_pair(-1, -1),
+                      detail::EdgeInfo{-1, detail::EdgeType::kNonTree});
 
   // `spanning_forests_[i]` stores F_i, the spanning forest for the i-th
   // subgraph. In particular, `spanning_forests[0]` is a spanning forest for the
@@ -159,7 +164,10 @@ class BatchDynamicConnectivity {
 
   // TODO: use a concurrent map here.
   // All edges in the graph.
-  std::unordered_map<UndirectedEdge, detail::EdgeInfo, UndirectedEdgeHash>
+  // std::unordered_map<UndirectedEdge, detail::EdgeInfo, UndirectedEdgeHash>
+  //     edges_;
+  elektra::resizable_table<std::pair<Vertex, Vertex>, detail::EdgeInfo,
+                           HashIntPairStruct>
       edges_;
 
   UndirectedEdge componentSearch(int level, Vertex v);
@@ -229,8 +237,9 @@ BatchDynamicConnectivity::BatchDynamicConnectivity(int numVertices)
     non_tree_adjacency_lists_[i] = vtxLayer;
   });
 
-  edges_ = std::unordered_map<UndirectedEdge, detail::EdgeInfo,
-                              UndirectedEdgeHash>();
+  edges_ =
+      elektra::resizable_table<pair<V, V>, detail::EdgeInfo, HashIntPairStruct>(
+          num_vertices_ * num_vertices_, empty_edge, HashIntPairStruct());
 }
 
 BatchDynamicConnectivity::BatchDynamicConnectivity(
@@ -251,8 +260,9 @@ BatchDynamicConnectivity::BatchDynamicConnectivity(
     non_tree_adjacency_lists_[i] = vtxLayer;
   });
 
-  edges_ = std::unordered_map<UndirectedEdge, detail::EdgeInfo,
-                              UndirectedEdgeHash>();
+  edges_ =
+      elektra::resizable_table<pair<V, V>, detail::EdgeInfo, HashIntPairStruct>(
+          num_vertices_ * num_vertices_, empty_edge, HashIntPairStruct());
 
   BatchAddEdges(se);
 
