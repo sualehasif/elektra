@@ -40,6 +40,8 @@ class Element : public parallel_skip_list::AugmentedElementBase<Element, size_t>
   // Get all edges {u, v} in the sequence that contains this element, assuming
   // that the sequence represents an ETT component.
   parlay::sequence<std::pair<int, int>> GetEdges();
+  // Get the number of vertices in the sequence that contains this element.
+  size_t GetComponentSize();
 
   // If this element represents a vertex v, then id == (v, v). Otherwise if
   // this element represents a directed edge (u, v), then id == (u,v).
@@ -130,6 +132,21 @@ parlay::sequence<std::pair<int, int>> Element::GetEdges() {
     } while (curr != nullptr && curr != top_element);
   }
   return edges;
+}
+
+size_t Element::GetComponentSize() {
+  Element* const top_element{FindRepresentative()};
+  const int level = top_element->height_ - 1;
+
+  size_t num_edges{0};
+  Element* curr = top_element;
+  do {
+    num_edges += curr->values_[level];
+    curr = curr->neighbors_[level].next;
+  } while (curr != nullptr && curr != top_element);
+
+  const size_t num_vertices = num_edges + 1;
+  return num_vertices;
 }
 
 int Element::FindRepresentativeVertex() const {
@@ -278,6 +295,8 @@ class EulerTourTree {
   parlay::sequence<int> ComponentVertices(int v);
   // Returns all edges in the connected component of vertex `v`.
   parlay::sequence<std::pair<int, int>> ComponentEdges(int v);
+  // Returns the number of vertices in the connected component of vertex `v`.
+  size_t ComponentSize(int v);
 
   // Adds edge {`u`, `v`} to forest. The addition of this edge must not create a
   // cycle in the graph.
@@ -412,6 +431,10 @@ parlay::sequence<int> EulerTourTree::ComponentVertices(int v) {
 
 parlay::sequence<std::pair<int, int>> EulerTourTree::ComponentEdges(int v) {
   return vertices_[v].GetEdges();
+}
+
+size_t EulerTourTree::ComponentSize(int v) {
+  return vertices_[v].GetComponentSize();
 }
 
 // Prints the tree to stdout.

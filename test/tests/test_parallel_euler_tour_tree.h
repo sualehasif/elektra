@@ -138,12 +138,15 @@ TEST(ParallelEulerTourTreeTest, BigStarGraphs) {
   EXPECT_TRUE(ett.IsConnected(0, n / 2 - 1));
   EXPECT_TRUE(ett.IsConnected(0, n - 1));
   EXPECT_TRUE(ett.IsConnected(n / 2 - 1, n / 2));
+  EXPECT_EQ(ett.ComponentSize(5), 200);
 
   ett.BatchCut(cuts);
   EXPECT_FALSE(ett.IsConnected(0, 1));
   EXPECT_FALSE(ett.IsConnected(0, n / 2 - 1));
   EXPECT_FALSE(ett.IsConnected(0, n - 1));
   EXPECT_TRUE(ett.IsConnected(n / 2 - 1, n / 2));
+  EXPECT_EQ(ett.ComponentSize(5), 1);
+  EXPECT_EQ(ett.ComponentSize(n / 2 - 1), 2);
 }
 
 TEST(ParallelEulerTourTreeTest, ComponentVerticesAndEdges) {
