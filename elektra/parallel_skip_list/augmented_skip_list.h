@@ -59,10 +59,13 @@ class AugmentedElementBase : private ElementBase<Derived> {
   // values already exist at elements[]->values_[0]. This is useful after calls
   // to JoinWithoutUpdate() and SplitWithoutUpdate().
   //
+  // The type `Seq` should behave like parlay::sequence<Derived*>.
+  //
   // (The "ancestors" of an element e refers e->FindLeftParent(0),
   // e->FindLeftParent(0)->FindLeftParent(1),
   // e->FindLeftParent(0)->FindLeftParent(1)->FindLeftParent(2)`, and so on.)
-  static void BatchUpdate(const parlay::sequence<Derived*>& elements);
+  template <typename Seq>
+  static void BatchUpdate(const Seq& elements);
 
   // Get the result of applying the augmentation function over the subsequence
   // between `left` and `right` inclusive.
@@ -82,7 +85,7 @@ class AugmentedElementBase : private ElementBase<Derived> {
   using ElementBase<Derived>::GetPreviousElement;
   using ElementBase<Derived>::GetNextElement;
 
- private:
+ protected:
   static Value* AllocateValues(int height, Value default_value);
 
   static void UpdateTopDownImpl(int level, Derived* curr, bool is_loop_start = true);
@@ -266,7 +269,8 @@ void AugmentedElementBase<D, V>::BatchUpdate(
 }
 
 template <typename D, typename V>
-void AugmentedElementBase<D, V>::BatchUpdate(const parlay::sequence<D*>& elements) {
+template <typename Seq>
+void AugmentedElementBase<D, V>::BatchUpdate(const Seq& elements) {
   const size_t len{elements.size()};
   // The nodes whose augmented values need updating are the ancestors of
   // `elements`. Some nodes may share ancestors. `top_nodes` will contain,
