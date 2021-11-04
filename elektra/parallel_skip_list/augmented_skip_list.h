@@ -11,8 +11,7 @@
 namespace parallel_skip_list {
 
 // Batch-parallel augmented skip list. Currently, the augmentation is
-// hardcoded to the sum function with the value 1 assigned to each element. As
-// such, `GetSum()` returns the size of the list.
+// hardcoded to the addition function.
 //
 // TODO(tomtseng): Allow user to pass in their own arbitrary associative
 // augmentation functions. The contract for `GetSum` on a cyclic list should be
@@ -26,9 +25,10 @@ class AugmentedElementBase : private ElementBase<Derived> {
   friend class ElementBase<Derived>;
 
  public:
-  // See comments on `ElementBase<>`.
-  AugmentedElementBase();
-  explicit AugmentedElementBase(size_t random_int);
+  // Same as constructors of `ElementBase<>` except that there's an argument for
+  // an initial `value` for the element.
+  AugmentedElementBase(Value value);
+  AugmentedElementBase(size_t random_int, Value value);
   ~AugmentedElementBase();
 
   // Can run concurrently with other `JoinWithoutUpdate` calls, but augmented
@@ -75,7 +75,7 @@ class AugmentedElementBase : private ElementBase<Derived> {
   using ElementBase<Derived>::GetNextElement;
 
  private:
-  static Value* AllocateValues(int height);
+  static Value* AllocateValues(int height, Value default_value);
 
   static void UpdateTopDownImpl(int level, Derived* curr, bool is_loop_start = true);
   // Update aggregate value of node and clear `join_update_level` after joins.
@@ -95,17 +95,22 @@ class AugmentedElementBase : private ElementBase<Derived> {
   using ElementBase<Derived>::neighbors_;
 };
 
-// Basic augmented skip list. See interface of `AugmentedElementBase`.
+// Basic augmented skip list augmented such that calling `elem.GetSum()` on
+// element `elem` returns the size of the list containing `elem`. See interface of
+// `AugmentedElementBase`.
+//
 // TODO(tomtseng): change int64_t instead of int once PR
 // https://github.com/cmuparlay/parlaylib/pull/8 merges; we're just using
 // int64_t to avoid the segfault described in the PR
 class AugmentedElement : public AugmentedElementBase<AugmentedElement, int64_t> {
+  using Base = AugmentedElementBase<AugmentedElement, int64_t>;
+
  public:
-  // Inherits constructors.
-  using AugmentedElementBase<AugmentedElement>::AugmentedElementBase;
+  AugmentedElement() : Base(1) {}
+  AugmentedElement(size_t random_int) : Base(random_int, 1) {}
 
  private:
-  friend class AugmentedElementBase<AugmentedElement>;
+  friend Base;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -132,24 +137,24 @@ template <typename D, typename V>
 concurrent_array_allocator::Allocator<V> AugmentedElementBase<D, V>::values_allocator_{};
 
 template <typename D, typename V>
-V* AugmentedElementBase<D, V>::AllocateValues(int height) {
+V* AugmentedElementBase<D, V>::AllocateValues(int height, V default_value) {
   V* values{values_allocator_.Allocate(height)};
   for (int i = 0; i < height; i++) {
-    values[i] = 1;
+    values[i] = default_value;
   }
   return values;
 }
 
 template <typename D, typename V>
-AugmentedElementBase<D, V>::AugmentedElementBase() :
-  ElementBase<D>{}, update_level_{_internal::NA} {
-  values_ = AllocateValues(height_);
+AugmentedElementBase<D, V>::AugmentedElementBase(V value) :
+    ElementBase<D>{}, update_level_{_internal::NA} {
+  values_ = AllocateValues(height_, value);
 }
 
 template <typename D, typename V>
-AugmentedElementBase<D, V>::AugmentedElementBase(size_t random_int) :
-  ElementBase<D>{random_int}, update_level_{_internal::NA} {
-  values_ = AllocateValues(height_);
+AugmentedElementBase<D, V>::AugmentedElementBase(size_t random_int, V value) :
+    ElementBase<D>{random_int}, update_level_{_internal::NA} {
+  values_ = AllocateValues(height_, value);
 }
 
 template <typename D, typename V>
