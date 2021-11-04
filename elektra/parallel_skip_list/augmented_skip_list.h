@@ -227,7 +227,6 @@ void AugmentedElementBase<D, V>::UpdateTopDownImpl(int level, D* curr, bool is_l
   }
 }
 
-
 // `v.UpdateTopDown(level)` updates the augmented values of descendants of `v`'s
 // `level`-th node. `update_level_` is used to determine what nodes need
 // updating. `update_level_` is reset to `NA` for all traversed nodes at end of
