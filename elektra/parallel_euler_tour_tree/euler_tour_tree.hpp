@@ -57,44 +57,74 @@ class Element : public parallel_skip_list::AugmentedElementBase<Element, size_t>
 
   // Gets edges held in descendants of this element and writes them into
   // the sequence starting at the offset. `values_` needs to be up to date.
-  void GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int offset,
-                     int level) const;
+  void GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int level, int offset) const;
+  // Helper function for GetEdgesBelow().
+  static void GetEdgesBelowImpl(
+      parlay::sequence<std::pair<int, int>>* s,
+      int level,
+      int offset,
+      const Element* curr,
+      bool is_loop_start = true);
+  // Helper function for GetEdges().
+  static void GetEdgesImpl(
+      parlay::sequence<std::pair<int, int>>* s,
+      const Element* start_element,
+      const Element* curr,
+      int offset = 0,
+      bool is_loop_start = true);
 };
 
-void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s,
-                            int offset, int level) const {
+void Element::GetEdgesBelowImpl(
+    parlay::sequence<std::pair<int, int>>* s,
+    int level,
+    int offset,
+    const Element* curr,
+    bool is_loop_start) {
+  if (is_loop_start || curr->height_ < level + 1) {
+    parlay::par_do(
+      [&]() { curr->GetEdgesBelow(s, level, offset); },
+      [&]() { GetEdgesBelowImpl(s, level, offset + curr->values_[level], curr->neighbors_[level].next, false); }
+    );
+  }
+}
+
+void Element::GetEdgesImpl(
+    parlay::sequence<std::pair<int, int>>* s,
+    const Element* start_element,
+    const Element* curr,
+    int offset,
+    bool is_loop_start) {
+  if (is_loop_start || curr != start_element) {
+    const int level = curr->height_ - 1;
+    parlay::par_do(
+      [&]() { curr->GetEdgesBelow(s, level, offset); },
+      [&]() { GetEdgesImpl(s, start_element, curr->neighbors_[level].next, offset + curr->values_[level], false); }
+    );
+  }
+}
+
+void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int level, int offset) const {
   if (level == 0) {
     if (values_[0]) {
       (*s)[offset] = id_;
     }
     return;
   }
+  if (values_[level] == 0) {
+    return;
+  }
+
   const Element* curr{this};
   if (level <= 6) {
     // run sequentially once we're near the bottom of the list and not doing as
     // much work per thread
     do {
-      curr->GetEdgesBelow(s, offset, level - 1);
+      curr->GetEdgesBelow(s, level - 1, offset);
       offset += curr->values_[level - 1];
       curr = curr->neighbors_[level - 1].next;
     } while (curr->height_ < level + 1);
   } else {  // run in parallel
-    // TODO(tomtseng): change this par_do to get more parallelism
-
-    // do {
-    //   cilk_spawn curr->GetEdgesBelow(s, offset, level - 1);
-    //   offset += curr->values_[level - 1];
-    //   curr = curr->neighbors_[level - 1].next;
-    // } while (curr != nullptr && curr->height_ < level + 1);
-    // cilk_sync;
-
-    do {
-      parlay::par_do([&]() { curr->GetEdgesBelow(s, offset, level - 1); },
-                     [&]() {
-                       offset += curr->values_[level - 1];
-                       curr = curr->neighbors_[level - 1].next;
-                     });
-    } while (curr->height_ < level + 1);
+    GetEdgesBelowImpl(s, level - 1, offset, this);
   }
 }
 
@@ -112,25 +142,7 @@ parlay::sequence<std::pair<int, int>> Element::GetEdges() {
   }
 
   parlay::sequence<std::pair<int, int>> edges(num_edges);
-  {
-    int offset{0};
-    Element* curr = top_element;
-    // do {
-    //   cilk_spawn curr->GetEdgesBelow(&edges, offset, level);
-    //   offset += curr->values_[level];
-    //   curr = curr->neighbors_[level].next;
-    // } while (curr != nullptr && curr != top_element);
-    // cilk_sync;
-
-    // TODO(tomtseng): change this par_do to get more parallelism
-    do {
-      parlay::par_do([&]() { curr->GetEdgesBelow(&edges, offset, level); },
-                     [&]() {
-                       offset += curr->values_[level];
-                       curr = curr->neighbors_[level].next;
-                     });
-    } while (curr != top_element);
-  }
+  GetEdgesImpl(&edges, top_element, top_element);
   return edges;
 }
 
