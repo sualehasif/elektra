@@ -77,7 +77,7 @@ void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s,
       curr->GetEdgesBelow(s, offset, level - 1);
       offset += curr->values_[level - 1];
       curr = curr->neighbors_[level - 1].next;
-    } while (curr != nullptr && curr->height_ < level + 1);
+    } while (curr->height_ < level + 1);
   } else {  // run in parallel
     // TODO(tomtseng): change this par_do to get more parallelism
 
@@ -94,7 +94,7 @@ void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s,
                        offset += curr->values_[level - 1];
                        curr = curr->neighbors_[level - 1].next;
                      });
-    } while (curr != nullptr && curr->height_ < level + 1);
+    } while (curr->height_ < level + 1);
   }
 }
 
@@ -108,7 +108,7 @@ parlay::sequence<std::pair<int, int>> Element::GetEdges() {
     do {
       num_edges += curr->values_[level];
       curr = curr->neighbors_[level].next;
-    } while (curr != nullptr && curr != top_element);
+    } while (curr != top_element);
   }
 
   parlay::sequence<std::pair<int, int>> edges(num_edges);
@@ -129,7 +129,7 @@ parlay::sequence<std::pair<int, int>> Element::GetEdges() {
                        offset += curr->values_[level];
                        curr = curr->neighbors_[level].next;
                      });
-    } while (curr != nullptr && curr != top_element);
+    } while (curr != top_element);
   }
   return edges;
 }
@@ -143,7 +143,7 @@ size_t Element::GetComponentSize() {
   do {
     num_edges += curr->values_[level];
     curr = curr->neighbors_[level].next;
-  } while (curr != nullptr && curr != top_element);
+  } while (curr != top_element);
 
   const size_t num_vertices = num_edges + 1;
   return num_vertices;
@@ -154,9 +154,8 @@ int Element::FindRepresentativeVertex() const {
   const Element* seen_element{nullptr};
   int current_level{current_element->height_ - 1};
 
-  // walk up while moving forward
-  while (current_element->neighbors_[current_level].next != nullptr &&
-         seen_element != current_element) {
+  // walk up while moving forward to find top level
+  while (seen_element != current_element) {
     if (seen_element == nullptr) {
       seen_element = current_element;
     }
@@ -168,8 +167,6 @@ int Element::FindRepresentativeVertex() const {
     }
   }
 
-  // expect list to be a cycle for simplicity
-  assert(seen_element == current_element);
   // look for minimum ID vertex in top level, or try again at lower levels if no
   // vertex is found
   int min_vertex{std::numeric_limits<int>::max()};
