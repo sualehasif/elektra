@@ -222,7 +222,7 @@ void BatchDynamicConnectivity::replacementSearch(
 
   // make a vector of the components to consider with size components.size() and
   // initialized to 0
-  vector<char> component_indicator(components.size(), 0);
+  std::vector<char> component_indicator(components.size(), 0);
 
   sequence<pair<int, int>> push_down_edges;
 
@@ -248,6 +248,7 @@ void BatchDynamicConnectivity::replacementSearch(
     UF.make_set(components[i]);
   }
 
+  // TODO(tom): This needs to be supported as an augmentation.
   // set up non-tree edges to search through
   // The first sequence indexes by the component number
   // The second sequence indexes by the edges in the component

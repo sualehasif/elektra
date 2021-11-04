@@ -1,7 +1,7 @@
 {
     "configurations": [
         {
-            "name": "Linux",
+            "name": "Mac",
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/elektra",
@@ -9,12 +9,14 @@
                 "${workspaceFolder}/test/tests",
                 "${workspaceFolder}/external/parlaylib/include/parlay",
                 "${workspaceFolder}/external/googletest/googletest/include/",
-                "${workspaceFolder}"
+                "${workspaceFolder}",
+                "/opt/homebrew/opt/boost/include/boost/",
+                "/opt/homebrew/Cellar/boost/1.76.0/include"
             ],
             "defines": [],
-            "compilerPath": "/usr/bin/clang",
+            "compilerPath": "/usr/bin/clang++",
             "cStandard": "c11",
-            "cppStandard": "c++14",
+            "cppStandard": "c++17",
             "intelliSenseMode": "linux-clang-x64"
         }
     ],
