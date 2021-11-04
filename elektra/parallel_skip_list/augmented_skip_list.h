@@ -31,11 +31,11 @@ class AugmentedElementBase : private ElementBase<Derived> {
   AugmentedElementBase(size_t random_int, Value value);
   ~AugmentedElementBase();
 
-  // Can run concurrently with other `JoinWithoutUpdate` calls, but augmented
-  // values must be updated separately afterwards.
+  // Can run concurrently with other `JoinWithoutUpdate` calls, but the augmented
+  // value of `left` must be updated separately afterwards.
   static void JoinWithoutUpdate(Derived* left, Derived* right);
-  // Can run concurrently with other `SplitWithoutUpdate` calls, but augmented
-  // values must be updated separately afterwards.
+  // Can run concurrently with other `SplitWithoutUpdate` calls, but the augmented
+  // value of the element must be updated separately afterwards.
   Derived* SplitWithoutUpdate();
 
   // For each `{left, right}` in the `len`-length array `joins`, concatenate the
@@ -55,6 +55,14 @@ class AugmentedElementBase : private ElementBase<Derived> {
   static void BatchUpdate(
       const parlay::sequence<Derived*>& elements,
       const parlay::sequence<Value>& new_values);
+  // Updates augmented values of the elements' ancestors according to whatever
+  // values already exist at elements[]->values_[0]. This is useful after calls
+  // to JoinWithoutUpdate() and SplitWithoutUpdate().
+  //
+  // (The "ancestors" of an element e refers e->FindLeftParent(0),
+  // e->FindLeftParent(0)->FindLeftParent(1),
+  // e->FindLeftParent(0)->FindLeftParent(1)->FindLeftParent(2)`, and so on.)
+  static void BatchUpdate(const parlay::sequence<Derived*>& elements);
 
   // Get the result of applying the augmentation function over the subsequence
   // between `left` and `right` inclusive.
@@ -245,26 +253,21 @@ void AugmentedElementBase<D, V>::UpdateTopDown(int level) {
   }
 }
 
-// If `new_values` is non-empty, for each `i`=0,1,...,`len`-1, assign value
-// `new_vals[i]` to element `elements[i]`.
-//
-// If `new_values` is empty, update the augmented values of the ancestors of
-// `elements`, where the "ancestors" of element `v` refer to `v`,
-// `v->FindLeftParent(0)`, `v->FindLeftParent(0)->FindLeftParent(1)`,
-// `v->FindLeftParent(0)->FindLeftParent(2)`, and so on. This functionality is
-// used privately to keep the augmented values correct when the list has
-// structurally changed.
 template <typename D, typename V>
 void AugmentedElementBase<D, V>::BatchUpdate(
     const parlay::sequence<D*>& elements,
     const parlay::sequence<V>& new_values) {
-  const size_t len{elements.size()};
-  if (!new_values.empty()) {
-    parlay::parallel_for(0, len, [&](size_t i) {
+  parlay::parallel_for(0, elements.size(), [&](size_t i) {
+    if (elements[i] != nullptr) {
       elements[i]->values_[0] = new_values[i];
-    });
-  }
+    }
+  });
+  AugmentedElementBase<D, V>::BatchUpdate(elements);
+}
 
+template <typename D, typename V>
+void AugmentedElementBase<D, V>::BatchUpdate(const parlay::sequence<D*>& elements) {
+  const size_t len{elements.size()};
   // The nodes whose augmented values need updating are the ancestors of
   // `elements`. Some nodes may share ancestors. `top_nodes` will contain,
   // without duplicates, the set of all ancestors of `elements` with no left
@@ -273,6 +276,11 @@ void AugmentedElementBase<D, V>::BatchUpdate(
   auto top_nodes{parlay::sequence<AugmentedElementBase<D, V>*>::uninitialized(len)};
 
   parlay::parallel_for(0, len, [&](const size_t i) {
+    if (elements[i] == nullptr) {
+      top_nodes[i] = nullptr;
+      return;
+    }
+
     int level{0};
     AugmentedElementBase<D, V>* curr{elements[i]};
     while (true) {
@@ -316,7 +324,7 @@ void AugmentedElementBase<D, V>::BatchJoin(const parlay::sequence<std::pair<D*, 
     Join(joins[i].first, joins[i].second);
     join_lefts[i] = joins[i].first;
   });
-  BatchUpdate(join_lefts, {});
+  BatchUpdate(join_lefts);
 }
 
 template <typename D, typename V>
