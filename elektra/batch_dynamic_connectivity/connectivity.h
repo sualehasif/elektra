@@ -34,6 +34,14 @@ enum class EdgeType {
 struct EdgeInfo {
   Level level;
   EdgeType type;
+
+  // The equality operator
+  bool operator==(const EdgeInfo &other) const {
+    return level == other.level && type == other.type;
+  }
+
+  // The inequality operator
+  bool operator!=(const EdgeInfo &other) const { return !(*this == other); }
 };
 
 }  // namespace detail
@@ -145,9 +153,9 @@ class BatchDynamicConnectivity {
   const int64_t num_vertices_;
 
   const int8_t max_level_;
+  const detail::EdgeInfo empty_info = {-1, detail::EdgeType::kNonTree};
   const std::tuple<std::pair<Vertex, Vertex>, detail::EdgeInfo> empty_edge =
-      std::make_tuple(std::make_pair(-1, -1),
-                      detail::EdgeInfo{-1, detail::EdgeType::kNonTree});
+      std::make_tuple(std::make_pair(-1, -1), empty_info);
 
   // `spanning_forests_[i]` stores F_i, the spanning forest for the i-th
   // subgraph. In particular, `spanning_forests[0]` is a spanning forest for the
@@ -237,9 +245,9 @@ BatchDynamicConnectivity::BatchDynamicConnectivity(int numVertices)
     non_tree_adjacency_lists_[i] = vtxLayer;
   });
 
-  edges_ =
-      elektra::resizable_table<pair<V, V>, detail::EdgeInfo, HashIntPairStruct>(
-          num_vertices_ * num_vertices_, empty_edge, HashIntPairStruct());
+  edges_ = elektra::resizable_table<pair<Vertex, Vertex>, detail::EdgeInfo,
+                                    HashIntPairStruct>(
+      num_vertices_ * num_vertices_, empty_edge, HashIntPairStruct());
 }
 
 BatchDynamicConnectivity::BatchDynamicConnectivity(
@@ -260,9 +268,9 @@ BatchDynamicConnectivity::BatchDynamicConnectivity(
     non_tree_adjacency_lists_[i] = vtxLayer;
   });
 
-  edges_ =
-      elektra::resizable_table<pair<V, V>, detail::EdgeInfo, HashIntPairStruct>(
-          num_vertices_ * num_vertices_, empty_edge, HashIntPairStruct());
+  edges_ = elektra::resizable_table<pair<Vertex, Vertex>, detail::EdgeInfo,
+                                    HashIntPairStruct>(
+      num_vertices_ * num_vertices_, empty_edge, HashIntPairStruct());
 
   BatchAddEdges(se);
 

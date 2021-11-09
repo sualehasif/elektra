@@ -153,6 +153,8 @@ inline bool write_max(std::atomic<ET>* a, ET b, F less) {
   return r;
 }
 
+}  // namespace elektra
+
 template <class ET>
 inline bool CAS(ET* ptr, ET oldv, ET newv) {
   if (sizeof(ET) == 1) {
@@ -175,4 +177,3 @@ inline bool CAS(ET* ptr, ET oldv, ET newv) {
     abort();
   }
 }
-}  // namespace elektra

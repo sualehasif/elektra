@@ -8,7 +8,7 @@
 #include "utilities/cas.h"
 
 using namespace std;
-using elektra::CAS;
+// using elektra::CAS;
 
 template <class T>
 struct maybe {
