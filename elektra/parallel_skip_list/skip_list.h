@@ -16,25 +16,10 @@ namespace parallel_skip_list {
 // each element of the skip list. To do this, we use the curiously recurring
 // template pattern (CRTP). By passing in the derived class through a template,
 // the skip list can hold pointers to the instances of derived class. A minimal
-// instantiation is given in "skip_list.hpp".
-//
-// Derived classes must provide a (perhaps empty) `DerivedInitialize()` and
-// `DerivedFinish()` function, which will be called in `Initialize()` and
-// `Finish()` respectively. These should provide initialization and cleanup for
-// static variables in the element class.
-//
-// `Initialize()` should be called before creating any `ElementBase<Derived>`
-// elements. This means that elements must not be created as global or static
-// variables. `Finish()` can be called after we are done with all
-// `ElementBase<Derived>` elements.
+// instantiation is given in the class "parallel_skip_list::Element".
 template <typename Derived>
 class ElementBase {
  public:
-  // Call this before creating any `ElementBase<Derived>` elements.
-  static void Initialize();
-  // Call this after being done with `ElementBase<Derived>`.
-  static void Finish();
-
   // Running this concurrently may lead to poor randomness in the height
   // distribution of skip list elements.
   ElementBase();
@@ -94,11 +79,7 @@ class ElementBase {
   // for the first element at the next level up.
   Derived* FindRightParent(int level) const;
 
-  // We might think to make this an `ArrayAllocator<T>` instead of a
-  // pointer to one, but then we run into a Static Initialization Order Fiasco.
-  // When run, our program could choose to initialize `ArrayAllocator<T>`,
-  // which uses `list_allocator<T>`, before `list_allocator<T>` is initialized.
-  static concurrent_array_allocator::Allocator<Neighbors>* neighbor_allocator_;
+  static concurrent_array_allocator::Allocator<Neighbors> neighbor_allocator_;
   static parlay::random default_randomness_;
 
   // neighbors_[i] holds neighbors at level i, where level 0 is the lowest level
@@ -107,40 +88,44 @@ class ElementBase {
   int height_;
 };
 
+// Basic phase-concurrent skip list. See interface of `ElementBase<T>`.
+class Element : public ElementBase<Element> {
+ public:
+  // Inherits constructors.
+  using ElementBase<Element>::ElementBase;
+
+ private:
+  friend class ElementBase<Element>;
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 //                           Implementation below.                           //
 ///////////////////////////////////////////////////////////////////////////////
-
+// using elektra::CAS;
 namespace _internal {
 
-int GenerateHeight(size_t random_int);
+constexpr int kMaxHeight{concurrent_array_allocator::kMaxArrayLength};
+
+int GenerateHeight(size_t random_int) {
+  int h{1};
+  // Geometric(1/2) distribution.
+  // Note: could also consider Geometric(3/4) (so 1/4 of elements go up to next
+  // level) by reading two bits at once
+  while (random_int & 1) {
+    random_int >>= 1;
+    h++;
+  }
+  return std::min(h, kMaxHeight);
+}
 
 }  // namespace _internal
 
 template <typename Derived>
-concurrent_array_allocator::Allocator<typename ElementBase<Derived>::Neighbors>*
-    ElementBase<Derived>::neighbor_allocator_{nullptr};
+concurrent_array_allocator::Allocator<typename ElementBase<Derived>::Neighbors>
+    ElementBase<Derived>::neighbor_allocator_{};
 
 template <typename Derived>
 parlay::random ElementBase<Derived>::default_randomness_{};
-
-template <typename Derived>
-void ElementBase<Derived>::Initialize() {
-  if (neighbor_allocator_ == nullptr) {
-    neighbor_allocator_ =
-        new concurrent_array_allocator::Allocator<Neighbors>{};
-  }
-  Derived::DerivedInitialize();
-}
-
-template <typename Derived>
-void ElementBase<Derived>::Finish() {
-  if (neighbor_allocator_ != nullptr) {
-    delete neighbor_allocator_;
-    neighbor_allocator_ = nullptr;
-  }
-  Derived::DerivedFinish();
-}
 
 template <typename Derived>
 size_t ElementBase<Derived>::GetHeight() const {
@@ -152,7 +137,7 @@ ElementBase<Derived>::ElementBase() {
   size_t random_int{default_randomness_.rand()};
   default_randomness_ = default_randomness_.next();  // race if run concurrently
   height_ = _internal::GenerateHeight(random_int);
-  neighbors_ = neighbor_allocator_->Allocate(height_);
+  neighbors_ = neighbor_allocator_.Allocate(height_);
   for (int i = 0; i < height_; i++) {
     neighbors_[i].prev = neighbors_[i].next = nullptr;
   }
@@ -161,7 +146,7 @@ ElementBase<Derived>::ElementBase() {
 template <typename Derived>
 ElementBase<Derived>::ElementBase(size_t random_int) {
   height_ = _internal::GenerateHeight(random_int);
-  neighbors_ = neighbor_allocator_->Allocate(height_);
+  neighbors_ = neighbor_allocator_.Allocate(height_);
   for (int i = 0; i < height_; i++) {
     neighbors_[i].prev = neighbors_[i].next = nullptr;
   }
@@ -169,7 +154,7 @@ ElementBase<Derived>::ElementBase(size_t random_int) {
 
 template <typename Derived>
 ElementBase<Derived>::~ElementBase() {
-  neighbor_allocator_->Free(neighbors_, height_);
+  neighbor_allocator_.Free(neighbors_, height_);
 }
 
 template <typename Derived>
@@ -306,105 +291,5 @@ Derived* ElementBase<Derived>::Split() {
   }
   return successor;
 }
-
-// Basic phase-concurrent skip list. See interface of `ElementBase<T>`.
-class Element : public ElementBase<Element> {
- public:
-  explicit Element(size_t random_int) : ElementBase<Element>{random_int} {}
-
- private:
-  friend class ElementBase<Element>;
-  static void DerivedInitialize() {}
-  static void DerivedFinish() {}
-};
-
-// Batch-parallel augmented skip list. Currently, the augmentation is
-// hardcoded to the sum function with the value 1 assigned to each element. As
-// such, `GetSum()` returns the size of the list.
-//
-// TODO(tomtseng): Allow user to pass in their own arbitrary associative
-// augmentation functions. The contract for `GetSum` on a cyclic list should be
-// that the function will be applied starting from `this`, because where we
-// begin applying the function matters for non-commutative functions.
-class AugmentedElement : private ElementBase<AugmentedElement> {
-  friend class ElementBase<AugmentedElement>;
-
- public:
-  using ElementBase<AugmentedElement>::Initialize;
-  using ElementBase<AugmentedElement>::Finish;
-
-  // See comments on `ElementBase<>`.
-  AugmentedElement();
-  explicit AugmentedElement(size_t random_int);
-  ~AugmentedElement();
-
-  // For each `{left, right}` in the `len`-length array `joins`, concatenate the
-  // list that `left` lives in to the list that `right` lives in.
-  //
-  // `left` must be the last node in its list, and `right` must be the first
-  // node of in its list. Each `left` must be unique, and each `right` must be
-  // unique.
-  static void BatchJoin(std::pair<AugmentedElement*, AugmentedElement*>* joins,
-                        int len);
-
-  // For each `v` in the `len`-length array `splits`, split `v`'s list right
-  // after `v`.
-  static void BatchSplit(AugmentedElement** splits, int len);
-
-  // For each `i`=0,1,...,`len`-1, assign value `new_values[i]` to element
-  // `elements[i]`.
-  static void BatchUpdate(AugmentedElement** elements, int* new_values,
-                          int len);
-
-  // Get the result of applying the augmentation function over the subsequence
-  // between `left` and `right` inclusive.
-  //
-  // `left` and `right` must live in the same list, and `left` must precede
-  // `right` in the list.
-  //
-  // This function does not modify the data structure, so it may run
-  // concurrently with other `GetSubsequenceSum` calls and const function calls.
-  static int GetSubsequenceSum(const AugmentedElement* left,
-                               const AugmentedElement* right);
-
-  // Get result of applying the augmentation function over the whole list that
-  // the element lives in.
-  int GetSum() const;
-
-  using ElementBase<AugmentedElement>::FindRepresentative;
-  using ElementBase<AugmentedElement>::GetPreviousElement;
-  using ElementBase<AugmentedElement>::GetNextElement;
-
- private:
-  static void DerivedInitialize();
-  static void DerivedFinish();
-
-  // Update aggregate value of node and clear `join_update_level` after joins.
-  void UpdateTopDown(int level);
-  void UpdateTopDownSequential(int level);
-
-  int* values_;
-  // When updating augmented values, this marks the lowest index at which the
-  // `values_` needs to be updated.
-  int update_level_;
-};
-
-namespace _internal {
-
-constexpr int kMaxHeight{concurrent_array_allocator::kMaxArrayLength};
-
-int GenerateHeight(size_t random_int) {
-  int h{1};
-  // Geometric(1/2) distribution.
-  // Note: could also consider Geometric(3/4) (so 1/4 of elements go up to next
-  // level) by reading two bits at once
-  while (random_int & 1) {
-    random_int >>= 1;
-    h++;
-  }
-  return std::min(h, kMaxHeight);
-}
-
-}  // namespace _internal
 
 }  // namespace parallel_skip_list

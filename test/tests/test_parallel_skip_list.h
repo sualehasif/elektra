@@ -12,17 +12,6 @@ namespace {
 
 using Element = parallel_skip_list::Element;
 
-class ParallelSkipListTest : public ::testing::Test {
- protected:
-  ParallelSkipListTest() {
-    Element::Initialize();
-  }
-
-  ~ParallelSkipListTest() override {
-    Element::Finish();
-  }
-};
-
 // Create `n` skip list elements.
 parlay::sequence<Element> CreateElements(size_t n, size_t random_seed = 0) {
   auto elements_seq = parlay::sequence<Element>::uninitialized(n);
@@ -34,7 +23,7 @@ parlay::sequence<Element> CreateElements(size_t n, size_t random_seed = 0) {
   return elements_seq;
 }
 
-TEST_F(ParallelSkipListTest, IsDisconnectedInitially) {
+TEST(ParallelSkipListTest, IsDisconnectedInitially) {
   auto elements = CreateElements(3);
   EXPECT_NE(elements[0].FindRepresentative(), elements[1].FindRepresentative());
   EXPECT_NE(elements[0].FindRepresentative(), elements[2].FindRepresentative());
@@ -42,7 +31,7 @@ TEST_F(ParallelSkipListTest, IsDisconnectedInitially) {
 }
 
 // Join all elements together in a long chain.
-TEST_F(ParallelSkipListTest, JoinIntoChain) {
+TEST(ParallelSkipListTest, JoinIntoChain) {
   const int n = 5;
   auto elements = CreateElements(n);
 
@@ -57,7 +46,7 @@ TEST_F(ParallelSkipListTest, JoinIntoChain) {
 }
 
 // Join all elements together in a cycle.
-TEST_F(ParallelSkipListTest, JoinIntoCycle) {
+TEST(ParallelSkipListTest, JoinIntoCycle) {
   const int n = 5;
   auto elements = CreateElements(n);
 
@@ -73,7 +62,7 @@ TEST_F(ParallelSkipListTest, JoinIntoCycle) {
 
 // Join all elements together in a cycle and then split everything back into
 // individual elements.
-TEST_F(ParallelSkipListTest, SplitIntoLengthOneLists) {
+TEST(ParallelSkipListTest, SplitIntoLengthOneLists) {
   const int n = 10;
   auto elements = CreateElements(n);
 
@@ -93,7 +82,7 @@ TEST_F(ParallelSkipListTest, SplitIntoLengthOneLists) {
 
 // Join all elements together in a cycle and then split everything into length-2
 // lists.
-TEST_F(ParallelSkipListTest, SplitIntoLengthTwoLists) {
+TEST(ParallelSkipListTest, SplitIntoLengthTwoLists) {
   const int n = 10;
   ASSERT_EQ(n % 2, 0);
   auto elements = CreateElements(n);

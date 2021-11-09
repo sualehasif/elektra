@@ -9,8 +9,11 @@ template <typename T>
 using sequence = parlay::sequence<T>;
 using V = Vertex;
 
+using std::make_pair;
+using std::make_tuple;
 using std::min;
 using std::pair;
+using std::tuple;
 using std::vector;
 // -------------
 // PUBLIC METHODS
@@ -118,23 +121,27 @@ void BatchDynamicConnectivity::BatchAddEdges(
       treeEdges.push_back(make_pair(se[i].first, se[i].second));
       detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
                              detail::EdgeType::kTree};
-      edges_[se[i]] = ei;
+      edges_.insert(
+          make_tuple(pair<Vertex, Vertex>(se[i].first, se[i].second), ei));
 
       // TODO(sualeh): Think about whether you can get away without inserting
       // the reverse edge add the reverse edge to the edges_ map
       detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
                                  detail::EdgeType::kTree};
-      edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
+      edges_.insert(
+          make_tuple(pair<Vertex, Vertex>(se[i].second, se[i].first), ei_rev));
     } else {
       nonTreeEdges.push_back(se[i]);
       detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
                              detail::EdgeType::kNonTree};
-      edges_[se[i]] = ei;
+      edges_.insert(
+          make_tuple(pair<Vertex, Vertex>(se[i].first, se[i].second), ei));
 
       // add the reverse edge to the edges_ map
       detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
                                  detail::EdgeType::kNonTree};
-      edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
+      edges_.insert(
+          make_tuple(pair<Vertex, Vertex>(se[i].second, se[i].first), ei_rev));
     }
   }
 
@@ -347,10 +354,10 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
     auto u = e.first;
     auto v = e.second;
 
-    if (edges_.find(UndirectedEdge(v, u)) != edges_.end()) {
+    if (edges_.find(pair<Vertex, Vertex>(v, u)) != empty_info) {
       // swap the edges
       se[i] = UndirectedEdge(v, u);
-    } else if (edges_.find(e) == edges_.end()) {
+    } else if (edges_.find(pair<Vertex, Vertex>(u, v)) == empty_info) {
       // if the edge is not in the graph, skip it
       se[i] = UndirectedEdge(-1, -1);
     }
@@ -372,7 +379,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
 
   // delete edges from the non tree adjacency lists.
   parlay::parallel_for(0, se.size(), [&](int i) {
-    auto level = edges_[se[i]].level;
+    auto level =
+        edges_.find(pair<Vertex, Vertex>(se[i].first, se[i].second)).level;
     auto u = se[i].first;
     auto v = se[i].second;
 
@@ -419,8 +427,9 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
     auto levelEulerTree = parallel_spanning_forests_[l];
 
     // get the edges to delete which have level at max l.
-    auto toDelete = parlay::filter(
-        treeEdges, [&](UndirectedEdge e) { return edges_[e].level <= l; });
+    auto toDelete = parlay::filter(treeEdges, [&](UndirectedEdge e) {
+      return edges_.find(pair<Vertex, Vertex>(e.first, e.second)).level <= l;
+    });
 
 #ifdef DEBUG
     std::cout << "Deleting edges from level " << l << std::endl;
@@ -447,8 +456,9 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
   for (int l = min_tree_edge_level; l < max_level_; l++) {
     auto levelEulerTree = parallel_spanning_forests_[l];
 
-    auto edgesToReplace = parlay::filter(
-        treeEdges, [&](UndirectedEdge e) { return edges_[e].level == l; });
+    auto edgesToReplace = parlay::filter(treeEdges, [&](UndirectedEdge e) {
+      return edges_.find(pair<Vertex, Vertex>(e.first, e.second)).level == l;
+    });
 
 #ifdef DEBUG
     // print out the edges to replace
@@ -507,7 +517,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
       // remove the promoted edges from the non-tree edge lists
       parlay::parallel_for(0, promoted_edges.size(), [&](int i) {
         auto e = promoted_edges[i];
-        auto level = edges_[UndirectedEdge{e.first, e.second}].level;
+        auto level = edges_.find(e).level;
         auto u = promoted_edges[i].first;
         auto v = promoted_edges[i].second;
 
@@ -522,8 +532,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
 
         // update the edges_ map to reflect that it is a tree edge
         detail::EdgeInfo ei = {level, detail::EdgeType::kTree};
-        edges_[UndirectedEdge{e.first, e.second}] = ei;
-        edges_[UndirectedEdge{e.second, e.first}] = ei;
+        edges_.insert(make_tuple(e, ei));
+        edges_.insert(make_tuple(make_pair(e.second, e.first), ei));
 
         auto ul = non_tree_adjacency_lists_[level][u];
         auto vl = non_tree_adjacency_lists_[level][v];
