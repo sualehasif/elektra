@@ -109,12 +109,8 @@ class AugmentedElementBase : private ElementBase<Derived> {
 // Basic augmented skip list augmented such that calling `elem.GetSum()` on
 // element `elem` returns the size of the list containing `elem`. See interface of
 // `AugmentedElementBase`.
-//
-// TODO(tomtseng): change int64_t instead of int once PR
-// https://github.com/cmuparlay/parlaylib/pull/8 merges; we're just using
-// int64_t to avoid the segfault described in the PR
-class AugmentedElement : public AugmentedElementBase<AugmentedElement, int64_t> {
-  using Base = AugmentedElementBase<AugmentedElement, int64_t>;
+class AugmentedElement : public AugmentedElementBase<AugmentedElement, int> {
+  using Base = AugmentedElementBase<AugmentedElement, int>;
 
  public:
   AugmentedElement() : Base(1) {}
