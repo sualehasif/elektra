@@ -108,6 +108,9 @@ void BatchDynamicConnectivity::BatchAddEdges(
   //   }
   // });
 
+  // TODO: parallelize the following using filter/pack, depending on
+  // how we implement tree.
+  //
   // the loop above serially
   for (int i = 0; i < (int)se.size(); i++) {
     // TODO(sualeh, laxmand): The lookup into tree here looking up the
@@ -140,6 +143,9 @@ void BatchDynamicConnectivity::BatchAddEdges(
   // add tree edges
   maxLevelEulerTree->BatchLink(treeEdges);
 
+  // TODO(sualeh): What if the hash table we insert into has
+  // insufficient space?
+  //
   // add to adjacancy list
   parlay::parallel_for(0, nonTreeEdges.size(), [&](int i) {
     non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].first].insert(
