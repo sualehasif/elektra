@@ -110,6 +110,9 @@ void BatchDynamicConnectivity::BatchAddEdges(
 
   // the loop above serially
   for (int i = 0; i < (int)se.size(); i++) {
+    // TODO(sualeh, laxmand): The lookup into tree here looking up the
+    // original edges, but tree contains edges that are relabeled by
+    // their representatives? Did I miss something here?
     if (tree.count(se[i])) {
       treeEdges.push_back(make_pair(se[i].first, se[i].second));
       detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
