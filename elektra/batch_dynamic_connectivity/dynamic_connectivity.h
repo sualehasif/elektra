@@ -29,9 +29,8 @@ sequence<char> BatchDynamicConnectivity::BatchConnected(
   BatchDynamicET *pMaxLevelEulerTree =
       parallel_spanning_forests_[max_level_ - 1];
 
-  parlay::parallel_for(0, suv.size(), [&](int i) {
-    auto v1 = suv[i].first;
-    auto v2 = suv[i].second;
+  parlay::parallel_for(0, suv.size(), [&] (size_t i) {
+    auto [v1, v2] = suv[i];
     s[i] = pMaxLevelEulerTree->IsConnected(v1, v2);
   });
 
@@ -48,7 +47,7 @@ sequence<char> BatchDynamicConnectivity::BatchConnected(
 void BatchDynamicConnectivity::BatchAddEdges(
     const sequence<UndirectedEdge> &se) {
   // Look at the max level Euler Tour Tree in the parallel spanning forests.
-  auto maxLevelEulerTree = parallel_spanning_forests_[max_level_ - 1];
+  BatchDynamicET* maxLevelEulerTree = parallel_spanning_forests_[max_level_ - 1];
 
   // you can print all the edges for debugging
   // std::cout << "Adding edges to the graph" << std::endl;
@@ -63,6 +62,10 @@ void BatchDynamicConnectivity::BatchAddEdges(
             (V)maxLevelEulerTree->GetRepresentative(e.first),
             (V)maxLevelEulerTree->GetRepresentative(e.second));
       });
+  // TODO(laxmand): change getSpanningTree to use the concurrent
+  // union-find code.
+  // TODO(sualeh): Seems we can just make a treeSet a parlay::sequence
+  // of UndirectedEdges?
   auto tree = getSpanningTree(auxiliaryEdges);
 
   // print all the tree edges for debugging if wanted.
