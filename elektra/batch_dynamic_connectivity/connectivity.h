@@ -388,6 +388,11 @@ void BatchDynamicConnectivity::PrintNonTreeEdges() {
 void BatchDynamicConnectivity::PrintNonTreeEdgesForLevel(int8_t level) {
   std::cout << "Level " << (int)level << ": " << std::endl;
   // contains all the non-tree edges in the level
+  //
+  // TODO(sualeh) Note that non_tree_adjacency_lists[level] is a
+  // parlay::sequence and so the below will create a copy. Instead you
+  // can do:
+  // auto& vtxLayer = ...
   auto vtxLayer = non_tree_adjacency_lists_[level];
 
   // scan through and build a set of all the edges
