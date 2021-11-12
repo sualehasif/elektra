@@ -201,7 +201,7 @@ void AugmentedElementBase<D, F>::UpdateTopDownSequential(int level) {
     if (curr->update_level_ != _internal::NA && curr->update_level_ < level) {
       curr->UpdateTopDownSequential(level - 1);
     }
-    sum += curr->values_[level - 1];
+    sum = F::f(sum, curr->values_[level - 1]);
     curr = curr->neighbors_[level - 1].next;
   }
   values_[level] = sum;
@@ -245,7 +245,7 @@ void AugmentedElementBase<D, F>::UpdateTopDown(int level) {
   typename F::T sum{values_[level - 1]};
   AugmentedElementBase<D, F>* curr = neighbors_[level - 1].next;
   while (curr != nullptr && curr->height_ < level + 1) {
-    sum += curr->values_[level - 1];
+    sum = F::f(sum, curr->values_[level - 1]);
     curr = curr->neighbors_[level - 1].next;
   }
   values_[level] = sum;
@@ -356,7 +356,7 @@ void AugmentedElementBase<D, F>::BatchSplit(const parlay::sequence<D*>& splits) 
           if (curr == nullptr) {
             break;
           } else {
-            sum += curr->values_[level];
+            sum = F::f(sum, curr->values_[level]);
           }
         }
       }
@@ -374,11 +374,11 @@ typename F::T AugmentedElementBase<D, F>::GetSubsequenceSum(const D* left, const
   while (left != right) {
     level = std::min(left->height_, right->height_) - 1;
     if (level == left->height_ - 1) {
-      sum += left->values_[level];
+      sum = F::f(sum, left->values_[level]);
       left = left->neighbors_[level].next;
     } else {
       right = right->neighbors_[level].prev;
-      sum += right->values_[level];
+      sum = F::f(sum, right->values_[level]);
     }
   }
   return sum;
@@ -395,7 +395,7 @@ typename F::T AugmentedElementBase<D, F>::GetSum() const {
   typename F::T sum{root->values_[level]};
   AugmentedElementBase<D, F>* curr{root->neighbors_[level].next};
   while (curr != nullptr && curr != root) {
-    sum += curr->values_[level];
+    sum = F::f(sum, curr->values_[level]);
     curr = curr->neighbors_[level].next;
   }
   if (curr == nullptr) {
@@ -411,7 +411,7 @@ typename F::T AugmentedElementBase<D, F>::GetSum() const {
       }
       while (curr->neighbors_[level].prev != nullptr) {
         curr = curr->neighbors_[level].prev;
-        sum += curr->values_[level];
+        sum = F::f(sum, curr->values_[level]);
       }
     }
   }
