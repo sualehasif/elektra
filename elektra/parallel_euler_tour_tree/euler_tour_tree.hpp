@@ -2,6 +2,7 @@
 
 #include <parlay/alloc.h>
 #include <parlay/delayed_sequence.h>
+#include <parlay/monoid.h>
 #include <parlay/parallel.h>
 #include <parlay/primitives.h>
 #include <parlay/sequence.h>
@@ -20,8 +21,8 @@ namespace parallel_euler_tour_tree {
 
 namespace _internal {
 
-class Element : public parallel_skip_list::AugmentedElementBase<Element, size_t> {
-  using Base = parallel_skip_list::AugmentedElementBase<Element, size_t>;
+class Element : public parallel_skip_list::AugmentedElementBase<Element, parlay::addm<int>> {
+  using Base = parallel_skip_list::AugmentedElementBase<Element, parlay::addm<int>>;
 
  public:
   explicit Element(size_t random_int, std::pair<int, int> id)

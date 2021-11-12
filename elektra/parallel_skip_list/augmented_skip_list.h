@@ -4,24 +4,28 @@
 
 #include <algorithm>
 
+#include <parlay/monoid.h>
 #include <parlay/parallel.h>
 #include <parlay/sequence.h>
 #include <parlay/utilities.h>
 
 namespace parallel_skip_list {
 
-// Batch-parallel augmented skip list. Currently, the augmentation is
-// hardcoded to the addition function.
+// Batch-parallel augmented skip list. Each element is assigned a value, and
+// partial sums over connected elements can be computed.
 //
-// TODO(tomtseng): Allow user to pass in their own arbitrary associative
-// augmentation functions. The contract for `GetSum` on a cyclic list should be
-// that the function will be applied starting from `this`, because where we
-// begin applying the function matters for non-commutative functions.
-// TODO(tomtseng): update this function comment describing what all these
-// template args are
-template <typename Derived, typename Value = long long>
+// A minimal example of using this class is given in the class AugmentedElement.
+//
+// Template arguments:
+// - Derived: When using this class or creating a subclass of it, `Derived`
+//   should be the (sub)class itself.
+// - Func: This is the augmentation function and should be a class containing a
+//   type `T` and an associative, commutative function `f` with type signature
+//   `static T f(T a, T b)`.
+template <typename Derived, typename Func>
 class AugmentedElementBase : private ElementBase<Derived> {
-  using Element = AugmentedElementBase<Derived, Value>;
+  using Element = AugmentedElementBase<Derived, Func>;
+  using Value = typename Func::T;
   friend class ElementBase<Derived>;
 
  public:
@@ -109,8 +113,8 @@ class AugmentedElementBase : private ElementBase<Derived> {
 // Basic augmented skip list augmented such that calling `elem.GetSum()` on
 // element `elem` returns the size of the list containing `elem`. See interface of
 // `AugmentedElementBase`.
-class AugmentedElement : public AugmentedElementBase<AugmentedElement, int> {
-  using Base = AugmentedElementBase<AugmentedElement, int>;
+class AugmentedElement : public AugmentedElementBase<AugmentedElement, parlay::addm<int>> {
+  using Base = AugmentedElementBase<AugmentedElement, parlay::addm<int>>;
 
  public:
   AugmentedElement() : Base(1) {}
@@ -140,47 +144,47 @@ inline bool write_min(T* a, T b) {
 
 }  // namespace _internal
 
-template <typename D, typename V>
-concurrent_array_allocator::Allocator<V> AugmentedElementBase<D, V>::values_allocator_{};
+template <typename D, typename F>
+concurrent_array_allocator::Allocator<typename F::T> AugmentedElementBase<D, F>::values_allocator_{};
 
-template <typename D, typename V>
-V* AugmentedElementBase<D, V>::AllocateValues(int height, V default_value) {
-  V* values{values_allocator_.Allocate(height)};
+template <typename D, typename F>
+typename F::T* AugmentedElementBase<D, F>::AllocateValues(int height, typename F::T default_value) {
+  typename F::T* values{values_allocator_.Allocate(height)};
   for (int i = 0; i < height; i++) {
     values[i] = default_value;
   }
   return values;
 }
 
-template <typename D, typename V>
-AugmentedElementBase<D, V>::AugmentedElementBase(V value) :
+template <typename D, typename F>
+AugmentedElementBase<D, F>::AugmentedElementBase(typename F::T value) :
     ElementBase<D>{}, update_level_{_internal::NA} {
   values_ = AllocateValues(height_, value);
 }
 
-template <typename D, typename V>
-AugmentedElementBase<D, V>::AugmentedElementBase(size_t random_int, V value) :
+template <typename D, typename F>
+AugmentedElementBase<D, F>::AugmentedElementBase(size_t random_int, typename F::T value) :
     ElementBase<D>{random_int}, update_level_{_internal::NA} {
   values_ = AllocateValues(height_, value);
 }
 
-template <typename D, typename V>
-AugmentedElementBase<D, V>::~AugmentedElementBase() {
+template <typename D, typename F>
+AugmentedElementBase<D, F>::~AugmentedElementBase() {
   values_allocator_.Free(values_, height_);
 }
 
-template <typename D, typename V>
-void AugmentedElementBase<D, V>::JoinWithoutUpdate(D* left, D* right) {
+template <typename D, typename F>
+void AugmentedElementBase<D, F>::JoinWithoutUpdate(D* left, D* right) {
   Join(left, right);
 }
 
-template <typename D, typename V>
-D* AugmentedElementBase<D, V>::SplitWithoutUpdate() {
+template <typename D, typename F>
+D* AugmentedElementBase<D, F>::SplitWithoutUpdate() {
   return Split();
 }
 
-template <typename D, typename V>
-void AugmentedElementBase<D, V>::UpdateTopDownSequential(int level) {
+template <typename D, typename F>
+void AugmentedElementBase<D, F>::UpdateTopDownSequential(int level) {
   if (level == 0) {
     if (height_ == 1) {
       update_level_ = _internal::NA;
@@ -191,7 +195,7 @@ void AugmentedElementBase<D, V>::UpdateTopDownSequential(int level) {
   if (update_level_ < level) {
     UpdateTopDownSequential(level - 1);
   }
-  V sum{values_[level - 1]};
+  typename F::T sum{values_[level - 1]};
   AugmentedElementBase* curr{neighbors_[level - 1].next};
   while (curr != nullptr && curr->height_ < level + 1) {
     if (curr->update_level_ != _internal::NA && curr->update_level_ < level) {
@@ -209,8 +213,8 @@ void AugmentedElementBase<D, V>::UpdateTopDownSequential(int level) {
 
 // Helper function for UpdateTopDown() that updates the augmented values of the
 // descendants of `curr`.
-template <typename D, typename V>
-void AugmentedElementBase<D, V>::UpdateTopDownImpl(int level, D* curr, bool is_loop_start) {
+template <typename D, typename F>
+void AugmentedElementBase<D, F>::UpdateTopDownImpl(int level, D* curr, bool is_loop_start) {
   while (is_loop_start || (curr != nullptr && curr->height_ < level + 1)) {
     if (curr->update_level_ != _internal::NA && curr->update_level_ < level) {
       parlay::par_do(
@@ -227,8 +231,8 @@ void AugmentedElementBase<D, V>::UpdateTopDownImpl(int level, D* curr, bool is_l
 // `level`-th node. `update_level_` is used to determine what nodes need
 // updating. `update_level_` is reset to `NA` for all traversed nodes at end of
 // this function.
-template <typename D, typename V>
-void AugmentedElementBase<D, V>::UpdateTopDown(int level) {
+template <typename D, typename F>
+void AugmentedElementBase<D, F>::UpdateTopDown(int level) {
   if (level <= 6) {
     UpdateTopDownSequential(level);
     return;
@@ -238,8 +242,8 @@ void AugmentedElementBase<D, V>::UpdateTopDown(int level) {
 
   // Now that children have correct augmented valeus, update self's augmented
   // value.
-  V sum{values_[level - 1]};
-  AugmentedElementBase<D, V>* curr = neighbors_[level - 1].next;
+  typename F::T sum{values_[level - 1]};
+  AugmentedElementBase<D, F>* curr = neighbors_[level - 1].next;
   while (curr != nullptr && curr->height_ < level + 1) {
     sum += curr->values_[level - 1];
     curr = curr->neighbors_[level - 1].next;
@@ -251,28 +255,28 @@ void AugmentedElementBase<D, V>::UpdateTopDown(int level) {
   }
 }
 
-template <typename D, typename V>
-void AugmentedElementBase<D, V>::BatchUpdate(
+template <typename D, typename F>
+void AugmentedElementBase<D, F>::BatchUpdate(
     const parlay::sequence<D*>& elements,
-    const parlay::sequence<V>& new_values) {
+    const parlay::sequence<typename F::T>& new_values) {
   parlay::parallel_for(0, elements.size(), [&](size_t i) {
     if (elements[i] != nullptr) {
       elements[i]->values_[0] = new_values[i];
     }
   });
-  AugmentedElementBase<D, V>::BatchUpdate(elements);
+  AugmentedElementBase<D, F>::BatchUpdate(elements);
 }
 
-template <typename D, typename V>
+template <typename D, typename F>
 template <typename Seq>
-void AugmentedElementBase<D, V>::BatchUpdate(const Seq& elements) {
+void AugmentedElementBase<D, F>::BatchUpdate(const Seq& elements) {
   const size_t len{elements.size()};
   // The nodes whose augmented values need updating are the ancestors of
   // `elements`. Some nodes may share ancestors. `top_nodes` will contain,
   // without duplicates, the set of all ancestors of `elements` with no left
   // parents. From there we can walk down from those ancestors to update all
   // required augmented values.
-  auto top_nodes{parlay::sequence<AugmentedElementBase<D, V>*>::uninitialized(len)};
+  auto top_nodes{parlay::sequence<AugmentedElementBase<D, F>*>::uninitialized(len)};
 
   parlay::parallel_for(0, len, [&](const size_t i) {
     if (elements[i] == nullptr) {
@@ -281,7 +285,7 @@ void AugmentedElementBase<D, V>::BatchUpdate(const Seq& elements) {
     }
 
     int level{0};
-    AugmentedElementBase<D, V>* curr{elements[i]};
+    AugmentedElementBase<D, F>* curr{elements[i]};
     while (true) {
       int curr_update_level{curr->update_level_};
       if (curr_update_level == _internal::NA && CAS(&curr->update_level_, _internal::NA, level)) {
@@ -314,8 +318,8 @@ void AugmentedElementBase<D, V>::BatchUpdate(const Seq& elements) {
   });
 }
 
-template <typename D, typename V>
-void AugmentedElementBase<D, V>::BatchJoin(const parlay::sequence<std::pair<D*, D*>>& joins)
+template <typename D, typename F>
+void AugmentedElementBase<D, F>::BatchJoin(const parlay::sequence<std::pair<D*, D*>>& joins)
 {
   const size_t len{joins.size()};
   auto join_lefts{parlay::sequence<D*>::uninitialized(len)};
@@ -326,14 +330,14 @@ void AugmentedElementBase<D, V>::BatchJoin(const parlay::sequence<std::pair<D*, 
   BatchUpdate(join_lefts);
 }
 
-template <typename D, typename V>
-void AugmentedElementBase<D, V>::BatchSplit(const parlay::sequence<D*>& splits) {
+template <typename D, typename F>
+void AugmentedElementBase<D, F>::BatchSplit(const parlay::sequence<D*>& splits) {
   const size_t len{splits.size()};
   parlay::parallel_for(0, len, [&](const size_t i) {
     splits[i]->Split();
   });
   parlay::parallel_for(0, len, [&](const size_t i) {
-    AugmentedElementBase<D, V>* curr{splits[i]};
+    AugmentedElementBase<D, F>* curr{splits[i]};
     // `can_proceed` breaks ties when there are duplicate splits. When two
     // splits occur at the same place, only one of them should walk up and
     // update.
@@ -341,7 +345,7 @@ void AugmentedElementBase<D, V>::BatchSplit(const parlay::sequence<D*>& splits) 
         curr->update_level_ == _internal::NA && CAS(&curr->update_level_, _internal::NA, 0)};
     if (can_proceed) {
       // Update values of `curr`'s ancestors.
-      V sum{curr->values_[0]};
+      typename F::T sum{curr->values_[0]};
       int level{0};
       while (true) {
         if (level < curr->height_ - 1) {
@@ -363,10 +367,10 @@ void AugmentedElementBase<D, V>::BatchSplit(const parlay::sequence<D*>& splits) 
   });
 }
 
-template <typename D, typename V>
-V AugmentedElementBase<D, V>::GetSubsequenceSum(const D* left, const D* right) {
+template <typename D, typename F>
+typename F::T AugmentedElementBase<D, F>::GetSubsequenceSum(const D* left, const D* right) {
   int level{0};
-  V sum{right->values_[level]};
+  typename F::T sum{right->values_[level]};
   while (left != right) {
     level = std::min(left->height_, right->height_) - 1;
     if (level == left->height_ - 1) {
@@ -380,16 +384,16 @@ V AugmentedElementBase<D, V>::GetSubsequenceSum(const D* left, const D* right) {
   return sum;
 }
 
-template <typename D, typename V>
-V AugmentedElementBase<D, V>::GetSum() const {
+template <typename D, typename F>
+typename F::T AugmentedElementBase<D, F>::GetSum() const {
   // Here we use knowledge of the implementation of `FindRepresentative()`.
   // `FindRepresentative()` gives some element that reaches the top level of the
   // list. For acyclic lists, the element is the leftmost one.
-  AugmentedElementBase<D, V>* root{FindRepresentative()};
+  AugmentedElementBase<D, F>* root{FindRepresentative()};
   // Sum the values across the top level of the list.
   int level{root->height_ - 1};
-  V sum{root->values_[level]};
-  AugmentedElementBase<D, V>* curr{root->neighbors_[level].next};
+  typename F::T sum{root->values_[level]};
+  AugmentedElementBase<D, F>* curr{root->neighbors_[level].next};
   while (curr != nullptr && curr != root) {
     sum += curr->values_[level];
     curr = curr->neighbors_[level].next;
