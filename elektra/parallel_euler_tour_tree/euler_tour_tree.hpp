@@ -43,6 +43,10 @@ class Element : public parallel_skip_list::AugmentedElementBase<Element, size_t>
   // Get the number of vertices in the sequence that contains this element.
   size_t GetComponentSize();
 
+  // Returns an estimate of the amount of memory in bytes this element occupies
+  // beyond what's captured by sizeof(Element).
+  size_t AllocatedMemorySize() const;
+
   // If this element represents a vertex v, then id == (v, v). Otherwise if
   // this element represents a directed edge (u, v), then id == (u,v).
   std::pair<int, int> id_;
@@ -161,6 +165,12 @@ size_t Element::GetComponentSize() {
   return num_vertices;
 }
 
+size_t Element::AllocatedMemorySize() const {
+  // Estimate size of neighbors_ and values_, knowing that they're allocated
+  // using concurrent_array_allocator.
+  return (sizeof(neighbors_[0]) + sizeof(values_[0])) * (1 << parlay::log2_up(height_));
+}
+
 int Element::FindRepresentativeVertex() const {
   const Element* current_element{this};
   const Element* seen_element{nullptr};
@@ -221,6 +231,12 @@ class EdgeMap {
   // in the map were allocated through `allocator`.
   void FreeElements();
 
+  // Returns an estimate of the amount of memory in bytes this element occupies
+  // beyond what's captured by sizeof(EdgeMap). This includes the amount of
+  // memory occupied by the `Element`s allocated and inserted as values into the
+  // map.
+  size_t AllocatedMemorySize() const;
+
  private:
   concurrent_map::concurrentHT<std::pair<int, int>, Element*, HashIntPairStruct>
       map_;
@@ -273,6 +289,17 @@ void EdgeMap::FreeElements() {
       ElementAllocator::free(element);
     }
   });
+}
+
+size_t EdgeMap::AllocatedMemorySize() const {
+  return sizeof(map_.table[0]) * map_.capacity +
+    parlay::reduce(
+      parlay::map(map_.entries(), [&](std::tuple<std::pair<int, int>, Element*> kv) {
+        const Element* elem{std::get<1>(kv)};
+        // Count both elem and elem->twin_ since only one appears in map_.
+        return 2 * sizeof(*elem) + elem->AllocatedMemorySize() + elem->twin_->AllocatedMemorySize();
+      })
+    );
 }
 
 }  // namespace _internal
@@ -329,6 +356,9 @@ class EulerTourTree {
 
   // Prints the tree to stdout.
   void Print();
+  // Returns an estimate of the amount of system memory in bytes this data
+  // structure occupies.
+  size_t MemorySize() const;
 
  private:
   void BatchCutRecurse(
@@ -462,6 +492,15 @@ void EulerTourTree::Print() {
     std::cout << "(" << edge.first << ", " << edge.second << "), ";
   }
   std::cout << std::endl;
+}
+
+size_t EulerTourTree::MemorySize() const {
+  // Estimate size of vertices_.
+  const auto vertexSizes{parlay::delayed_seq<size_t>(vertices_.size(), [&](const size_t i) {
+    return vertices_[i].AllocatedMemorySize() + sizeof(vertices_[i]);
+  })};
+
+  return sizeof(*this) + parlay::reduce(vertexSizes) + edges_.AllocatedMemorySize();
 }
 
 // Checks if the tree is empty.

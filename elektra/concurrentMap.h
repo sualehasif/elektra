@@ -1,6 +1,9 @@
 #pragma once
 
 #include <parlay/parallel.h>
+#include <parlay/primitives.h>
+#include <parlay/sequence.h>
+#include <parlay/slice.h>
 #include <parlay/utilities.h>
 
 #include <tuple>
@@ -169,6 +172,14 @@ class concurrentHT {
       }
       h = incrementIndex(h);
     }
+  }
+
+  // Return non-empty entries in the map.
+  parlay::sequence<KV> entries() const {
+    return parlay::filter(parlay::slice(table, table + capacity), [&](const KV& kv) {
+      const K& k = std::get<0>(kv);
+      return k != empty_key && k != tombstone;
+    });
   }
 };
 
