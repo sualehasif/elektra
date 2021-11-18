@@ -56,6 +56,7 @@ struct UndirectedEdgeHash {
    *  @returns Hash value of the edge.
    */
   std::size_t operator()(const UndirectedEdge& edge) const {
+    // TODO: use hash-combine instead of xor?
     return std::hash<Vertex>()((int64_t)edge.first) ^
            std::hash<Vertex>()((int64_t)edge.second);
   };

@@ -22,6 +22,11 @@
 /** This class represents an undirected graph that can undergo efficient edge
  *  insertions, edge deletions, and connectivity queries. Multiple edges between
  *  a pair of vertices are supported.
+ *
+ *  TODO(sualeh): What happens if we perform a delete on an edge
+ *  (u,v) and multiple (u,v) edges are present? Do we delete one of
+ *  them? All of them? It might be cleaner to assume/enforce that
+ *  there's only a single edge between a pair of vertices.
  */
 
 namespace batchDynamicConnectivity {
@@ -31,6 +36,8 @@ using UndirectedEdgeHash = dynamicGraph::UndirectedEdgeHash;
 using BatchDynamicET = parallel_euler_tour_tree::EulerTourTree;
 
 using treeSet = std::unordered_set<UndirectedEdge, UndirectedEdgeHash>;
+// TODO(sualeh) Vertex -> vertex_id? uintV? Vertex sounds like a
+// struct for a vertex.
 using vertexSet = parlay::hashtable<parlay::hash_numeric<Vertex>>;
 
 class BatchDynamicConnectivity {
@@ -38,6 +45,13 @@ class BatchDynamicConnectivity {
   /** Initializes an empty graph with a fixed number of vertices.
    *
    *  @param[in] num_vertices Number of vertices in the graph.
+   *
+   *  TODO(sualeh): What if the number of vertices is larger than
+   *  INT_MAX? How about having a type (smt like uintV) which
+   *  we can set to either uint32_t or uint64_t, depending on the
+   *  need?
+   *  Maybe make the "int" type here whatever we call "Vertex" in
+   *  graph.h?
    */
   explicit BatchDynamicConnectivity(int num_vertices);
 
@@ -70,6 +84,8 @@ class BatchDynamicConnectivity {
    *  Efficiency:
    *
    *  @param[in] suv A sequence of pair's of vertices
+   *
+   *  TODO(sualeh): minor, but why is return type is char and not bool?
    */
   parlay::sequence<char> BatchConnected(
       parlay::sequence<std::pair<Vertex, Vertex>> suv) const;
@@ -326,7 +342,16 @@ void BatchDynamicConnectivity::PrintNonTreeEdges() {
 void BatchDynamicConnectivity::PrintNonTreeEdgesForLevel(int8_t level) {
   std::cout << "Level " << (int)level << ": " << std::endl;
   // contains all the non-tree edges in the level
+<<<<<<< HEAD
   auto &vtxLayer = non_tree_adjacency_lists_[level];
+=======
+  //
+  // TODO(sualeh) Note that non_tree_adjacency_lists[level] is a
+  // parlay::sequence and so the below will create a copy. Instead you
+  // can do:
+  // auto& vtxLayer = ...
+  auto vtxLayer = non_tree_adjacency_lists_[level];
+>>>>>>> main
 
   // scan through and build a set of all the edges
   std::unordered_set<UndirectedEdge, UndirectedEdgeHash> edges;
