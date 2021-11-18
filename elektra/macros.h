@@ -63,6 +63,8 @@ constexpr const size_t kDefaultGranularity = 2048;
 #define EDGE_SIZE_PER_BYTE 7
 
 struct empty {
+  // equality operator
+  bool operator==(const empty&) const { return true; }
 };  // struct containing no data (used for empty base optimization)
 
 }  // namespace elektra

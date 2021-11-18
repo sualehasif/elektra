@@ -33,7 +33,7 @@ set(CMAKE_CXX_FLAGS
 
 # # Compile with no parallelism if debugging or asked to be linear
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPARLAY_SEQUENTIAL")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPARLAY_SEQUENTIAL -DDEBUG")
 endif()
 
 # Add Pthread 

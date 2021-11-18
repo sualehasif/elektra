@@ -85,7 +85,7 @@ void BatchDynamicConnectivity::BatchAddEdges(
   auto num_edges_inserted = se.size();
 
   sequence<pair<int, int>> treeEdges;
-  sequence<UndirectedEdge> nonTreeEdges;
+  sequence<pair<int, int>> nonTreeEdges;
 
   treeEdges.reserve(tree.size());
   nonTreeEdges.reserve(se.size() - tree.size());
@@ -136,7 +136,7 @@ void BatchDynamicConnectivity::BatchAddEdges(
       edges_.insert(
           make_tuple(pair<Vertex, Vertex>(se[i].second, se[i].first), ei_rev));
     } else {
-      nonTreeEdges.push_back(se[i]);
+      nonTreeEdges.push_back(make_pair(se[i].first, se[i].second));
       detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
                              detail::EdgeType::kNonTree};
       edges_.insert(
@@ -159,19 +159,14 @@ void BatchDynamicConnectivity::BatchAddEdges(
   std::cout << "Adding the non-tree edges to the hashtable" << std::endl;
   std::cout << "nonTreeEdges.size() = " << nonTreeEdges.size() << std::endl;
 #endif
-  // parlay::parallel_for(0, nonTreeEdges.size(), [&](int i) {
+  // for (int i = 0; i < (int)nonTreeEdges.size(); i++) {
   //   non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].first].insert(
   //       nonTreeEdges[i].second);
   //   non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].second].insert(
   //       nonTreeEdges[i].first);
-  // });
+  // }
 
-  for (int i = 0; i < (int)nonTreeEdges.size(); i++) {
-    non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].first].insert(
-        nonTreeEdges[i].second);
-    non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].second].insert(
-        nonTreeEdges[i].first);
-  }
+  non_tree_adjacency_lists_.BatchAddEdgesToLevel(nonTreeEdges, max_level_ - 1);
 }
 
 // template <typename T>
@@ -190,7 +185,9 @@ UndirectedEdge BatchDynamicConnectivity::componentSearch(int level, V v) {
   auto cc = levelEulerTree->ComponentVertices(v);
   for (int i = 0; i < (int)cc.size(); i++) {
     auto u = cc[i];
-    for (auto w : non_tree_adjacency_lists_[level][u].entries()) {
+    for (auto &kw : non_tree_adjacency_lists_[level][u].entries()) {
+      auto w = std::get<0>(kw);
+
       if (levelEulerTree->GetRepresentative(u) !=
           levelEulerTree->GetRepresentative(v)) {
         return UndirectedEdge(u, w);
@@ -271,7 +268,8 @@ void BatchDynamicConnectivity::replacementSearch(
     for (int j = 0; j < (int)cc.size(); j++) {
       auto u = cc[j];
       // for each edge in the component
-      for (auto w : non_tree_adjacency_lists_[level][u].entries()) {
+      for (auto &kw : non_tree_adjacency_lists_[level][u].entries()) {
+        auto w = std::get<0>(kw);
         // push the edge into the nonTreeEdges vector
         nonTreeEdges[i].push_back(UndirectedEdge(u, w));
       }
@@ -375,6 +373,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
   std::unique_lock<std::mutex> lock(m, std::defer_lock);
 
   // delete edges from the non tree adjacency lists.
+  // TODO(sualeh): maybe collect the edges to be deleted and then delete them in
+  // a batch
   parlay::parallel_for(0, se.size(), [&](int i) {
     auto level =
         edges_.find(pair<Vertex, Vertex>(se[i].first, se[i].second)).level;
@@ -384,10 +384,26 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
     auto ul = non_tree_adjacency_lists_[level][u];
     auto vl = non_tree_adjacency_lists_[level][v];
 
+#ifdef DEBUG
+    // print ul
+    std::cout << "ul" << std::endl;
+    for (auto &e : ul.entries()) {
+      std::cout << "(" << u << " " << std::get<0>(e) << "), ";
+    }
+    std::cout << std::endl;
+
+    // print vl
+    std::cout << "vl" << std::endl;
+    for (auto &e : vl.entries()) {
+      std::cout << "(" << v << " " << std::get<0>(e) << "), ";
+    }
+    std::cout << std::endl;
+#endif
+
     // if (u, v) is not a tree edge, then we need to remove it from the
     // non tree adjacency list
     // TODO: could this possibly do this with edges_[se[i]] == kTree?
-    if (ul.find(v) >= 0) {
+    if (ul.contains(v)) {
       non_tree_adjacency_lists_[level][u].deleteVal(v);
       non_tree_adjacency_lists_[level][v].deleteVal(u);
 
@@ -538,7 +554,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
         // if (u, v) is a tree edge, then we need to remove it from the
         // non tree adjacency list
 
-        assert(ul.find(v) >= 0 || vl.find(u) >= 0);
+        assert(ul.contains(v) || vl.contains(u));
 
         non_tree_adjacency_lists_[level][u].deleteVal(v);
         non_tree_adjacency_lists_[level][v].deleteVal(u);
@@ -546,7 +562,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
         ul = non_tree_adjacency_lists_[level][u];
         vl = non_tree_adjacency_lists_[level][v];
 
-        assert(ul.find(v) < 0 && vl.find(u) < 0);
+        assert(!(ul.contains(v) || vl.contains(u)));
       });
     }
   }

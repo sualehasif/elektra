@@ -1,3 +1,5 @@
+#pragma once
+
 #include <parlay/primitives.h>
 #include <parlay/sequence.h>
 #include <parlay/slice.h>
@@ -81,6 +83,7 @@ class resizable_table {
   T empty;
   K empty_key;
   V empty_value;
+  T tombstone;
   sequence<T> table;
   KeyHash key_hash;
   sequence<size_t> cts;
@@ -108,13 +111,14 @@ class resizable_table {
     init_counts();
   }
 
-  resizable_table(size_t _m, T _empty, KeyHash _key_hash)
+  resizable_table(size_t _m, T _empty, T _tombstone, KeyHash _key_hash)
       : m((size_t)1 << parlay::log2_up((size_t)(1.1 * _m))),
         mask(m - 1),
         ne(0),
         empty(_empty),
         empty_key(std::get<0>(empty)),
         empty_value(std::get<1>(empty)),
+        tombstone(_tombstone),
         key_hash(_key_hash) {
     table = sequence<T>::uninitialized(m);
     clear();
@@ -125,7 +129,8 @@ class resizable_table {
     std::vector<size_t> probe_lengths;
     size_t chain_length = 0;
     for (size_t i = 0; i < m; i++) {
-      if (std::get<0>(table[i]) == empty_key) {
+      if (std::get<0>(table[i]) == empty_key ||
+          std::get<0>(table[i]) == tombstone) {
         if (chain_length > 0) {
           probe_lengths.emplace_back(chain_length);
         }
@@ -146,6 +151,7 @@ class resizable_table {
   }
 
   void maybe_resize(size_t n_inc) {
+    update_nelms();
     size_t nt = ne + n_inc;
     if (nt > (0.25 * m)) {
       size_t old_m = m;
@@ -158,8 +164,9 @@ class resizable_table {
       ne = 0;
       table = sequence<T>::uninitialized(m);
       clear();
-      parallel_for(0, old_m, [&](size_t i) {
-        if (std::get<0>(old_t[i]) != empty_key) {
+      parlay::parallel_for(0, old_m, [&](size_t i) {
+        if (std::get<0>(old_t[i]) != empty_key &&
+            std::get<0>(old_t[i]) != std::get<0>(tombstone)) {
           insert(old_t[i]);
         }
       });
@@ -178,13 +185,14 @@ class resizable_table {
     size_t h = firstIndex(k);
     while (1) {
       if (std::get<0>(table[h]) == empty_key &&
-          elektra::atomic_compare_and_swap(&std::get<0>(table[h]), empty_key, std::get<0>(kv))) {
+          elektra::atomic_compare_and_swap(&std::get<0>(table[h]), empty_key,
+                                           std::get<0>(kv))) {
         std::get<1>(table[h]) = std::get<1>(kv);
         size_t wn = parlay::worker_id();
         cts[wn * kResizableTableCacheLineSz]++;
         return 1;
       }
-      if (std::get<0>(table[h]) == k && std::get<1>(table[h]) == v) {
+      if (std::get<0>(table[h]) == k && (V)std::get<1>(table[h]) == v) {
         return false;
       }
       h = incrementIndex(h, mask);
@@ -260,18 +268,35 @@ class resizable_table {
     return 0;
   }
 
+  void deleteVal(K k) {
+    size_t h = firstIndex(k);
+    while (1) {
+      if (std::get<0>(table[h]) == k) {
+        table[h] = tombstone;
+        return;
+      } else if (std::get<0>(table[h]) == empty_key) {
+        return;
+      }
+      h = incrementIndex(h, mask);
+    }
+  }
+
   template <class F>
   void map(F& f) {
     parallel_for(0, m, [&](size_t i) {
-      if (std::get<0>(table[i]) != empty_key) {
+      if (std::get<0>(table[i]) != empty_key &&
+          std::get<0>(table[i]) != std::get<0>(tombstone)) {
         f(table[i]);
       }
     });
   }
 
   sequence<T> entries() {
-    auto pred = [&](T& t) { return std::get<0>(t) != empty_key; };
-    auto table_seq = parlay::make_slice<T>(table, m);
+    auto pred = [&](T& t) {
+      return (std::get<0>(t) != empty_key &&
+              std::get<0>(t) != std::get<0>(tombstone));
+    };
+    auto table_seq = parlay::make_slice(table);
     return parlay::filter(table_seq, pred);
   }
 
