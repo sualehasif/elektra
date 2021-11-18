@@ -90,7 +90,8 @@
         "cfenv": "cpp",
         "cinttypes": "cpp",
         "forward_list": "cpp",
-        "stack": "cpp"
+        "stack": "cpp",
+        "__bits": "cpp"
     },
     "C_Cpp.errorSquiggles": "Enabled",
     "C_Cpp.intelliSenseEngineFallback": "Enabled"

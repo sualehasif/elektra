@@ -135,6 +135,12 @@ void BatchDynamicConnectivity::BatchAddEdges(
     // original edges, but tree contains edges that are relabeled by
     // their representatives? Did I miss something here?
     if (tree.count(se[i])) {
+      // print the edge for debugging if wanted.
+      // std::string edge_str = "Tree Edge: " + std::to_string(se[i].first) + "
+      // " +
+      //                        std::to_string(se[i].second) + "\n";
+      // std::cout << edge_str;
+
       treeEdges.push_back(make_pair(se[i].first, se[i].second));
       detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
                              detail::EdgeType::kTree};
@@ -148,6 +154,10 @@ void BatchDynamicConnectivity::BatchAddEdges(
       edges_.insert(
           make_tuple(pair<Vertex, Vertex>(se[i].second, se[i].first), ei_rev));
     } else {
+      // std::string edge_str = "Non Tree Edge: " + std::to_string(se[i].first)
+      // +
+      //                        " " + std::to_string(se[i].second) + "\n";
+      // std::cout << edge_str;
       nonTreeEdges.push_back(make_pair(se[i].first, se[i].second));
       detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
                              detail::EdgeType::kNonTree};
