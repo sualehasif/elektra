@@ -225,12 +225,6 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion2) {
 
   result = x.BatchConnected(queries);
   for (int i = 0; i < (int)queries.size(); i++) {
-    // print the query
-    std::cout << "query: " << queries[i].first << " " << queries[i].second
-              << std::endl;
-    // print the result and the expected output
-    std::cout << "result: " << (int)result[i] << std::endl;
-    std::cout << "expected: " << (int)expectedOut[i] << std::endl;
     EXPECT_EQ(result[i], expectedOut[i]);
   }
 }
