@@ -63,5 +63,10 @@ int main() {
     std::cout << "Edge (1, 2) has incorrect weight" << std::endl;
   }
 
+  // // print the number of elements in the table
+  std::cout << "Number of elements in the table: " << table.ne << std::endl;
+  table.update_nelms();
+  std::cout << "Number of elements in the table: " << table.ne << std::endl;
+
   return 0;
 }

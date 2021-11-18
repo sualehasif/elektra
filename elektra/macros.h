@@ -62,4 +62,7 @@ constexpr const size_t kDefaultGranularity = 2048;
 #define LAST_BIT_SET(b) (b & (0x80))
 #define EDGE_SIZE_PER_BYTE 7
 
+struct empty {
+};  // struct containing no data (used for empty base optimization)
+
 }  // namespace elektra

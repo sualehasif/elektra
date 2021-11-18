@@ -69,7 +69,9 @@ void BatchDynamicConnectivity::BatchAddEdges(
             (V)maxLevelEulerTree->GetRepresentative(e.second));
       });
 
+#ifdef DEBUG
   std::cout << "Getting the Spanning Tree" << std::endl;
+#endif
   auto tree = getSpanningTree(auxiliaryEdges);
 
 // print all the tree edges for debugging if wanted.
@@ -88,34 +90,37 @@ void BatchDynamicConnectivity::BatchAddEdges(
   treeEdges.reserve(tree.size());
   nonTreeEdges.reserve(se.size() - tree.size());
 
-  // update the tree and nonTree edges based on the ST computation
-  // parlay::parallel_for(0, se.size(), [&](int i) {
-  //   if (tree.count(se[i])) {
-  //     treeEdges.push_back(make_pair(se[i].first, se[i].second));
-  //     detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
-  //                            detail::EdgeType::kTree};
-  //     edges_[se[i]] = ei;
+// update the tree and nonTree edges based on the ST computation
+// parlay::parallel_for(0, se.size(), [&](int i) {
+//   if (tree.count(se[i])) {
+//     treeEdges.push_back(make_pair(se[i].first, se[i].second));
+//     detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
+//                            detail::EdgeType::kTree};
+//     edges_[se[i]] = ei;
 
-  //     // TODO(sualeh): Think about whether you can get away without inserting
-  //     // the reverse edge add the reverse edge to the edges_ map
-  //     detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
-  //                                detail::EdgeType::kTree};
-  //     edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
-  //   } else {
-  //     nonTreeEdges.push_back(se[i]);
-  //     detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
-  //                            detail::EdgeType::kNonTree};
-  //     edges_[se[i]] = ei;
+//     // TODO(sualeh): Think about whether you can get away without inserting
+//     // the reverse edge add the reverse edge to the edges_ map
+//     detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
+//                                detail::EdgeType::kTree};
+//     edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
+//   } else {
+//     nonTreeEdges.push_back(se[i]);
+//     detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
+//                            detail::EdgeType::kNonTree};
+//     edges_[se[i]] = ei;
 
-  //     // add the reverse edge to the edges_ map
-  //     detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
-  //                                detail::EdgeType::kNonTree};
-  //     edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
-  //   }
-  // });
+//     // add the reverse edge to the edges_ map
+//     detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
+//                                detail::EdgeType::kNonTree};
+//     edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
+//   }
+// });
 
-  // the loop above serially
+// the loop above serially
+#ifdef DEBUG
   std::cout << "Adding edges to the graph" << std::endl;
+#endif
+
   for (int i = 0; i < (int)se.size(); i++) {
     if (tree.count(se[i])) {
       treeEdges.push_back(make_pair(se[i].first, se[i].second));
@@ -146,11 +151,14 @@ void BatchDynamicConnectivity::BatchAddEdges(
   }
 
   // add tree edges
-  std::cout << "Adding tree edges to the ETT" << std::endl;
+  // std::cout << "Adding tree edges to the ETT" << std::endl;
   maxLevelEulerTree->BatchLink(treeEdges);
 
-  // add to adjacancy list
+// add to adjacancy list
+#ifdef DEBUG
   std::cout << "Adding the non-tree edges to the hashtable" << std::endl;
+  std::cout << "nonTreeEdges.size() = " << nonTreeEdges.size() << std::endl;
+#endif
   // parlay::parallel_for(0, nonTreeEdges.size(), [&](int i) {
   //   non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].first].insert(
   //       nonTreeEdges[i].second);
@@ -158,23 +166,12 @@ void BatchDynamicConnectivity::BatchAddEdges(
   //       nonTreeEdges[i].first);
   // });
 
-  std::cout << "part 1" << std::endl;
-  std::cout << "nonTreeEdges.size() = " << nonTreeEdges.size() << std::endl;
   for (int i = 0; i < (int)nonTreeEdges.size(); i++) {
-    if (i % 1000 == 0) {
-      std::cout << "i = " << i << std::endl;
-    }
     non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].first].insert(
         nonTreeEdges[i].second);
-  }
-
-  std::cout << "part 2" << std::endl;
-  for (int i = 0; i < (int)nonTreeEdges.size(); i++) {
     non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].second].insert(
         nonTreeEdges[i].first);
   }
-
-  std::cout << "Done" << std::endl;
 }
 
 // template <typename T>

@@ -19,33 +19,6 @@
 
 #define INITIAL_SIZE 50
 
-namespace detail {
-
-typedef int8_t Level;
-
-enum class EdgeType {
-  // Edge is in the spanning forest of the graph.
-  kNonTree,
-  // Edge is not in the spanning forest of the graph.
-  kTree,
-};
-
-// A struct that contains information about a particular edge.
-struct EdgeInfo {
-  Level level;
-  EdgeType type;
-
-  // The equality operator
-  bool operator==(const EdgeInfo &other) const {
-    return level == other.level && type == other.type;
-  }
-
-  // The inequality operator
-  bool operator!=(const EdgeInfo &other) const { return !(*this == other); }
-};
-
-}  // namespace detail
-
 /** This class represents an undirected graph that can undergo efficient edge
  *  insertions, edge deletions, and connectivity queries. Multiple edges between
  *  a pair of vertices are supported.
@@ -180,33 +153,6 @@ class BatchDynamicConnectivity {
 
   UndirectedEdge componentSearch(int level, Vertex v);
 
-  // void AddNonTreeEdge(const UndirectedEdge &edge);
-
-  // void BatchAddNonTreeEdge(const parlay::sequence<UndirectedEdge> &se);
-
-  // void AddTreeEdge(const UndirectedEdge &edge);
-
-  // void BatchAddTreeEdge(const parlay::sequence<UndirectedEdge> &se);
-
-  // void AddEdgeToAdjacencyList(const UndirectedEdge &edge, detail::Level
-  // level);
-
-  // void BatchUpdateAdjacencyList(
-  //     const parlay::sequence<std::pair<UndirectedEdge, detail::Level>> &sel);
-
-  // void DeleteEdgeFromAdjacencyList(const UndirectedEdge &edge,
-  //                                  detail::Level level);
-
-  // void BatchDeleteEdgesInAdjacencyList(
-  //     const parlay::sequence<std::pair<UndirectedEdge, detail::Level>> &sel);
-
-  // void ReplaceTreeEdge(const UndirectedEdge &edge, detail::Level level);
-
-  // parlay::sequence<Vertex> parallelLevelSearch(
-  //     const parlay::sequence<UndirectedEdge> &se,
-  //     parlay::sequence<Vertex> &components,
-  //     parlay::sequence<std::pair<int, int>> &promotedEdges, int level);
-
   treeSet getSpanningTree(const parlay::sequence<UndirectedEdge> &se);
 
   void replacementSearch(int level, parlay::sequence<int> components,
@@ -245,6 +191,7 @@ BatchDynamicConnectivity::BatchDynamicConnectivity(int numVertices)
     non_tree_adjacency_lists_[i] = vtxLayer;
   });
 
+  // make the base size smaller and update n_elms if we ever update.
   edges_ = elektra::resizable_table<pair<Vertex, Vertex>, detail::EdgeInfo,
                                     HashIntPairStruct>(
       num_vertices_ * num_vertices_, empty_edge, HashIntPairStruct());
