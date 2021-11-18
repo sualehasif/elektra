@@ -91,36 +91,46 @@ void BatchDynamicConnectivity::BatchAddEdges(
   nonTreeEdges.reserve(se.size() - tree.size());
 
   // update the tree and nonTree edges based on the ST computation
-  // parlay::parallel_for(0, se.size(), [&](int i) {
-  //   if (tree.count(se[i])) {
-  //     treeEdges.push_back(make_pair(se[i].first, se[i].second));
-  //     detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
-  //                            detail::EdgeType::kTree};
-  //     edges_[se[i]] = ei;
-
-  //     // TODO(sualeh): Think about whether you can get away without inserting
-  //     // the reverse edge add the reverse edge to the edges_ map
-  //     detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
-  //                                detail::EdgeType::kTree};
-  //     edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
-  //   } else {
-  //     nonTreeEdges.push_back(se[i]);
-  //     detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
-  //                            detail::EdgeType::kNonTree};
-  //     edges_[se[i]] = ei;
-
-  //     // add the reverse edge to the edges_ map
-  //     detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
-  //                                detail::EdgeType::kNonTree};
-  //     edges_[UndirectedEdge(se[i].second, se[i].first)] = ei_rev;
-  //   }
-  // });
 
   // TODO: parallelize the following using filter/pack, depending on
   // how we implement tree.
   //
   // the loop above serially
-  for (int i = 0; i < (int)se.size(); i++) {
+  // for (int i = 0; i < (int)se.size(); i++) {
+  //   // TODO(sualeh, laxmand): The lookup into tree here looking up the
+  //   // original edges, but tree contains edges that are relabeled by
+  //   // their representatives? Did I miss something here?
+  //   if (tree.count(se[i])) {
+  //     treeEdges.push_back(make_pair(se[i].first, se[i].second));
+  //     detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
+  //                            detail::EdgeType::kTree};
+  //     edges_.insert(
+  //         make_tuple(pair<Vertex, Vertex>(se[i].first, se[i].second), ei));
+
+  //     // TODO(sualeh): Think about whether you can get away without inserting
+  //     // the reverse edge add the reverse edge to the edges_ map
+  //     detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
+  //                                detail::EdgeType::kTree};
+  //     edges_.insert(
+  //         make_tuple(pair<Vertex, Vertex>(se[i].second, se[i].first),
+  //         ei_rev));
+  //   } else {
+  //     nonTreeEdges.push_back(make_pair(se[i].first, se[i].second));
+  //     detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
+  //                            detail::EdgeType::kNonTree};
+  //     edges_.insert(
+  //         make_tuple(pair<Vertex, Vertex>(se[i].first, se[i].second), ei));
+
+  //     // add the reverse edge to the edges_ map
+  //     detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
+  //                                detail::EdgeType::kNonTree};
+  //     edges_.insert(
+  //         make_tuple(pair<Vertex, Vertex>(se[i].second, se[i].first),
+  //         ei_rev));
+  //   }
+  // }
+
+  parlay::parallel_for(0, se.size(), [&](size_t i) {
     // TODO(sualeh, laxmand): The lookup into tree here looking up the
     // original edges, but tree contains edges that are relabeled by
     // their representatives? Did I miss something here?
@@ -131,8 +141,8 @@ void BatchDynamicConnectivity::BatchAddEdges(
       edges_.insert(
           make_tuple(pair<Vertex, Vertex>(se[i].first, se[i].second), ei));
 
-      // TODO(sualeh): Think about whether you can get away without inserting
-      // the reverse edge add the reverse edge to the edges_ map
+      // TODO(sualeh): Think about whether you can get away without
+      // inserting the reverse edge add the reverse edge to the edges_ map
       detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
                                  detail::EdgeType::kTree};
       edges_.insert(
@@ -150,7 +160,7 @@ void BatchDynamicConnectivity::BatchAddEdges(
       edges_.insert(
           make_tuple(pair<Vertex, Vertex>(se[i].second, se[i].first), ei_rev));
     }
-  }
+  });
 
   // add tree edges
   // std::cout << "Adding tree edges to the ETT" << std::endl;
