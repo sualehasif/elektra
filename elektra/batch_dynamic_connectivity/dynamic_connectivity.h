@@ -29,9 +29,8 @@ sequence<char> BatchDynamicConnectivity::BatchConnected(
   BatchDynamicET *pMaxLevelEulerTree =
       parallel_spanning_forests_[max_level_ - 1];
 
-  parlay::parallel_for(0, suv.size(), [&](int i) {
-    auto v1 = suv[i].first;
-    auto v2 = suv[i].second;
+  parlay::parallel_for(0, suv.size(), [&] (size_t i) {
+    auto [v1, v2] = suv[i];
     s[i] = pMaxLevelEulerTree->IsConnected(v1, v2);
   });
 
@@ -48,7 +47,7 @@ sequence<char> BatchDynamicConnectivity::BatchConnected(
 void BatchDynamicConnectivity::BatchAddEdges(
     const sequence<UndirectedEdge> &se) {
   // Look at the max level Euler Tour Tree in the parallel spanning forests.
-  auto maxLevelEulerTree = parallel_spanning_forests_[max_level_ - 1];
+  BatchDynamicET* maxLevelEulerTree = parallel_spanning_forests_[max_level_ - 1];
 
   // you can print all the edges for debugging
   // std::cout << "Adding edges to the graph" << std::endl;
@@ -63,6 +62,10 @@ void BatchDynamicConnectivity::BatchAddEdges(
             (V)maxLevelEulerTree->GetRepresentative(e.first),
             (V)maxLevelEulerTree->GetRepresentative(e.second));
       });
+  // TODO(laxmand): change getSpanningTree to use the concurrent
+  // union-find code.
+  // TODO(sualeh): Seems we can just make a treeSet a parlay::sequence
+  // of UndirectedEdges?
   auto tree = getSpanningTree(auxiliaryEdges);
 
   // print all the tree edges for debugging if wanted.
@@ -105,8 +108,14 @@ void BatchDynamicConnectivity::BatchAddEdges(
   //   }
   // });
 
+  // TODO: parallelize the following using filter/pack, depending on
+  // how we implement tree.
+  //
   // the loop above serially
   for (int i = 0; i < (int)se.size(); i++) {
+    // TODO(sualeh, laxmand): The lookup into tree here looking up the
+    // original edges, but tree contains edges that are relabeled by
+    // their representatives? Did I miss something here?
     if (tree.count(se[i])) {
       treeEdges.push_back(make_pair(se[i].first, se[i].second));
       detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
@@ -134,6 +143,9 @@ void BatchDynamicConnectivity::BatchAddEdges(
   // add tree edges
   maxLevelEulerTree->BatchLink(treeEdges);
 
+  // TODO(sualeh): What if the hash table we insert into has
+  // insufficient space?
+  //
   // add to adjacancy list
   parlay::parallel_for(0, nonTreeEdges.size(), [&](int i) {
     non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].first].insert(
