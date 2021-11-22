@@ -84,81 +84,43 @@ void BatchDynamicConnectivity::BatchAddEdges(
 
   auto num_edges_inserted = se.size();
 
-  sequence<pair<int, int>> treeEdges;
-  sequence<pair<int, int>> nonTreeEdges;
+  auto treeEdges = sequence<pair<int, int>>();
 
-  treeEdges.reserve(tree.size());
-  nonTreeEdges.reserve(se.size() - tree.size());
+  // FIXME(sualeh): This is a hack to get the tree edges.
+  for (auto &e : tree) {
+    treeEdges.push_back(make_pair(e.first, e.second));
+  }
 
-  // update the tree and nonTree edges based on the ST computation
+#ifdef DEBUG
+  printEdgeSequence(treeEdges, "Tree Edges from sequence");
+#endif
 
-  // TODO: parallelize the following using filter/pack, depending on
-  // how we implement tree.
-  //
-  // the loop above serially
-  // for (int i = 0; i < (int)se.size(); i++) {
-  //   // TODO(sualeh, laxmand): The lookup into tree here looking up the
-  //   // original edges, but tree contains edges that are relabeled by
-  //   // their representatives? Did I miss something here?
-  //   if (tree.count(se[i])) {
-  //     treeEdges.push_back(make_pair(se[i].first, se[i].second));
-  //     detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
-  //                            detail::EdgeType::kTree};
-  //     edges_.insert(
-  //         make_tuple(pair<Vertex, Vertex>(se[i].first, se[i].second), ei));
+  auto nonTreeEdges =
+      sequence<pair<int, int>>(se.size(), pair<int, int>(-1, -1));
 
-  //     // TODO(sualeh): Think about whether you can get away without inserting
-  //     // the reverse edge add the reverse edge to the edges_ map
-  //     detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
-  //                                detail::EdgeType::kTree};
-  //     edges_.insert(
-  //         make_tuple(pair<Vertex, Vertex>(se[i].second, se[i].first),
-  //         ei_rev));
-  //   } else {
-  //     nonTreeEdges.push_back(make_pair(se[i].first, se[i].second));
-  //     detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
-  //                            detail::EdgeType::kNonTree};
-  //     edges_.insert(
-  //         make_tuple(pair<Vertex, Vertex>(se[i].first, se[i].second), ei));
+  // This inserts the tree edges in to our hashtable.
+  parlay::parallel_for(0, treeEdges.size(), [&](size_t i) {
+    auto &e = treeEdges[i];
+    detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
+                           detail::EdgeType::kTree};
+    edges_.insert(make_tuple(pair<Vertex, Vertex>(e.first, e.second), ei));
 
-  //     // add the reverse edge to the edges_ map
-  //     detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
-  //                                detail::EdgeType::kNonTree};
-  //     edges_.insert(
-  //         make_tuple(pair<Vertex, Vertex>(se[i].second, se[i].first),
-  //         ei_rev));
-  //   }
-  // }
+    // TODO(sualeh): Think about whether you can get away without
+    // inserting the reverse edge add the reverse edge to the edges_ map
+    detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
+                               detail::EdgeType::kTree};
+    edges_.insert(make_tuple(pair<Vertex, Vertex>(e.second, e.first), ei_rev));
+  });
 
+  // update the nonTree edges based on the ST computation
   parlay::parallel_for(0, se.size(), [&](size_t i) {
-    // TODO(sualeh, laxmand): The lookup into tree here looking up the
-    // original edges, but tree contains edges that are relabeled by
-    // their representatives? Did I miss something here?
-    if (tree.count(se[i])) {
-      // print the edge for debugging if wanted.
-      // std::string edge_str = "Tree Edge: " + std::to_string(se[i].first) + "
-      // " +
-      //                        std::to_string(se[i].second) + "\n";
-      // std::cout << edge_str;
-
-      treeEdges.push_back(make_pair(se[i].first, se[i].second));
-      detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
-                             detail::EdgeType::kTree};
-      edges_.insert(
-          make_tuple(pair<Vertex, Vertex>(se[i].first, se[i].second), ei));
-
-      // TODO(sualeh): Think about whether you can get away without
-      // inserting the reverse edge add the reverse edge to the edges_ map
-      detail::EdgeInfo ei_rev = {(detail::Level)(max_level_ - 1),
-                                 detail::EdgeType::kTree};
-      edges_.insert(
-          make_tuple(pair<Vertex, Vertex>(se[i].second, se[i].first), ei_rev));
-    } else {
-      // std::string edge_str = "Non Tree Edge: " + std::to_string(se[i].first)
+    if (tree.count(se[i]) == 0) {
+      // std::string edge_str = "Non Tree Edge: " +
+      // std::to_string(se[i].first)
       // +
       //                        " " + std::to_string(se[i].second) + "\n";
       // std::cout << edge_str;
-      nonTreeEdges.push_back(make_pair(se[i].first, se[i].second));
+      nonTreeEdges[i] = (make_pair(se[i].first, se[i].second));
       detail::EdgeInfo ei = {(detail::Level)(max_level_ - 1),
                              detail::EdgeType::kNonTree};
       edges_.insert(
@@ -176,19 +138,20 @@ void BatchDynamicConnectivity::BatchAddEdges(
   // std::cout << "Adding tree edges to the ETT" << std::endl;
   maxLevelEulerTree->BatchLink(treeEdges);
 
-// add to adjacancy list
+  // filter and add non-tree edges
+  auto filtered_non_tree_edges = parlay::filter(
+      nonTreeEdges, [&](auto e) { return e.first != -1 && e.second != -1; });
+
+  // add to adjacancy list
 #ifdef DEBUG
   std::cout << "Adding the non-tree edges to the hashtable" << std::endl;
   std::cout << "nonTreeEdges.size() = " << nonTreeEdges.size() << std::endl;
+  printEdgeSequence(nonTreeEdges, "nonTreeEdgesUnfiltered");
+  printEdgeSequence(filtered_non_tree_edges, "nonTreeEdgesFiltered");
 #endif
-  // for (int i = 0; i < (int)nonTreeEdges.size(); i++) {
-  //   non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].first].insert(
-  //       nonTreeEdges[i].second);
-  //   non_tree_adjacency_lists_[max_level_ - 1][nonTreeEdges[i].second].insert(
-  //       nonTreeEdges[i].first);
-  // }
 
-  non_tree_adjacency_lists_.BatchAddEdgesToLevel(nonTreeEdges, max_level_ - 1);
+  non_tree_adjacency_lists_.BatchAddEdgesToLevel(filtered_non_tree_edges,
+                                                 max_level_ - 1);
 }
 
 // template <typename T>
@@ -227,7 +190,8 @@ UndirectedEdge BatchDynamicConnectivity::componentSearch(int level, V v) {
 void BatchDynamicConnectivity::replacementSearch(
     int level, sequence<int> components,
     sequence<pair<int, int>> &promoted_edges) {
-  // set up a course search size and an overall stride for the component search
+  // set up a course search size and an overall stride for the component
+  // search
   int search_size = 256;
   int total_search_stride = 0;
 
@@ -243,8 +207,8 @@ void BatchDynamicConnectivity::replacementSearch(
   // TODO: I think this shoudl be 1 << (level - 1)
   int critical_component_size = 1 << level;
 
-  // make a vector of the components to consider with size components.size() and
-  // initialized to 0
+  // make a vector of the components to consider with size components.size()
+  // and initialized to 0
   std::vector<char> component_indicator(components.size(), 0);
 
   sequence<pair<int, int>> push_down_edges;
@@ -395,8 +359,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
   std::unique_lock<std::mutex> lock(m, std::defer_lock);
 
   // delete edges from the non tree adjacency lists.
-  // TODO(sualeh): maybe collect the edges to be deleted and then delete them in
-  // a batch
+  // TODO(sualeh): maybe collect the edges to be deleted and then delete them
+  // in a batch
   parlay::parallel_for(0, se.size(), [&](int i) {
     auto level =
         edges_.find(pair<Vertex, Vertex>(se[i].first, se[i].second)).level;
@@ -543,7 +507,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<UndirectedEdge> &se) {
       // We have some promoted edges.
       levelEulerTree->BatchLink(promoted_edges);
       // TODO: possibly coursen the loop
-      // update the tree edges with the promoted edges for all the higher levels
+      // update the tree edges with the promoted edges for all the higher
+      // levels
       parlay::parallel_for(l + 1, max_level_, [&](int i) {
         auto levelEulerTree = parallel_spanning_forests_[i];
         levelEulerTree->BatchLink(promoted_edges);

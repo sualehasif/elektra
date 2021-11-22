@@ -310,4 +310,22 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
   });
 };
 
+auto printEdgeSequence(const parlay::sequence<pair<Vertex, Vertex>>& edges,
+                       std::string name) {
+  std::cout << name << ": ";
+  for (auto& e : edges) {
+    std::cout << "(" << e.first << ", " << e.second << "), ";
+  }
+  std::cout << std::endl;
+};
+
+auto printEdgeSequence(const parlay::sequence<dynamicGraph::UndirectedEdge>& edges,
+                       std::string name) {
+  std::cout << name << ": ";
+  for (auto& e : edges) {
+    std::cout << "(" << e.first << ", " << e.second << "), ";
+  }
+  std::cout << std::endl;
+};
+
 }  // namespace batchDynamicConnectivity
