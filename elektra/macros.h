@@ -1,9 +1,14 @@
 #pragma once
 
 #include <limits.h>
+#include <parlay/random.h>
+#include <parlay/sequence.h>
 
 #include <fstream>   // std::ifstream
 #include <iostream>  // std::cout
+#include <tuple>
+
+#include "utilities/cas.h"
 
 namespace elektra {
 #define LONG 1
@@ -66,5 +71,9 @@ struct empty {
   // equality operator
   bool operator==(const empty&) const { return true; }
 };  // struct containing no data (used for empty base optimization)
+
+// A templated sequence for ease of use.
+
+using parlay::sequence;
 
 }  // namespace elektra

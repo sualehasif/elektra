@@ -235,7 +235,7 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
 #ifdef DEBUG
   // print the sorted edges
   std::cout << "Sorted edges:" << std::endl;
-  for (int i = 0; i < ne * 2; i++) {
+  for (int i = 0; i < (int)ne * 2; i++) {
     std::cout << "(" << edges[i].first << ", " << edges[i].second << ")"
               << std::endl;
   }
@@ -252,7 +252,7 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
 
 #ifdef DEBUG
   std::cout << "Unique starting vertices:" << std::endl;
-  for (int i = 0; i < uniqueStartingVertices.size(); i++) {
+  for (int i = 0; i < (int)uniqueStartingVertices.size(); i++) {
     std::cout << "(" << uniqueStartingVertices[i].first << ", "
               << uniqueStartingVertices[i].second << "), ";
   }
@@ -272,7 +272,7 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
   // print the positions of the vertices in DEBUG
 #ifdef DEBUG
   std::cout << "Positions of unique starting vertices:" << std::endl;
-  for (int i = 0; i < uniqueStartingVertices.size(); i++) {
+  for (int i = 0; i < (int)uniqueStartingVertices.size(); i++) {
     std::cout << epos[i] << ", ";
   }
   std::cout << std::endl;
@@ -319,8 +319,9 @@ auto printEdgeSequence(const parlay::sequence<pair<Vertex, Vertex>>& edges,
   std::cout << std::endl;
 };
 
-auto printEdgeSequence(const parlay::sequence<dynamicGraph::UndirectedEdge>& edges,
-                       std::string name) {
+auto printEdgeSequence(
+    const parlay::sequence<dynamicGraph::UndirectedEdge>& edges,
+    std::string name) {
   std::cout << name << ": ";
   for (auto& e : edges) {
     std::cout << "(" << e.first << ", " << e.second << "), ";
