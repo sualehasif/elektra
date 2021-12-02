@@ -10,7 +10,6 @@
 #include "parallel_skip_list/augmented_skip_list.h"
 
 namespace parallel_euler_tour_tree {
-namespace _internal {
 
 // Skip list element for ETT with augmentation function specified by Func.
 template <typename Derived, typename Func>
@@ -65,9 +64,9 @@ class Element : public ElementBase<Element, parlay::addm<int>> {
 
   // Get all edges {u, v} in the sequence that contains this element, assuming
   // that the sequence represents an ETT component.
-  parlay::sequence<std::pair<int, int>> GetEdges();
+  parlay::sequence<std::pair<int, int>> GetEdges() const;
   // Get the number of vertices in the sequence that contains this element.
-  size_t GetComponentSize();
+  size_t GetComponentSize() const;
 
  private:
   friend Base::Base::Base;
@@ -187,7 +186,7 @@ void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int level,
   }
 }
 
-parlay::sequence<std::pair<int, int>> Element::GetEdges() {
+parlay::sequence<std::pair<int, int>> Element::GetEdges() const {
   Element* const top_element{FindRepresentative()};
   const int level = top_element->height_ - 1;
 
@@ -205,7 +204,7 @@ parlay::sequence<std::pair<int, int>> Element::GetEdges() {
   return edges;
 }
 
-size_t Element::GetComponentSize() {
+size_t Element::GetComponentSize() const {
   Element* const top_element{FindRepresentative()};
   const int level = top_element->height_ - 1;
 
@@ -220,5 +219,4 @@ size_t Element::GetComponentSize() {
   return num_vertices;
 }
 
-}  // namespace _internal
 }  // namespace parallel_euler_tour_tree
