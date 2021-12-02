@@ -23,12 +23,12 @@ namespace parallel_skip_list {
 //   type `T` and an associative, commutative function `f` with type signature
 //   `static T f(T a, T b)`.
 template <typename Derived, typename Func>
-class AugmentedElementBase : private ElementBase<Derived> {
-  using Element = AugmentedElementBase<Derived, Func>;
-  using Value = typename Func::T;
-  friend class ElementBase<Derived>;
-
+class AugmentedElementBase : public ElementBase<Derived> {
  public:
+  using Element = AugmentedElementBase<Derived, Func>;
+  using Base = ElementBase<Derived>;
+  using Value = typename Func::T;
+
   // Same as constructors of `ElementBase<>` except that there's an argument for
   // an initial `value` for the element.
   AugmentedElementBase(Value value);
@@ -85,9 +85,9 @@ class AugmentedElementBase : private ElementBase<Derived> {
   // the element lives in.
   Value GetSum() const;
 
-  using ElementBase<Derived>::FindRepresentative;
-  using ElementBase<Derived>::GetPreviousElement;
-  using ElementBase<Derived>::GetNextElement;
+  using Base::FindRepresentative;
+  using Base::GetPreviousElement;
+  using Base::GetNextElement;
 
  protected:
   static Value* AllocateValues(int height, Value default_value);
@@ -104,10 +104,11 @@ class AugmentedElementBase : private ElementBase<Derived> {
   // `values_` needs to be updated.
   int update_level_;
 
-  using ElementBase<Derived>::Join;
-  using ElementBase<Derived>::Split;
-  using ElementBase<Derived>::height_;
-  using ElementBase<Derived>::neighbors_;
+  friend Base;
+  using Base::Join;
+  using Base::Split;
+  using Base::height_;
+  using Base::neighbors_;
 };
 
 // Basic augmented skip list augmented such that calling `elem.GetSum()` on

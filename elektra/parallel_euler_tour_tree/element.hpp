@@ -10,16 +10,18 @@
 #include "parallel_skip_list/augmented_skip_list.h"
 
 namespace parallel_euler_tour_tree {
-namespace _internal {
 
-class Element : public parallel_skip_list::AugmentedElementBase<Element, parlay::addm<int>> {
-  using Base = parallel_skip_list::AugmentedElementBase<Element, parlay::addm<int>>;
-
+// Skip list element for ETT with augmentation function specified by Func.
+template <typename Derived, typename Func>
+class ElementBase: public parallel_skip_list::AugmentedElementBase<Derived, Func> {
  public:
-  explicit Element(size_t random_int, std::pair<int, int> id)
+  using Base = parallel_skip_list::AugmentedElementBase<Derived, Func>;
+  using Value = typename Func::T;
+
+  explicit ElementBase(size_t random_int, std::pair<int, int> id, Value value)
     // Augment with the function "count the number of edges (u, v) such that u <
     // v in this list".
-      : Base{random_int, id.first < id.second}
+      : Base{random_int, value}
       , id_{id} {}
 
   // Returns a representative vertex from the sequence the element lives in.
@@ -29,11 +31,6 @@ class Element : public parallel_skip_list::AugmentedElementBase<Element, parlay:
   // the case for a sequence representing an ETT component that is not currently
   // performing a join or split).
   int FindRepresentativeVertex() const;
-  // Get all edges {u, v} in the sequence that contains this element, assuming
-  // that the sequence represents an ETT component.
-  parlay::sequence<std::pair<int, int>> GetEdges();
-  // Get the number of vertices in the sequence that contains this element.
-  size_t GetComponentSize();
 
   // Returns an estimate of the amount of memory in bytes this element occupies
   // beyond what's captured by sizeof(Element).
@@ -43,13 +40,36 @@ class Element : public parallel_skip_list::AugmentedElementBase<Element, parlay:
   // this element represents a directed edge (u, v), then id == (u,v).
   std::pair<int, int> id_;
   // If this element represents edge (u, v), `twin` should point towards (v, u).
-  Element* twin_{nullptr};
+  Derived* twin_{nullptr};
   // When batch splitting, we mark this as `true` for an edge that we will
   // splice out in the current round of recursion.
   bool split_mark_{false};
 
- private:
+ protected:
   friend Base;
+  using Base::height_;
+  using Base::neighbors_;
+  using Base::values_;
+};
+
+// Example of an ETT skip list element augmented with the ability to
+// - fetch component sizes
+// - fetch all elements in a list representing (u, v) with u < v.
+class Element : public ElementBase<Element, parlay::addm<int>> {
+  using Base = ElementBase<Element, parlay::addm<int>>;
+
+ public:
+  explicit Element(size_t random_int, std::pair<int, int> id)
+      : Base{random_int, id, id.first < id.second} {}
+
+  // Get all edges {u, v} in the sequence that contains this element, assuming
+  // that the sequence represents an ETT component.
+  parlay::sequence<std::pair<int, int>> GetEdges() const;
+  // Get the number of vertices in the sequence that contains this element.
+  size_t GetComponentSize() const;
+
+ private:
+  friend Base::Base::Base;
 
   // Gets edges held in descendants of this element and writes them into
   // the sequence starting at the offset. `values_` needs to be up to date.
@@ -69,6 +89,48 @@ class Element : public parallel_skip_list::AugmentedElementBase<Element, parlay:
       int offset = 0,
       bool is_loop_start = true);
 };
+
+template <typename D, typename F>
+int ElementBase<D, F>::FindRepresentativeVertex() const {
+  const D* current_element{static_cast<const D*>(this)};
+  const D* seen_element{nullptr};
+  int current_level{current_element->height_ - 1};
+
+  // walk up while moving forward to find top level
+  while (seen_element != current_element) {
+    if (seen_element == nullptr) {
+      seen_element = current_element;
+    }
+    current_element = current_element->neighbors_[current_level].next;
+    const int top_level{current_element->height_ - 1};
+    if (current_level < top_level) {
+      current_level = top_level;
+      seen_element = nullptr;
+    }
+  }
+
+  // look for minimum ID vertex in top level, or try again at lower levels if no
+  // vertex is found
+  int min_vertex{std::numeric_limits<int>::max()};
+  while (current_level >= 0 && min_vertex == std::numeric_limits<int>::max()) {
+    do {
+      const std::pair<int, int>& id{current_element->id_};
+      if (id.first == id.second && id.first < min_vertex) {
+        min_vertex = id.first;
+      }
+      current_element = current_element->neighbors_[current_level].next;
+    } while (current_element != seen_element);
+    current_level--;
+  }
+  return min_vertex == std::numeric_limits<int>::max() ? -1 : min_vertex;
+}
+
+template <typename D, typename F>
+size_t ElementBase<D, F>::AllocatedMemorySize() const {
+  // Estimate size of neighbors_ and values_, knowing that they're allocated
+  // using concurrent_array_allocator.
+  return (sizeof(neighbors_[0]) + sizeof(values_[0])) * (1 << parlay::log2_up(height_));
+}
 
 void Element::GetEdgesBelowImpl(
     parlay::sequence<std::pair<int, int>>* s,
@@ -124,7 +186,7 @@ void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int level,
   }
 }
 
-parlay::sequence<std::pair<int, int>> Element::GetEdges() {
+parlay::sequence<std::pair<int, int>> Element::GetEdges() const {
   Element* const top_element{FindRepresentative()};
   const int level = top_element->height_ - 1;
 
@@ -142,7 +204,7 @@ parlay::sequence<std::pair<int, int>> Element::GetEdges() {
   return edges;
 }
 
-size_t Element::GetComponentSize() {
+size_t Element::GetComponentSize() const {
   Element* const top_element{FindRepresentative()};
   const int level = top_element->height_ - 1;
 
@@ -157,45 +219,4 @@ size_t Element::GetComponentSize() {
   return num_vertices;
 }
 
-size_t Element::AllocatedMemorySize() const {
-  // Estimate size of neighbors_ and values_, knowing that they're allocated
-  // using concurrent_array_allocator.
-  return (sizeof(neighbors_[0]) + sizeof(values_[0])) * (1 << parlay::log2_up(height_));
-}
-
-int Element::FindRepresentativeVertex() const {
-  const Element* current_element{this};
-  const Element* seen_element{nullptr};
-  int current_level{current_element->height_ - 1};
-
-  // walk up while moving forward to find top level
-  while (seen_element != current_element) {
-    if (seen_element == nullptr) {
-      seen_element = current_element;
-    }
-    current_element = current_element->neighbors_[current_level].next;
-    const int top_level{current_element->height_ - 1};
-    if (current_level < top_level) {
-      current_level = top_level;
-      seen_element = nullptr;
-    }
-  }
-
-  // look for minimum ID vertex in top level, or try again at lower levels if no
-  // vertex is found
-  int min_vertex{std::numeric_limits<int>::max()};
-  while (current_level >= 0 && min_vertex == std::numeric_limits<int>::max()) {
-    do {
-      const std::pair<int, int>& id{current_element->id_};
-      if (id.first == id.second && id.first < min_vertex) {
-        min_vertex = id.first;
-      }
-      current_element = current_element->neighbors_[current_level].next;
-    } while (current_element != seen_element);
-    current_level--;
-  }
-  return min_vertex == std::numeric_limits<int>::max() ? -1 : min_vertex;
-}
-
-}  // namespace _internal
 }  // namespace parallel_euler_tour_tree
