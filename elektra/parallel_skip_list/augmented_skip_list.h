@@ -31,8 +31,8 @@ class AugmentedElementBase : public ElementBase<Derived> {
 
   // Same as constructors of `ElementBase<>` except that there's an argument for
   // an initial `value` for the element.
-  AugmentedElementBase(Value value);
-  AugmentedElementBase(size_t random_int, Value value);
+  explicit AugmentedElementBase(const Value& value);
+  AugmentedElementBase(size_t random_int, const Value& value);
   ~AugmentedElementBase();
 
   // Can run concurrently with other `JoinWithoutUpdate` calls, but the augmented
@@ -58,7 +58,7 @@ class AugmentedElementBase : public ElementBase<Derived> {
   // `elements[i]`.
   static void BatchUpdate(
       const parlay::sequence<Derived*>& elements,
-      const parlay::sequence<Value>& new_values);
+      parlay::sequence<Value>&& new_values);
   // Updates augmented values of the elements' ancestors according to whatever
   // values already exist at elements[]->values_[0]. This is useful after calls
   // to JoinWithoutUpdate() and SplitWithoutUpdate().
@@ -90,7 +90,7 @@ class AugmentedElementBase : public ElementBase<Derived> {
   using Base::GetNextElement;
 
  protected:
-  static Value* AllocateValues(int height, Value default_value);
+  static Value* AllocateValues(int height, const Value& initial_value);
 
   static void UpdateTopDownImpl(int level, Derived* curr, bool is_loop_start = true);
   // Update aggregate value of node and clear `join_update_level` after joins.
@@ -119,7 +119,7 @@ class AugmentedElement : public AugmentedElementBase<AugmentedElement, parlay::a
 
  public:
   AugmentedElement() : Base(1) {}
-  AugmentedElement(size_t random_int) : Base(random_int, 1) {}
+  explicit AugmentedElement(size_t random_int) : Base(random_int, 1) {}
 
  private:
   friend Base;
@@ -149,22 +149,22 @@ template <typename D, typename F>
 concurrent_array_allocator::Allocator<typename F::T> AugmentedElementBase<D, F>::values_allocator_{};
 
 template <typename D, typename F>
-typename F::T* AugmentedElementBase<D, F>::AllocateValues(int height, typename F::T default_value) {
+typename F::T* AugmentedElementBase<D, F>::AllocateValues(int height, const typename F::T& initial_value) {
   typename F::T* values{values_allocator_.Allocate(height)};
   for (int i = 0; i < height; i++) {
-    values[i] = default_value;
+    values[i] = initial_value;
   }
   return values;
 }
 
 template <typename D, typename F>
-AugmentedElementBase<D, F>::AugmentedElementBase(typename F::T value) :
+AugmentedElementBase<D, F>::AugmentedElementBase(const typename F::T& value) :
     ElementBase<D>{}, update_level_{_internal::NA} {
   values_ = AllocateValues(height_, value);
 }
 
 template <typename D, typename F>
-AugmentedElementBase<D, F>::AugmentedElementBase(size_t random_int, typename F::T value) :
+AugmentedElementBase<D, F>::AugmentedElementBase(size_t random_int, const typename F::T& value) :
     ElementBase<D>{random_int}, update_level_{_internal::NA} {
   values_ = AllocateValues(height_, value);
 }
@@ -259,10 +259,10 @@ void AugmentedElementBase<D, F>::UpdateTopDown(int level) {
 template <typename D, typename F>
 void AugmentedElementBase<D, F>::BatchUpdate(
     const parlay::sequence<D*>& elements,
-    const parlay::sequence<typename F::T>& new_values) {
+    parlay::sequence<typename F::T>&& new_values) {
   parlay::parallel_for(0, elements.size(), [&](size_t i) {
     if (elements[i] != nullptr) {
-      elements[i]->values_[0] = new_values[i];
+      elements[i]->values_[0] = std::move(new_values[i]);
     }
   });
   AugmentedElementBase<D, F>::BatchUpdate(elements);

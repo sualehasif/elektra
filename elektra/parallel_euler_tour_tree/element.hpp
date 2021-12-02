@@ -1,7 +1,6 @@
 #pragma once
 
 #include <parlay/monoid.h>
-#include <parlay/monoid.h>
 #include <parlay/sequence.h>
 
 #include <limits>
@@ -13,16 +12,12 @@ namespace parallel_euler_tour_tree {
 
 // Skip list element for ETT with augmentation function specified by Func.
 template <typename Derived, typename Func>
-class ElementBase: public parallel_skip_list::AugmentedElementBase<Derived, Func> {
+class ElementBase : public parallel_skip_list::AugmentedElementBase<Derived, Func> {
  public:
   using Base = parallel_skip_list::AugmentedElementBase<Derived, Func>;
   using Value = typename Func::T;
 
-  explicit ElementBase(size_t random_int, std::pair<int, int> id, Value value)
-    // Augment with the function "count the number of edges (u, v) such that u <
-    // v in this list".
-      : Base{random_int, value}
-      , id_{id} {}
+  ElementBase(size_t random_int, std::pair<int, int>&& id, const Value& value);
 
   // Returns a representative vertex from the sequence the element lives in.
   // Whereas `FindRepresentative()` returns a representative element that might
@@ -59,8 +54,10 @@ class Element : public ElementBase<Element, parlay::addm<int>> {
   using Base = ElementBase<Element, parlay::addm<int>>;
 
  public:
-  explicit Element(size_t random_int, std::pair<int, int> id)
-      : Base{random_int, id, id.first < id.second} {}
+  Element(size_t random_int, std::pair<int, int>&& id)
+    // Augment with the function "count the number of edges (u, v) such that u <
+    // v in this list".
+      : Base{random_int, std::move(id), id.first < id.second} {}
 
   // Get all edges {u, v} in the sequence that contains this element, assuming
   // that the sequence represents an ETT component.
@@ -89,6 +86,14 @@ class Element : public ElementBase<Element, parlay::addm<int>> {
       int offset = 0,
       bool is_loop_start = true);
 };
+
+template <typename D, typename F>
+ElementBase<D, F>::ElementBase(
+    size_t random_int,
+    std::pair<int, int>&& id,
+    const Value& value)
+    : Base{random_int, value}
+    , id_{std::move(id)} {}
 
 template <typename D, typename F>
 int ElementBase<D, F>::FindRepresentativeVertex() const {
