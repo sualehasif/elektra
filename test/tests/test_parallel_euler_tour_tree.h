@@ -6,7 +6,7 @@
 #include <string>
 #include <utility>
 
-#include "../../elektra/parallel_euler_tour_tree/euler_tour_tree.hpp"
+#include "../../elektra/parallel_euler_tour_tree/euler_tour_tree.h"
 #include "../../elektra/utilities/simple_forest_connectivity.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

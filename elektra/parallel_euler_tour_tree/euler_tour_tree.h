@@ -9,8 +9,8 @@
 #include <utility>
 
 #include "hash_pair.h"
-#include "edge_map.hpp"
-#include "element.hpp"
+#include "edge_map.h"
+#include "element.h"
 
 namespace parallel_euler_tour_tree {
 

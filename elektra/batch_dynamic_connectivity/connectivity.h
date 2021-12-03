@@ -14,7 +14,7 @@
 
 #include "graph.h"
 #include "hash_pair.h"
-#include "parallel_euler_tour_tree/euler_tour_tree.hpp"
+#include "parallel_euler_tour_tree/euler_tour_tree.h"
 #include "resizable_table.h"
 
 #define INITIAL_SIZE 50

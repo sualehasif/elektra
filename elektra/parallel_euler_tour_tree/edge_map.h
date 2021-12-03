@@ -5,7 +5,7 @@
 #include <parlay/primitives.h>
 
 #include "concurrentMap.h"
-#include "element.hpp"
+#include "element.h"
 #include "hash_pair.h"
 
 namespace parallel_euler_tour_tree {
