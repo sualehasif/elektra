@@ -57,6 +57,9 @@ class Element : public ElementBase<Element, parlay::addm<int>> {
   Element(size_t random_int, std::pair<int, int>&& id)
     // Augment with the function "count the number of edges (u, v) such that u <
     // v in this list".
+    //
+    // Using std::move(id) and also accessing id's fields is sketchy but should
+    // be OK since std::move's immediate effect is really just a cast.
       : Base{random_int, std::move(id), id.first < id.second} {}
 
   // Get all edges {u, v} in the sequence that contains this element, assuming
