@@ -69,6 +69,7 @@ class Element : public ElementBase<Element, parlay::addm<int>> {
   size_t GetComponentSize() const;
 
  private:
+  // make parallel_skip_list::ElementBase a friend
   friend Base::Base::Base;
 
   // Gets edges held in descendants of this element and writes them into
