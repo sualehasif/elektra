@@ -76,14 +76,14 @@ class Element : public ElementBase<Element, parlay::addm<int>> {
   // the sequence starting at the offset. `values_` needs to be up to date.
   void GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int level, int offset) const;
   // Helper function for GetEdgesBelow().
-  static void GetEdgesBelowImpl(
+  static void GetEdgesBelowLoop(
       parlay::sequence<std::pair<int, int>>* s,
       int level,
       int offset,
       const Element* curr,
       bool is_loop_start = true);
   // Helper function for GetEdges().
-  static void GetEdgesImpl(
+  static void GetEdgesLoop(
       parlay::sequence<std::pair<int, int>>* s,
       const Element* start_element,
       const Element* curr,
@@ -141,7 +141,7 @@ size_t ElementBase<D, F>::AllocatedMemorySize() const {
   return (sizeof(neighbors_[0]) + sizeof(values_[0])) * (1 << parlay::log2_up(height_));
 }
 
-void Element::GetEdgesBelowImpl(
+void Element::GetEdgesBelowLoop(
     parlay::sequence<std::pair<int, int>>* s,
     int level,
     int offset,
@@ -150,12 +150,12 @@ void Element::GetEdgesBelowImpl(
   if (is_loop_start || curr->height_ < level + 1) {
     parlay::par_do(
       [&]() { curr->GetEdgesBelow(s, level, offset); },
-      [&]() { GetEdgesBelowImpl(s, level, offset + curr->values_[level], curr->neighbors_[level].next, false); }
+      [&]() { GetEdgesBelowLoop(s, level, offset + curr->values_[level], curr->neighbors_[level].next, false); }
     );
   }
 }
 
-void Element::GetEdgesImpl(
+void Element::GetEdgesLoop(
     parlay::sequence<std::pair<int, int>>* s,
     const Element* start_element,
     const Element* curr,
@@ -165,7 +165,7 @@ void Element::GetEdgesImpl(
     const int level = curr->height_ - 1;
     parlay::par_do(
       [&]() { curr->GetEdgesBelow(s, level, offset); },
-      [&]() { GetEdgesImpl(s, start_element, curr->neighbors_[level].next, offset + curr->values_[level], false); }
+      [&]() { GetEdgesLoop(s, start_element, curr->neighbors_[level].next, offset + curr->values_[level], false); }
     );
   }
 }
@@ -191,7 +191,7 @@ void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int level,
       curr = curr->neighbors_[level - 1].next;
     } while (curr->height_ < level + 1);
   } else {  // run in parallel
-    GetEdgesBelowImpl(s, level - 1, offset, this);
+    GetEdgesBelowLoop(s, level - 1, offset, this);
   }
 }
 
@@ -209,7 +209,7 @@ parlay::sequence<std::pair<int, int>> Element::GetEdges() const {
   }
 
   parlay::sequence<std::pair<int, int>> edges(num_edges);
-  GetEdgesImpl(&edges, top_element, top_element);
+  GetEdgesLoop(&edges, top_element, top_element);
   return edges;
 }
 
