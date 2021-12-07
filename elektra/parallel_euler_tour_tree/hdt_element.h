@@ -267,11 +267,11 @@ uint64_t NontreeEdgeFinder::NumEdges() const {
   return num_incident_edges_;
 }
 
-// Helper function for ForEachIncidentVertex. Searches descendants of this
-// element for the first `num_desired_edges` level-i non-tree edges after
-// skipping the first `search_offset` edges. If searching at the top level,
-// perform this descendant-search on all elements at the top level, not just
-// `element`.
+// Helper function for ForEachIncidentVertex. Starting at `element`, the
+// function traverses along `level` until reaching its right parent or returning
+// back to `top_element_`. While traversing, the function searches for the first
+// `num_desired_edges` level-i non-tree edges after skipping the first
+// `search_offset` edges.
 template <typename F>
 void NontreeEdgeFinder::ForEachIncidentVertexImpl(
     F f,
@@ -279,7 +279,6 @@ void NontreeEdgeFinder::ForEachIncidentVertexImpl(
     uint64_t search_offset,
     int level,
     const HdtElement* element) const {
-  const bool is_top_level{level == top_level_};
   if (level <= 6) {
     // run sequentially if we're near the bottom of the list and not doing as
     // much work per thread
@@ -293,11 +292,11 @@ void NontreeEdgeFinder::ForEachIncidentVertexImpl(
         } else {
           ForEachIncidentVertexImpl(f, num_desired_edges, search_offset, level - 1, element);
         }
-        num_desired_edges -= num_edges - search_offset;
+        num_desired_edges -= std::min<uint64_t>(num_edges - search_offset, num_desired_edges);
         search_offset = 0;
       }
       element = element->neighbors_[level].next;
-    } while ((element->height_ < level + 1 || is_top_level) && num_desired_edges > 0 && element != top_element_);
+    } while (element->height_ <= level + 1 && num_desired_edges > 0 && element != top_element_);
     return;
   }
 
@@ -308,7 +307,7 @@ void NontreeEdgeFinder::ForEachIncidentVertexImpl(
     uint64_t search_offset;
   } loop_state = { element, num_desired_edges, search_offset };
   const auto loop_condition{[&](const LoopState& state) {
-    return (state.element->height_ < level + 1 || is_top_level) &&
+    return state.element->height_ <= level + 1 &&
       num_desired_edges > 0 &&
       element != top_element_;
   }};
@@ -324,7 +323,7 @@ void NontreeEdgeFinder::ForEachIncidentVertexImpl(
     if (state.search_offset >= num_edges) {
       state.search_offset -= num_edges;
     } else {
-      state.num_desired_edges -= num_edges - state.search_offset;
+      state.num_desired_edges -= std::min<uint64_t>(num_edges - state.search_offset, state.num_desired_edges);
       state.search_offset = 0;
     }
     state.element = state.element->neighbors_[level].next;
