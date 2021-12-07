@@ -69,8 +69,7 @@ class Element : public ElementBase<Element, parlay::addm<int>> {
   size_t GetComponentSize() const;
 
  private:
-  // make parallel_skip_list::ElementBase a friend
-  friend Base::Base::Base;
+  friend Base::Base::Base;  // make parallel_skip_list::ElementBase a friend
 
   // Gets edges held in descendants of this element and writes them into
   // the sequence starting at the offset. `values_` needs to be up to date.
@@ -147,7 +146,7 @@ void Element::GetEdgesBelowLoop(
     int offset,
     const Element* curr,
     bool is_loop_start) {
-  if (is_loop_start || curr->height_ < level + 1) {
+  if (is_loop_start || curr->height_ <= level + 1) {
     parlay::par_do(
       [&]() { curr->GetEdgesBelow(s, level, offset); },
       [&]() { GetEdgesBelowLoop(s, level, offset + curr->values_[level], curr->neighbors_[level].next, false); }
