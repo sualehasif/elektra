@@ -75,14 +75,6 @@ class Element : public ElementBase<Element, parlay::addm<int>> {
   // Gets edges held in descendants of this element and writes them into
   // the sequence starting at the offset. `values_` needs to be up to date.
   void GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int level, uint32_t offset) const;
-  // Helper function for GetEdges() that calls GetEdgesBelow in parallel.
-  template <typename Condition>
-  static void DoGetEdgesBelowWhile(
-      Condition loop_condition,
-      parlay::sequence<std::pair<int, int>>* s,
-      int level,
-      uint32_t offset,
-      const Element* element);
 };
 
 template <typename D, typename F>
@@ -135,28 +127,6 @@ size_t ElementBase<D, F>::AllocatedMemorySize() const {
   return (sizeof(neighbors_[0]) + sizeof(values_[0])) * (1 << parlay::log2_up(height_));
 }
 
-template <typename Condition>
-void Element::DoGetEdgesBelowWhile(
-    Condition loop_condition,
-    parlay::sequence<std::pair<int, int>>* s,
-    int level,
-    uint32_t offset,
-    const Element* element) {
-  struct LoopState {
-    const Element* curr;
-    uint32_t offset;
-  } loop_state = { element, offset };
-  const auto wrapped_loop_condition{[&](const LoopState& state) { return loop_condition(state.curr); }};
-  const auto loop_action{[&](const LoopState& state) {
-    state.curr->GetEdgesBelow(s, level, state.offset);
-  }};
-  const auto loop_update{[&](const LoopState& state) -> LoopState {
-    return { state.curr->neighbors_[level].next, state.offset + state.curr->values_[level] };
-  }};
-  constexpr bool is_do_while{true};
-  elektra::ParallelWhile(wrapped_loop_condition, loop_action, loop_update, std::move(loop_state), is_do_while);
-}
-
 void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int level, uint32_t offset) const {
   if (level == 0) {
     if (values_[0]) {
@@ -168,18 +138,29 @@ void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int level,
     return;
   }
 
+  const Element* curr{this};
   if (level <= 6) {
     // run sequentially once we're near the bottom of the list and not doing as
     // much work per thread
-    const Element* curr{this};
     do {
       curr->GetEdgesBelow(s, level - 1, offset);
       offset += curr->values_[level - 1];
       curr = curr->neighbors_[level - 1].next;
     } while (curr->height_ < level + 1);
   } else {  // run in parallel
-    const auto loop_condition{[&](const Element* element) { return element->height_ < level + 1; }};
-    DoGetEdgesBelowWhile(loop_condition, s, level - 1, offset, this);
+    struct LoopState {
+      const Element* curr;
+      uint32_t offset;
+    } loop_state = { this, offset };
+    const auto loop_condition{[&](const LoopState& state) { return state.curr->height_ < level + 1; }};
+    const auto loop_action{[&](const LoopState& state) {
+      state.curr->GetEdgesBelow(s, level - 1, state.offset);
+    }};
+    const auto loop_update{[&](const LoopState& state) -> LoopState {
+      return { state.curr->neighbors_[level - 1].next, state.offset + state.curr->values_[level - 1] };
+    }};
+    constexpr bool is_do_while{true};
+    elektra::ParallelWhile(loop_condition, loop_action, loop_update, std::move(loop_state), is_do_while);
   }
 }
 
@@ -197,8 +178,21 @@ parlay::sequence<std::pair<int, int>> Element::GetEdges() const {
   }
 
   parlay::sequence<std::pair<int, int>> edges(num_edges);
-  const auto loop_condition{[&](const Element* element) { return element != top_element; }};
-  DoGetEdgesBelowWhile(loop_condition, &edges, level, 0, top_element);
+
+  struct LoopState {
+    const Element* curr;
+    uint32_t offset;
+  } loop_state = { top_element, 0 };
+  const auto loop_condition{[&](const LoopState& state) { return state.curr != top_element; }};
+  const auto loop_action{[&](const LoopState& state) {
+    state.curr->GetEdgesBelow(&edges, level, state.offset);
+  }};
+  const auto loop_update{[&](const LoopState& state) -> LoopState {
+    return { state.curr->neighbors_[level].next, state.offset + state.curr->values_[level] };
+  }};
+  constexpr bool is_do_while{true};
+  elektra::ParallelWhile(loop_condition, loop_action, loop_update, std::move(loop_state), is_do_while);
+
   return edges;
 }
 
