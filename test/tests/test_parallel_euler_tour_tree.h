@@ -17,6 +17,7 @@ namespace elektra::testing {
 namespace {
 using EulerTourTree = parallel_euler_tour_tree::EulerTourTree;
 
+using ::testing::ElementsAreArray;
 using ::testing::IsEmpty;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
@@ -161,6 +162,27 @@ TEST(ParallelEulerTourTreeTest, ComponentVerticesAndEdges) {
   EXPECT_THAT(ett.ComponentEdges(3), UnorderedElementsAre(Pair(3, 5)));
   EXPECT_THAT(ett.ComponentVertices(4), UnorderedElementsAre(4));
   EXPECT_THAT(ett.ComponentEdges(4), IsEmpty());
+}
+
+TEST(ParallelEulerTourTreeTest, ComponentEdgesOfLargeTree) {
+  // Make sure ComponentEdges still works when the ETT is large (and functions
+  // presumably run in parallel
+  const int n = 400;
+  EulerTourTree ett = EulerTourTree{n};
+  std::vector<std::pair<int, int>> expected_edges;
+  expected_edges.reserve(n - 1);
+  for (int i = 1; i < n / 3; i++) {
+    expected_edges.emplace_back(0, i);
+    ett.Link(0, i);
+  }
+  for (int i = n / 3; i < n; i++) {
+    expected_edges.emplace_back(i - 1, i);
+    ett.Link(i - 1, i);
+  }
+
+  auto edges = ett.ComponentEdges(0);
+  std::sort(edges.begin(), edges.end());
+  EXPECT_THAT(edges, ElementsAreArray(expected_edges));
 }
 
 TEST(ParallelEulerTourTreeTest, GetRepresentative) {
