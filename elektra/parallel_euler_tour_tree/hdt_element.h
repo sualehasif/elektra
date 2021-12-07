@@ -297,7 +297,7 @@ void NontreeEdgeFinder::ForEachIncidentVertexImpl(
         search_offset = 0;
       }
       element = element->neighbors_[level].next;
-    } while ((element->height_ < level + 1 || is_top_level) && num_desired_edges > 0 && element == top_element_);
+    } while ((element->height_ < level + 1 || is_top_level) && num_desired_edges > 0 && element != top_element_);
     return;
   }
 
@@ -310,7 +310,7 @@ void NontreeEdgeFinder::ForEachIncidentVertexImpl(
   const auto loop_condition{[&](const LoopState& state) {
     return (state.element->height_ < level + 1 || is_top_level) &&
       num_desired_edges > 0 &&
-      element == top_element_;
+      element != top_element_;
   }};
   const auto loop_action{[&](const LoopState& state) {
     const uint64_t num_edges{std::get<2>(state.element->values_[level])};
