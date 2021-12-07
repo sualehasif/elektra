@@ -132,10 +132,10 @@ HdtElement::HdtElement(size_t random_int, std::pair<int, int>&& id, bool is_leve
 
 size_t HdtElement::GetComponentSize() const {
   HdtElement* const top_element{FindRepresentative()};
-  const int level = top_element->height_ - 1;
+  const int level{top_element->height_ - 1};
 
   size_t num_vertices{0};
-  HdtElement* curr = top_element;
+  HdtElement* curr{top_element};
   do {
     num_vertices += std::get<0>(curr->values_[level]);
     curr = curr->neighbors_[level].next;
@@ -157,7 +157,7 @@ void HdtElement::GetLevelIEdgesBelowLoop(
     int offset,
     const HdtElement* curr,
     bool is_loop_start) {
-  if (is_loop_start || curr->height_ < level + 1) {
+  if (is_loop_start || curr->height_ <= level + 1) {
     parlay::par_do(
       [&]() { curr->GetLevelIEdgesBelow(s, level, offset); },
       [&]() {
@@ -204,7 +204,7 @@ void HdtElement::GetLevelIEdgesLoop(
     int offset,
     bool is_loop_start) {
   if (is_loop_start || curr != start_element) {
-    const int level = curr->height_ - 1;
+    const int level{curr->height_ - 1};
     parlay::par_do(
       [&]() { curr->GetLevelIEdgesBelow(s, level, offset); },
       [&]() {
@@ -221,7 +221,7 @@ void HdtElement::GetLevelIEdgesLoop(
 
 parlay::sequence<std::pair<int, int>> HdtElement::ClearLevelIEdges() {
   HdtElement* const top_element{FindRepresentative()};
-  const int level = top_element->height_ - 1;
+  const int level{top_element->height_ - 1};
 
   size_t num_edges{0};
   {
