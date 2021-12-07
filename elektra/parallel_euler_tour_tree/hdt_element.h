@@ -115,7 +115,7 @@ class NontreeEdgeFinder {
   //     edges using FindNontreeIncidentVertices(100, 50).
   //
   template <typename Func>
-  void ForEachIncidentVertex(Func f, size_t num_non_tree_edges, size_t search_offset) const;
+  void ForEachIncidentVertex(Func f, uint64_t num_desired_edges, uint64_t search_offset) const;
 
   // TODO(tomtseng): comment
   uint64_t NumEdges() const;
@@ -254,11 +254,21 @@ uint64_t NontreeEdgeFinder::NumEdges() const {
 template <typename F>
 void NontreeEdgeFinder::ForEachIncidentVertex(
     F f,
-    size_t num_non_tree_edges,
-    size_t search_offset) const {
+    uint64_t num_desired_edges,
+    uint64_t search_offset) const {
+  num_desired_edges = std::min<uint64_t>(num_incident_edges_ - search_offset, num_desired_edges);
+
+  const HdtElement* curr{top_element_};
   const int level{top_element_->height_ - 1};
-  exit(-1);
-  // TODO(tomtseng) impl
+  // TODO(tomtseng) parallelize
+  do {
+    const uint64_t num_edges_of_curr{std::get<2>(curr->values_[level])};
+    if (search_offset >= num_edges_of_curr) {
+      search_offset -= num_edges_of_curr;
+    } else {
+      // TODO(tomtseng) impl
+    }
+  } while (curr != top_element_);
 }
 
 }  // namespace parallel_euler_tour_tree
