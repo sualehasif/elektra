@@ -183,12 +183,11 @@ parlay::sequence<std::pair<int, int>> Element::GetEdges() const {
     const Element* curr;
     uint32_t offset;
   } loop_state = { top_element, 0 };
-  const auto loop_condition{[&](const LoopState& state) { return top_element != state.curr; }};
+  const auto loop_condition{[&](const LoopState& state) { return state.curr != top_element; }};
   const auto loop_action{[&](const LoopState& state) {
-    state.curr->GetEdgesBelow(&edges, state.curr->height_ - 1, state.offset);
+    state.curr->GetEdgesBelow(&edges, level, state.offset);
   }};
-  const auto loop_update{[](const LoopState& state) -> LoopState {
-    const int level{state.curr->height_ - 1};
+  const auto loop_update{[&](const LoopState& state) -> LoopState {
     return { state.curr->neighbors_[level].next, state.offset + state.curr->values_[level] };
   }};
   constexpr bool is_do_while{true};
