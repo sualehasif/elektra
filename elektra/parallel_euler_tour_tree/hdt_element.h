@@ -135,8 +135,6 @@ class NontreeEdgeFinder {
   const HdtElement* top_element_;
   // The number of level-i non-tree edges incident to this component.
   uint64_t num_incident_edges_{0};
-  // The max level in the list.
-  const int top_level_;
 
   // Implementation notes:
   // - We implement this as separate class from HdtElement just to avoid recalculating
@@ -254,7 +252,7 @@ void HdtElement::UpdateNontreeEdgeCounts(
 }
 
 NontreeEdgeFinder::NontreeEdgeFinder(const HdtElement* top_element)
-  : top_element_{top_element}, top_level_{top_element->height_ - 1} {
+  : top_element_{top_element} {
   const HdtElement* curr{top_element};
   const int level{top_element_->height_ - 1};
   do {
@@ -338,7 +336,8 @@ void NontreeEdgeFinder::ForEachIncidentVertex(
     F f,
     uint64_t num_desired_edges,
     uint64_t search_offset) const {
-  ForEachIncidentVertexImpl(f, num_desired_edges, search_offset, top_level_, top_element_);
+  const int level{top_element_->height_ - 1};
+  ForEachIncidentVertexImpl(f, num_desired_edges, search_offset, level, top_element_);
 }
 
 }  // namespace parallel_euler_tour_tree
