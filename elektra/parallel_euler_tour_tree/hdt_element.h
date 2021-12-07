@@ -5,6 +5,7 @@
 #include <parlay/sequence.h>
 
 #include "element.h"
+#include "utilities/while_loop.h"
 
 namespace parallel_euler_tour_tree {
 
@@ -83,24 +84,9 @@ class HdtElement : public ElementBase<HdtElement, _internal::HdtAugmentation> {
   friend Base::Base::Base;  // make parallel_skip_list::ElementBase a friend
   friend NontreeEdgeFinder;
 
-  // Helper function for ClearLevelIEdges that populates `s` with elements
-  // representing level-i tree edges.
-  static void GetLevelIEdgesLoop(
-      parlay::sequence<HdtElement*>* s,
-      const HdtElement* start_element,
-      const HdtElement* curr,
-      int offset = 0,
-      bool is_loop_start = true);
   // Helper function for ClearLevelIEdges. Gets edges held in descendants of
   // this element at writes them into the sequence starting at the offset.
-  void GetLevelIEdgesBelow(parlay::sequence<HdtElement*>* s, int level, int offset) const;
-  // Helper function for GetEdgesBelow.
-  static void GetLevelIEdgesBelowLoop(
-      parlay::sequence<HdtElement*>* s,
-      int level,
-      int offset,
-      const HdtElement* curr,
-      bool is_loop_start = true);
+  void GetLevelIEdgesBelow(parlay::sequence<HdtElement*>* s, int level, uint32_t offset) const;
 };
 
 // TODO(tomtseng): comment and use this
@@ -170,28 +156,7 @@ NontreeEdgeFinder HdtElement::CreateNontreeEdgeFinder() const {
   return NontreeEdgeFinder{FindRepresentative()};
 }
 
-void HdtElement::GetLevelIEdgesBelowLoop(
-    parlay::sequence<HdtElement*>* s,
-    int level,
-    int offset,
-    const HdtElement* curr,
-    bool is_loop_start) {
-  if (is_loop_start || curr->height_ <= level + 1) {
-    parlay::par_do(
-      [&]() { curr->GetLevelIEdgesBelow(s, level, offset); },
-      [&]() {
-        GetLevelIEdgesBelowLoop(
-            s,
-            level,
-            offset + std::get<1>(curr->values_[level]),
-            curr->neighbors_[level].next,
-            false);
-      }
-    );
-  }
-}
-
-void HdtElement::GetLevelIEdgesBelow(parlay::sequence<HdtElement*>* s, int level, int offset) const {
+void HdtElement::GetLevelIEdgesBelow(parlay::sequence<HdtElement*>* s, int level, uint32_t offset) const {
   if (level == 0) {
     if (std::get<1>(values_[0])) {
       (*s)[offset] = const_cast<HdtElement*>(this);
@@ -212,29 +177,19 @@ void HdtElement::GetLevelIEdgesBelow(parlay::sequence<HdtElement*>* s, int level
       curr = curr->neighbors_[level - 1].next;
     } while (curr->height_ < level + 1);
   } else {  // run in parallel
-    GetLevelIEdgesBelowLoop(s, level - 1, offset, this);
-  }
-}
-
-void HdtElement::GetLevelIEdgesLoop(
-    parlay::sequence<HdtElement*>* s,
-    const HdtElement* start_element,
-    const HdtElement* curr,
-    int offset,
-    bool is_loop_start) {
-  if (is_loop_start || curr != start_element) {
-    const int level{curr->height_ - 1};
-    parlay::par_do(
-      [&]() { curr->GetLevelIEdgesBelow(s, level, offset); },
-      [&]() {
-        GetLevelIEdgesLoop(
-            s,
-            start_element,
-            curr->neighbors_[level].next,
-            offset + std::get<1>(curr->values_[level]),
-            false);
-      }
-    );
+    struct LoopState {
+      const HdtElement* curr;
+      uint32_t offset;
+    } loop_state = { this, offset };
+    const auto loop_condition{[&](const LoopState& state) { return state.curr->height_ < level + 1; }};
+    const auto loop_action{[&](const LoopState& state) {
+      state.curr->GetLevelIEdgesBelow(s, level - 1, state.offset);
+    }};
+    const auto loop_update{[&](const LoopState& state) -> LoopState {
+      return { state.curr->neighbors_[level - 1].next, state.offset + std::get<1>(state.curr->values_[level - 1]) };
+    }};
+    constexpr bool is_do_while{true};
+    elektra::ParallelWhile(loop_condition, loop_action, loop_update, std::move(loop_state), is_do_while);
   }
 }
 
@@ -252,7 +207,19 @@ parlay::sequence<std::pair<int, int>> HdtElement::ClearLevelIEdges() {
   }
 
   parlay::sequence<HdtElement*> edge_elements(num_edges);
-  GetLevelIEdgesLoop(&edge_elements, top_element, top_element);
+  struct LoopState {
+    const HdtElement* curr;
+    uint32_t offset;
+  } loop_state = { top_element, 0 };
+  const auto loop_condition{[&](const LoopState& state) { return state.curr != top_element; }};
+  const auto loop_action{[&](const LoopState& state) {
+    state.curr->GetLevelIEdgesBelow(&edge_elements, level, state.offset);
+  }};
+  const auto loop_update{[&](const LoopState& state) -> LoopState {
+    return { state.curr->neighbors_[level].next, state.offset + std::get<1>(state.curr->values_[level]) };
+  }};
+  constexpr bool is_do_while{true};
+  elektra::ParallelWhile(loop_condition, loop_action, loop_update, std::move(loop_state), is_do_while);
 
   BatchUpdate<_internal::IsLevelIEdgeGetter>(
       edge_elements,
