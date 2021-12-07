@@ -43,6 +43,8 @@ using NontreeEdgeCountGetter = IntTupleGetter<HdtAugmentation::T, 2>;
 
 }  // namespace _internal
 
+class NontreeEdgeFinder;
+
 // Skip list element augmented to be useful for HDT-like dynamic connectivity
 // algorithm. (HDT = Holm + De Lichtenberg + Thorup, referring to authors of a
 // dynamic connectivity algorithm.)
@@ -60,28 +62,8 @@ class HdtElement : public ElementBase<HdtElement, _internal::HdtAugmentation> {
   // Get the number of vertices in the sequence that contains this element.
   size_t GetComponentSize() const;
 
-  // In the skip list that contains this element, return a list of vertices adjacent
-  // to `num_edges` level-i non-tree edges.
-  //
-  // Params:
-  // - num_edges: Specifies how many level-i non-tree edges to search for
-  // - search_offset: Specifies prefix of non-tree edges to skip in the search.
-  //     For instance, suppose you've already found 50 edges using
-  //     FindNonTreeIncidentVertices(50, 0). Then you can find the next 100
-  //     edges using FindNonTreeIncidentVertices(100, 50).
-  //
-  // Returns:
-  // - A list L of vertices
-  // - A initial offset s for L[0]
-  // - An ending offset t for L[-1]
-  // Taking the level-i non-tree edges of L[0] starting at index s, of L[1]
-  // through L[-2], and of L[-1] up to index t (exclusive) will either give
-  // num_edges edges or give all the remaining edges excluding those skipped by
-  // search_offset.
-  // If L is empty then there were no edges found.
-  std::tuple<parlay::sequence<int>, int, int> FindNonTreeIncidentVertices(
-      size_t num_edges,
-      size_t search_offset) const;
+  // TODO(tomtseng) comment
+  NontreeEdgeFinder CreateNontreeEdgeFinder() const;
 
   // In the list that contains this element, return all level-i tree edges
   // and mark them as no longer being level-i tree edges (because they're going
@@ -98,8 +80,8 @@ class HdtElement : public ElementBase<HdtElement, _internal::HdtAugmentation> {
       IntSeq&& new_values);
 
  private:
-  // make parallel_skip_list::ElementBase a friend
-  friend Base::Base::Base;
+  friend Base::Base::Base;  // make parallel_skip_list::ElementBase a friend
+  friend NontreeEdgeFinder;
 
   // Helper function for ClearLevelIEdges that populates `s` with elements
   // representing level-i tree edges.
@@ -119,6 +101,47 @@ class HdtElement : public ElementBase<HdtElement, _internal::HdtAugmentation> {
       int offset,
       const HdtElement* curr,
       bool is_loop_start = true);
+};
+
+// TODO(tomtseng): comment and use this
+//
+// no longer valid if u join/link//update the underlying component
+//
+// impl note: we just design this this way so we don't fetch the top_element
+// repeatedly lol
+class NontreeEdgeFinder {
+ public:
+  // TODO(tomtseng): comment
+  //
+  //  f should take a vertex_id, start_index, end_index, and should be able to
+  //  run in parallel
+  //
+  //  should return how many edges remaining
+  //
+  // In the skip list that contains this element, return a list of vertices adjacent
+  // to `num_edges` level-i non-tree edges.
+  //
+  // Params:
+  // - num_edges: Specifies how many level-i non-tree edges to search for
+  // - search_offset: Specifies prefix of non-tree edges to skip in the search.
+  //     For instance, suppose you've already found 50 edges using
+  //     FindNontreeIncidentVertices(50, 0). Then you can find the next 100
+  //     edges using FindNontreeIncidentVertices(100, 50).
+  //
+  template <typename Func>
+  void ForEachIncidentVertex(Func f, size_t num_non_tree_edges, size_t search_offset) const;
+
+  // TODO(tomtseng): comment
+  uint64_t NumEdges() const;
+
+ private:
+  friend HdtElement;
+
+  NontreeEdgeFinder(const HdtElement* top_element);
+
+  const HdtElement* top_element_;
+  // TODO(tomtseng): populate and comment
+  uint64_t num_incident_edges_{0};
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -143,12 +166,8 @@ size_t HdtElement::GetComponentSize() const {
   return num_vertices;
 }
 
-std::tuple<parlay::sequence<int>, int, int> HdtElement::FindNonTreeIncidentVertices(
-    size_t num_edges,
-    size_t search_offset) const {
-  // TODO(tomtseng)
-  std::cerr << "TODO(tomtseng): unimplemented\n";
-  exit(-1);
+NontreeEdgeFinder HdtElement::CreateNontreeEdgeFinder() const {
+  return NontreeEdgeFinder{FindRepresentative()};
 }
 
 void HdtElement::GetLevelIEdgesBelowLoop(
@@ -249,6 +268,30 @@ void HdtElement::UpdateNontreeEdgeCounts(
     const parlay::sequence<HdtElement*>& elements,
     IntSeq&& new_values) {
   BatchUpdate<_internal::NontreeEdgeCountGetter>(elements, std::move(new_values));
+}
+
+NontreeEdgeFinder::NontreeEdgeFinder(const HdtElement* top_element)
+  : top_element_{top_element} {
+  const HdtElement* curr{top_element};
+  const int level{top_element_->height_ - 1};
+  do {
+    num_incident_edges_ += std::get<2>(curr->values_[level]);
+    curr = curr->neighbors_[level].next;
+  } while (curr != top_element);
+}
+
+uint64_t NontreeEdgeFinder::NumEdges() const {
+  return num_incident_edges_;
+}
+
+template <typename F>
+void NontreeEdgeFinder::ForEachIncidentVertex(
+    F f,
+    size_t num_non_tree_edges,
+    size_t search_offset) const {
+  const int level{top_element_->height_ - 1};
+  exit(-1);
+  // TODO(tomtseng) impl
 }
 
 }  // namespace parallel_euler_tour_tree
