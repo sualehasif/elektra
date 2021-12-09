@@ -61,10 +61,10 @@ class EulerTourTreeBase {
 
   // Adds all edges in the `len`-length array `links` to the forest. Adding
   // these edges must not create cycles in the graph.
-  void BatchLink(parlay::sequence<std::pair<int, int>>& links);
+  void BatchLink(const parlay::sequence<std::pair<int, int>>& links);
   // Removes all edges in the `len`-length array `cuts` from the forest. These
   // edges must be present in the forest and must be distinct.
-  void BatchCut(parlay::sequence<std::pair<int, int>>& cuts);
+  void BatchCut(const parlay::sequence<std::pair<int, int>>& cuts);
 
   // Returns if the forest is empty.
   bool IsEmpty() const;
@@ -97,7 +97,7 @@ class EulerTourTreeBase {
   // needed, use `randomness.ith_rand(2 * i)` and `randomness.ith_rand(2 * i + 1)`.
   // `i` corresponds to an index into `links[]`.
   template <typename ElemConstructor>
-  void BatchLink(parlay::sequence<std::pair<int, int>>& links, ElemConstructor construct);
+  void BatchLink(const parlay::sequence<std::pair<int, int>>& links, ElemConstructor construct);
 
  private:
   template <typename ElemConstructor>
@@ -264,7 +264,7 @@ void EulerTourTreeBase<E>::BatchLinkSequential(
 template <typename E>
 template <typename ElemConstructor>
 void EulerTourTreeBase<E>::BatchLink(
-    parlay::sequence<std::pair<int, int>>& links,
+    const parlay::sequence<std::pair<int, int>>& links,
     ElemConstructor construct_elements) {
   const size_t len = links.size();
   if (len <= 75) {
@@ -350,7 +350,7 @@ void EulerTourTreeBase<E>::BatchLink(
 }
 
 template <typename E>
-void EulerTourTreeBase<E>::BatchLink(parlay::sequence<std::pair<int, int>>& links) {
+void EulerTourTreeBase<E>::BatchLink(const parlay::sequence<std::pair<int, int>>& links) {
   const auto construct{[&](parlay::random* randomness, size_t i, E* uv, E* vu) {
     // TODO(tomtseng) this interface doesn't work if BatchLinkSequential gets
     // called
@@ -549,7 +549,7 @@ void EulerTourTreeBase<E>::BatchCutRecurse(const parlay::sequence<std::pair<int,
 }
 
 template <typename E>
-void EulerTourTreeBase<E>::BatchCut(parlay::sequence<std::pair<int, int>>& cuts) {
+void EulerTourTreeBase<E>::BatchCut(const parlay::sequence<std::pair<int, int>>& cuts) {
   const size_t len = cuts.size();
   if (len <= 75) {
     return BatchCutSequential(cuts);
