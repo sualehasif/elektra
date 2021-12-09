@@ -79,7 +79,7 @@ class EulerTourTreeBase {
   using ElementAllocator = parlay::type_allocator<Elem>;
   int num_vertices_;
   parlay::sequence<Elem> vertices_;
-  _internal::EdgeMap edges_;
+  _internal::EdgeMap<Elem> edges_;
   parlay::random randomness_;
 
   // This version of `Link` can be used if `Elem`s representing edges should be

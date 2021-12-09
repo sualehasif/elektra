@@ -91,7 +91,7 @@ class AugmentedElementBase : public ElementBase<Derived> {
   //     - changing x or y on the portion of `Func::T` captured by `Get` does
   //       not change `Func::f(x, y)` on the portion of `Func::T` not captured by `Get`
   template <typename Getter = DefaultGetter<Func>, typename ElemSeq, typename ValueSeq>
-  static void BatchUpdate(const ElemSeq& elements, ValueSeq&& new_values);
+  static void BatchUpdate(const ElemSeq& elements, const ValueSeq& new_values);
   // Updates augmented values of the elements' ancestors according to whatever
   // values already exist at elements[]->values_[0]. This is useful after calls
   // to JoinWithoutUpdate() and SplitWithoutUpdate().
@@ -295,10 +295,10 @@ void AugmentedElementBase<D, F>::UpdateTopDown(int level) {
 
 template <typename D, typename F>
 template <typename Getter, typename ElemSeq, typename ValueSeq>
-void AugmentedElementBase<D, F>::BatchUpdate(const ElemSeq& elements, ValueSeq&& new_values) {
+void AugmentedElementBase<D, F>::BatchUpdate(const ElemSeq& elements, const ValueSeq& new_values) {
   parlay::parallel_for(0, elements.size(), [&](size_t i) {
     if (elements[i] != nullptr) {
-      Getter::Get(elements[i]->values_[0]) = std::move(new_values[i]);
+      Getter::Get(elements[i]->values_[0]) = new_values[i];
     }
   });
   AugmentedElementBase<D, F>::BatchUpdate<Getter>(elements);
@@ -316,13 +316,13 @@ void AugmentedElementBase<D, F>::BatchUpdate(const Seq& elements) {
   auto top_nodes{parlay::sequence<AugmentedElementBase<D, F>*>::uninitialized(len)};
 
   parlay::parallel_for(0, len, [&](const size_t i) {
-    if (elements[i] == nullptr) {
+    AugmentedElementBase<D, F>* curr{elements[i]};
+    if (curr == nullptr) {
       top_nodes[i] = nullptr;
       return;
     }
 
     int level{0};
-    AugmentedElementBase<D, F>* curr{elements[i]};
     while (true) {
       int curr_update_level{curr->update_level_};
       if (curr_update_level == _internal::NA && CAS(&curr->update_level_, _internal::NA, level)) {
