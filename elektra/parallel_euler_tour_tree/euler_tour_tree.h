@@ -352,8 +352,6 @@ void EulerTourTreeBase<E>::BatchLink(
 template <typename E>
 void EulerTourTreeBase<E>::BatchLink(const parlay::sequence<std::pair<int, int>>& links) {
   const auto construct{[&](parlay::random* randomness, size_t i, E* uv, E* vu) {
-    // TODO(tomtseng) this interface doesn't work if BatchLinkSequential gets
-    // called
     const int u{links[i].first};
     const int v{links[i].second};
     new (uv) E{randomness->ith_rand(2 * i), make_pair(u, v)};
