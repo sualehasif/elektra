@@ -77,7 +77,7 @@ class HdtElement : public ElementBase<HdtElement, _internal::HdtAugmentation> {
   // its count of "number of level-i non-tree edges incident to this element" to
   // be new_values[i].
   template <typename ElemSeq, typename IntSeq>
-  static void UpdateNontreeEdgeCounts(const ElemSeq& elements, IntSeq&& new_values);
+  static void UpdateNontreeEdgeCounts(const ElemSeq& elements, const IntSeq& new_values);
 
  private:
   friend Base::Base::Base;  // make parallel_skip_list::ElementBase a friend
@@ -185,8 +185,8 @@ parlay::sequence<std::pair<int, int>> HdtElement::ClearLevelIEdges() {
 }
 
 template <typename ElemSeq, typename IntSeq>
-void HdtElement::UpdateNontreeEdgeCounts(const ElemSeq& elements, IntSeq&& new_values) {
-  BatchUpdate<_internal::NontreeEdgeCountGetter>(elements, std::move(new_values));
+void HdtElement::UpdateNontreeEdgeCounts(const ElemSeq& elements, const IntSeq& new_values) {
+  BatchUpdate<_internal::NontreeEdgeCountGetter>(elements, new_values);
 }
 
 }  // namespace parallel_euler_tour_tree

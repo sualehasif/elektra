@@ -35,7 +35,7 @@ class HdtEulerTourTree : public EulerTourTreeBase<HdtElement> {
   template <typename IntSeq>
   void UpdateNontreeEdgeCounts(
       const parlay::sequence<int>& vertices,
-      IntSeq&& new_values);
+      const IntSeq& new_values);
 
   // Creates a NontreeEdgeFinder for v's connected component. The
   // NontreeEdgeFinder can be used to find level-i non-tree edges incident to
@@ -141,11 +141,11 @@ parlay::sequence<std::pair<int, int>> HdtEulerTourTree::ClearLevelIEdges(int v) 
 template <typename IntSeq>
 void HdtEulerTourTree::UpdateNontreeEdgeCounts(
     const parlay::sequence<int>& vertices,
-    IntSeq&& new_values) {
+    const IntSeq& new_values) {
   const auto elements{parlay::delayed_seq<Elem*>(
       vertices.size(),
       [&](size_t i) { return &vertices_[vertices[i]]; })};
-  Elem::UpdateNontreeEdgeCounts(elements, std::move(new_values));
+  Elem::UpdateNontreeEdgeCounts(elements, new_values);
 }
 
 NontreeEdgeFinder HdtEulerTourTree::CreateNontreeEdgeFinder(int v) const {
