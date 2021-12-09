@@ -250,13 +250,10 @@ void EulerTourTreeBase<E>::BatchLinkSequential(
   // updates, then do all augmented value updates at the end in a single
   // BatchUpdate.
   for (size_t i = 0; i < links.size(); i++) {
-    const int u{links[i].first};
-    const int v{links[i].second};
     E* uv = ElementAllocator::alloc();
     E* vu = ElementAllocator::alloc();
-    new (uv) E{randomness_.ith_rand(2 * i), make_pair(u, v)};
-    new (vu) E{randomness_.ith_rand(2 * i + 1), make_pair(v, u)};
-    Link(u, v, uv, vu);
+    construct_elements(&randomness_, i, uv, vu);
+    Link(links[i].first, links[i].second, uv, vu);
   }
   randomness_ = randomness_.next();
 }
