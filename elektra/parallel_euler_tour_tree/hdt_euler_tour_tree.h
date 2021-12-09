@@ -24,6 +24,10 @@ class HdtEulerTourTree : public EulerTourTreeBase<HdtElement> {
 
   // Get the number of vertices in v's connected component.
   size_t ComponentSize(int v) const;
+  // Returns all vertices in v's connected component.
+  parlay::sequence<int> ComponentVertices(int v) const;
+  // Returns all edges in `v`'s connected component..
+  parlay::sequence<std::pair<int, int>> ComponentEdges(int v) const;
 
   // In v's connected component, return all level-i tree edges and mark them as
   // no longer being level-i tree edges (because they're going to be pushed down
@@ -131,6 +135,41 @@ void HdtEulerTourTree::BatchLink(
 
 size_t HdtEulerTourTree::ComponentSize(int v) const {
   return vertices_[v].GetComponentSize();
+}
+
+parlay::sequence<int> HdtEulerTourTree::ComponentVertices(int v) const {
+  // TODO(tomtseng) implement this more efficiently if we actually need this
+  // function
+  parlay::sequence<int> vertices;
+  vertices.reserve(ComponentSize(v));
+  const Elem* const start_element{&vertices_[v]};
+  const Elem* curr{start_element};
+  do {
+    const auto [u, v] = curr->id_;
+    if (u == v) {
+      vertices.emplace_back(u);
+    }
+    curr = curr->GetNextElement();
+  } while (curr != start_element);
+  return vertices;
+}
+
+// Returns all edges in `v`'s connected component..
+parlay::sequence<std::pair<int, int>> HdtEulerTourTree::ComponentEdges(int v) const {
+  // TODO(tomtseng) implement this more efficiently if we actually need this
+  // function
+  parlay::sequence<std::pair<int, int>> edges;
+  edges.reserve(ComponentSize(v) - 1);
+  const Elem* const start_element{&vertices_[v]};
+  const Elem* curr{start_element};
+  do {
+    const auto [u, v] = curr->id_;
+    if (u < v) {
+      edges.emplace_back(curr->id_);
+    }
+    curr = curr->GetNextElement();
+  } while (curr != start_element);
+  return edges;
 }
 
 parlay::sequence<std::pair<int, int>> HdtEulerTourTree::GetAndClearLevelIEdges(int v) {

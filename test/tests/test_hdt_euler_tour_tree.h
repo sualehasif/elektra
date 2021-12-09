@@ -24,6 +24,8 @@ TEST(HdtEulerTourTree, ComponentSize_Singleton) {
   // Check ComponentSize() works on a singleton vertex.
   EulerTourTree ett = EulerTourTree{1};
   EXPECT_EQ(ett.ComponentSize(0), 1);
+  EXPECT_THAT(ett.ComponentVertices(0), UnorderedElementsAre(0));
+  EXPECT_THAT(ett.ComponentEdges(0), IsEmpty());
 }
 
 TEST(HdtEulerTourTree, ComponentSize) {
@@ -36,10 +38,18 @@ TEST(HdtEulerTourTree, ComponentSize) {
   parlay::sequence<std::pair<int, int>> links{{{0, 1}, {0, 2}, {0, 3}, {4, 3}}};
   ett.BatchLink(links, false);
   EXPECT_EQ(ett.ComponentSize(3), 5);
+  EXPECT_THAT(ett.ComponentVertices(3), UnorderedElementsAre(0, 1, 2, 3, 4));
+  EXPECT_THAT(
+      ett.ComponentEdges(3),
+      UnorderedElementsAre(Pair(0, 1), Pair(0, 2), Pair(0, 3), Pair(3, 4)));
 
   ett.Cut(0, 3);
   EXPECT_EQ(ett.ComponentSize(2), 3);
+  EXPECT_THAT(ett.ComponentVertices(2), UnorderedElementsAre(0, 1, 2));
+  EXPECT_THAT(ett.ComponentEdges(2), UnorderedElementsAre(Pair(0, 1), Pair(0, 2)));
   EXPECT_EQ(ett.ComponentSize(3), 2);
+  EXPECT_THAT(ett.ComponentVertices(3), UnorderedElementsAre(3, 4));
+  EXPECT_THAT(ett.ComponentEdges(3), UnorderedElementsAre(Pair(3, 4)));
 }
 
 TEST(HdtEulerTourTree, GetAndClearLevelIEdges_Singleton) {
