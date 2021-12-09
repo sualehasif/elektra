@@ -55,7 +55,7 @@ class HdtEulerTourTree : public EulerTourTreeBase<HdtElement> {
 // connected component.
 //
 // The NontreeEdgeFinder is no longer valid if the component is modified by a
-// link, a cut, or a UpdateNontreeEdgeCounts().
+// link or a cut, though UpdateNontreeEdgeCounts() modifications are OK.
 //
 // In the comments in this class, when talking about the number of level-i
 // non-tree edges incident to the component, an edge is counted twice if both of
@@ -94,8 +94,6 @@ class NontreeEdgeFinder {
 
   // A fixed representative element of the list representing the connected component.
   const HdtElement* top_element_;
-  // The number of level-i non-tree edges incident to the component.
-  uint64_t num_incident_edges_{0};
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -201,16 +199,17 @@ NontreeEdgeFinder HdtEulerTourTree::CreateNontreeEdgeFinder(int v) const {
 
 NontreeEdgeFinder::NontreeEdgeFinder(const HdtElement* top_element)
   : top_element_{top_element} {
-  const HdtElement* curr{top_element};
-  const int level{top_element_->height_ - 1};
-  do {
-    num_incident_edges_ += std::get<2>(curr->values_[level]);
-    curr = curr->neighbors_[level].next;
-  } while (curr != top_element);
 }
 
 uint64_t NontreeEdgeFinder::NumEdges() const {
-  return num_incident_edges_;
+  uint64_t num_edges{0};
+  const HdtElement* curr{top_element_};
+  const int level{top_element_->height_ - 1};
+  do {
+    num_edges += std::get<2>(curr->values_[level]);
+    curr = curr->neighbors_[level].next;
+  } while (curr != top_element_);
+  return num_edges;
 }
 
 // Helper function for ForEachIncidentVertex. Starting at `element`, the
