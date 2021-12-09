@@ -82,7 +82,29 @@ class EulerTourTreeBase {
   _internal::EdgeMap edges_;
   parlay::random randomness_;
 
+  // This version of `Link` can be used if `Elem`s representing edges should be
+  // constructed with the Elem(size_t random_int, std::pair<int, int>&& id) constructor.
+  // The caller must instead perform construct `Elems` representing edges (u, v)
+  // and (v, u).
+  void Link(int u, int v, Elem* uv, Elem* vu);
+  // This version of `BatchLink` can be used if `Elem`s representing edges should be
+  // constructed with the Elem(size_t random_int, std::pair<int, int>&& id) constructor.
+  // The caller must instead provide a function that will perform the
+  // construction.
+  //
+  // `construct(parlay::random& randomness, size_t i, Elem* uv, Elem* vu) -> void`
+  // should use placement new to construct uv and vu. If random numbers are
+  // needed, use `randomness.ith_rand(2 * i)` and `randomness.ith_rand(2 * i + 1)`.
+  // `i` corresponds to an index into `links[]`.
+  template <typename ElemConstructor>
+  void BatchLink(parlay::sequence<std::pair<int, int>>& links, ElemConstructor construct);
+
  private:
+  template <typename ElemConstructor>
+  void BatchLinkSequential(
+      const parlay::sequence<std::pair<int, int>>& links,
+      ElemConstructor construct_elements);
+  void BatchCutSequential(const parlay::sequence<std::pair<int, int>>& cuts);
   void BatchCutRecurse(
       const parlay::sequence<std::pair<int, int>>& cuts,
       parlay::sequence<bool>& ignored,
@@ -122,29 +144,6 @@ namespace {
 // On BatchCut, randomly ignore 1/`kBatchCutRecursiveFactor` cuts and recurse
 // on them later.
 constexpr int kBatchCutRecursiveFactor{100};
-
-template <typename ETT>
-void BatchCutSequential(ETT* ett,
-                        const parlay::sequence<std::pair<int, int>>& cuts) {
-  // TODO(tomtseng): We should do all cuts without doing any augmented value
-  // updates, then do all augmented value updates at the end in a single
-  // BatchUpdate. Or is this too difficult to do correctly due to edge elements
-  // being deleted and returned to the memory allocator?
-  for (const auto& cut : cuts) {
-    ett->Cut(cut.first, cut.second);
-  }
-}
-
-template <typename ETT>
-void BatchLinkSequential(ETT* ett,
-                         const parlay::sequence<std::pair<int, int>>& links) {
-  // TODO(tomtseng): We should do all links without doing any augmented value
-  // updates, then do all augmented value updates at the end in a single
-  // BatchUpdate.
-  for (const auto& link : links) {
-    ett->Link(link.first, link.second);
-  }
-}
 
 }  // namespace
 
@@ -217,12 +216,7 @@ template <typename E>
 bool EulerTourTreeBase<E>::IsEmpty() const { return edges_.IsEmpty(); }
 
 template <typename E>
-void EulerTourTreeBase<E>::Link(int u, int v) {
-  E* uv = ElementAllocator::alloc();
-  new (uv) E{randomness_.ith_rand(0), make_pair(u, v)};
-  E* vu = ElementAllocator::alloc();
-  new (vu) E{randomness_.ith_rand(1), make_pair(v, u)};
-  randomness_ = randomness_.next();
+void EulerTourTreeBase<E>::Link(int u, int v, E* uv, E* vu) {
   uv->twin_ = vu;
   vu->twin_ = uv;
   edges_.Insert(u, v, uv);
@@ -237,22 +231,44 @@ void EulerTourTreeBase<E>::Link(int u, int v) {
   E::BatchUpdate(parlay::sequence<E*>{{u_left, uv, v_left, vu}});
 }
 
-template <class E1, class E2>
-struct firstF {
-  E1 operator()(std::pair<E1, E2> a) { return a.first; }
-};
-
-template <class E1, class E2>
-struct secondF {
-  E2 operator()(std::pair<E1, E2> a) { return a.second; }
-};
+template <typename E>
+void EulerTourTreeBase<E>::Link(int u, int v) {
+  E* uv = ElementAllocator::alloc();
+  E* vu = ElementAllocator::alloc();
+  new (uv) E{randomness_.ith_rand(0), make_pair(u, v)};
+  new (vu) E{randomness_.ith_rand(1), make_pair(v, u)};
+  randomness_ = randomness_.next();
+  Link(u, v, uv, vu);
+}
 
 template <typename E>
-void EulerTourTreeBase<E>::BatchLink(parlay::sequence<std::pair<int, int>>& links) {
+template <typename ElemConstructor>
+void EulerTourTreeBase<E>::BatchLinkSequential(
+    const parlay::sequence<std::pair<int, int>>& links,
+    ElemConstructor construct_elements) {
+  // TODO(tomtseng): We should do all links without doing any augmented value
+  // updates, then do all augmented value updates at the end in a single
+  // BatchUpdate.
+  for (size_t i = 0; i < links.size(); i++) {
+    const int u{links[i].first};
+    const int v{links[i].second};
+    E* uv = ElementAllocator::alloc();
+    E* vu = ElementAllocator::alloc();
+    new (uv) E{randomness_.ith_rand(2 * i), make_pair(u, v)};
+    new (vu) E{randomness_.ith_rand(2 * i + 1), make_pair(v, u)};
+    Link(u, v, uv, vu);
+  }
+  randomness_ = randomness_.next();
+}
+
+template <typename E>
+template <typename ElemConstructor>
+void EulerTourTreeBase<E>::BatchLink(
+    parlay::sequence<std::pair<int, int>>& links,
+    ElemConstructor construct_elements) {
   const size_t len = links.size();
   if (len <= 75) {
-    BatchLinkSequential(this, links);
-    return;
+    return BatchLinkSequential(links, construct_elements);
   }
   // For each added edge {x, y}, allocate elements (x, y) and (y, x).
   // For each vertex x that shows up in an added edge, split on (x, x). Let
@@ -275,9 +291,19 @@ void EulerTourTreeBase<E>::BatchLink(parlay::sequence<std::pair<int, int>>& link
   // }
 
   parlay::parallel_for(0, len, [&](size_t i) {
+    const int u{links[i].first};
+    const int v{links[i].second};
     links_both_dirs[2 * i] = links[i];
-    links_both_dirs[2 * i + 1] = {links[i].second, links[i].first};
+    links_both_dirs[2 * i + 1] = {v, u};
+
+    E* uv{ElementAllocator::alloc()};
+    E* vu{ElementAllocator::alloc()};
+    construct_elements(&randomness_, i, uv, vu);
+    uv->twin_ = vu;
+    vu->twin_ = uv;
+    edges_.Insert(u, v, uv);
   });
+  randomness_ = randomness_.next();
 
   // intSort::iSort(links_both_dirs, 2 * len, num_vertices_ + 1,
   //                firstF<int, int>());
@@ -296,22 +322,7 @@ void EulerTourTreeBase<E>::BatchLink(parlay::sequence<std::pair<int, int>>& link
     if (i == 2 * len - 1 || u != links_both_dirs[i + 1].first) {
       split_successors[i] = vertices_[u].SplitWithoutUpdate();
     }
-
-    // allocate edge element
-    if (u < v) {
-      E* uv = ElementAllocator::alloc();
-      // new (uv) Element{randomness_.ith_rand(2 * i)};
-      new (uv) E{randomness_.ith_rand(2 * i), make_pair(u, v)};
-      E* vu = ElementAllocator::alloc();
-      // new (vu) Element{randomness_.ith_rand(2 * i + 1)};
-      new (vu) E{randomness_.ith_rand(2 * i + 1), make_pair(v, u)};
-      uv->twin_ = vu;
-      vu->twin_ = uv;
-      edges_.Insert(u, v, uv);
-    }
   });
-
-  randomness_ = randomness_.next();
 
   auto update_targets = parlay::sequence<E*>::uninitialized(2 * len);
   parlay::parallel_for(0, 2 * len, [&](size_t i) {
@@ -339,6 +350,19 @@ void EulerTourTreeBase<E>::BatchLink(parlay::sequence<std::pair<int, int>>& link
 }
 
 template <typename E>
+void EulerTourTreeBase<E>::BatchLink(parlay::sequence<std::pair<int, int>>& links) {
+  const auto construct{[&](parlay::random* randomness, size_t i, E* uv, E* vu) {
+    // TODO(tomtseng) this interface doesn't work if BatchLinkSequential gets
+    // called
+    const int u{links[i].first};
+    const int v{links[i].second};
+    new (uv) E{randomness->ith_rand(2 * i), make_pair(u, v)};
+    new (vu) E{randomness->ith_rand(2 * i + 1), make_pair(v, u)};
+  }};
+  BatchLink(links, construct);
+}
+
+template <typename E>
 void EulerTourTreeBase<E>::Cut(int u, int v) {
   E* uv{edges_.Find(u, v)};
   E* vu{uv->twin_};
@@ -360,6 +384,17 @@ void EulerTourTreeBase<E>::Cut(int u, int v) {
   E::BatchUpdate(parlay::sequence<E*>{{u_left, v_left}});
 }
 
+template <typename E>
+void EulerTourTreeBase<E>::BatchCutSequential(const parlay::sequence<std::pair<int, int>>& cuts) {
+  // TODO(tomtseng): We should do all cuts without doing any augmented value
+  // updates, then do all augmented value updates at the end in a single
+  // BatchUpdate. Or is this too difficult to do correctly due to edge elements
+  // being deleted and returned to the memory allocator?
+  for (const auto& cut : cuts) {
+    Cut(cut.first, cut.second);
+  }
+}
+
 // `ignored`, `join_targets`, and `edge_elements` are scratch space.
 // `ignored[i]` will be set to true if `cuts[i]` will not be executed in this
 // round of recursion.
@@ -373,8 +408,7 @@ void EulerTourTreeBase<E>::BatchCutRecurse(const parlay::sequence<std::pair<int,
                                     parlay::sequence<E*>& edge_elements) {
   const size_t len = cuts.size();
   if (len <= 75) {
-    BatchCutSequential(this, cuts);
-    return;
+    return BatchCutSequential(cuts);
   }
 
   // Notation: "(x, y).next" is the next element in the tour (x, y) is in. "(x,
@@ -518,8 +552,7 @@ template <typename E>
 void EulerTourTreeBase<E>::BatchCut(parlay::sequence<std::pair<int, int>>& cuts) {
   const size_t len = cuts.size();
   if (len <= 75) {
-    BatchCutSequential(this, cuts);
-    return;
+    return BatchCutSequential(cuts);
   }
 
   auto ignored = parlay::sequence<bool>::uninitialized(len);
