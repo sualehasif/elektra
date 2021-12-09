@@ -114,12 +114,12 @@ template <typename BoolSeq>
 void HdtEulerTourTree::BatchLink(
     const parlay::sequence<std::pair<int, int>>& links,
     const BoolSeq& is_level_i_edge) {
-  const auto construct{[&](parlay::random* randomness, size_t i, Elem* uv, Elem* vu) {
+  const auto construct{[&](const parlay::random& randomness, size_t i, Elem* uv, Elem* vu) {
     const int u{links[i].first};
     const int v{links[i].second};
     const bool is_level_i{is_level_i_edge[i]};
-    new (uv) Elem{randomness->ith_rand(2 * i), make_pair(u, v), is_level_i};
-    new (vu) Elem{randomness->ith_rand(2 * i + 1), make_pair(v, u), is_level_i};
+    new (uv) Elem{randomness.ith_rand(2 * i), make_pair(u, v), is_level_i};
+    new (vu) Elem{randomness.ith_rand(2 * i + 1), make_pair(v, u), is_level_i};
   }};
   Base::BatchLink(links, construct);
 }
