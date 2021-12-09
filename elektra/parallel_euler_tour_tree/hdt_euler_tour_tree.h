@@ -52,29 +52,28 @@ class HdtEulerTourTree : public EulerTourTreeBase<HdtElement> {
 //
 // The NontreeEdgeFinder is no longer valid if the component is modified by a
 // link, a cut, or a UpdateNontreeEdgeCounts().
+//
+// In the comments in this class, when talking about the number of level-i
+// non-tree edges incident to the component, an edge is counted twice if both of
+// its endpoints are in the component.
 class NontreeEdgeFinder {
  public:
   // The returns the number of level-i non-tree edges incident to the connected
   // component.
   uint64_t NumEdges() const;
 
-  // This function finds vertices in the component that have incident level-i
-  // non-tree edges and applies `f` to the vertices. The edges found are the
-  // first `num_edges` edges after skipping the first `search_offset` edges.
+  // Among the level-i non-tree edges incident on this component, this function
+  // finds the `edges_begin`-th (inclusive) to `ends_end`-th (exclusive) such
+  // edges. The function then applies `f` to the vertices in the component that
+  // these edges are incident on to allow the caller to iterate over the edges.
   //
-  // Params:
-  // - f: A parallel function to apply to vertices that have incident edges. The
-  //   interface of f should be `void f(uint32_t vertex_id, uint32_t begin,
-  //   uint32_t end)` where the arguments signify that f should operate upon the
-  //   `begin`-th (inclusive) to `end`-th (exclusive) level-i non-tree edges of
-  //   vertex `vertex_id`.
-  // - num_edges: Specifies how many level-i non-tree edges to search for.
-  // - search_offset: Specifies prefix of non-tree edges to skip in the search.
-  //   For instance, suppose you've already found 50 edges using
-  //   FindNontreeIncidentVertices(f, 50, 0). Then you can find the next 20 edges
-  //   using FindNontreeIncidentVertices(f, 20, 50).
+  // f should be a function capable of running in concurrently with other copies
+  // of itself and should have the interface `void f(uint32_t vertex_id,
+  // uint32_t begin, uint32_t end)` where the arguments signify that f should
+  // operate upon the `begin`-th (inclusive) to `end`-th (exclusive) level-i
+  // non-tree edges of vertex `vertex_id`.
   template <typename Func>
-  void ForEachIncidentVertex(Func f, uint64_t num_desired_edges, uint64_t search_offset) const;
+  void ForEachIncidentVertex(Func f, uint64_t edges_begin, uint64_t edges_end) const;
 
  private:
   friend HdtEulerTourTree;
@@ -242,12 +241,9 @@ void NontreeEdgeFinder::ForEachIncidentVertexImpl(
 }
 
 template <typename F>
-void NontreeEdgeFinder::ForEachIncidentVertex(
-    F f,
-    uint64_t num_desired_edges,
-    uint64_t search_offset) const {
+void NontreeEdgeFinder::ForEachIncidentVertex(F f, uint64_t l, uint64_t r) const {
   const int level{top_element_->height_ - 1};
-  ForEachIncidentVertexImpl(f, num_desired_edges, search_offset, level, top_element_);
+  ForEachIncidentVertexImpl(f, r - l, l, level, top_element_);
 }
 
 }  // namespace parallel_euler_tour_tree
