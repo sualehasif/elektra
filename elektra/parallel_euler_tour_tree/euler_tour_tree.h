@@ -92,7 +92,7 @@ class EulerTourTreeBase {
   // The caller must instead provide a function that will perform the
   // construction.
   //
-  // `construct(parlay::random& randomness, size_t i, Elem* uv, Elem* vu) -> void`
+  // `construct(const parlay::random& randomness, size_t i, Elem* uv, Elem* vu) -> void`
   // should use placement new to construct uv and vu. If random numbers are
   // needed, use `randomness.ith_rand(2 * i)` and `randomness.ith_rand(2 * i + 1)`.
   // `i` corresponds to an index into `links[]`.
@@ -252,7 +252,7 @@ void EulerTourTreeBase<E>::BatchLinkSequential(
   for (size_t i = 0; i < links.size(); i++) {
     E* uv = ElementAllocator::alloc();
     E* vu = ElementAllocator::alloc();
-    construct_elements(&randomness_, i, uv, vu);
+    construct_elements(randomness_, i, uv, vu);
     Link(links[i].first, links[i].second, uv, vu);
   }
   randomness_ = randomness_.next();
@@ -295,7 +295,7 @@ void EulerTourTreeBase<E>::BatchLink(
 
     E* uv{ElementAllocator::alloc()};
     E* vu{ElementAllocator::alloc()};
-    construct_elements(&randomness_, i, uv, vu);
+    construct_elements(randomness_, i, uv, vu);
     uv->twin_ = vu;
     vu->twin_ = uv;
     edges_.Insert(u, v, uv);
@@ -348,11 +348,11 @@ void EulerTourTreeBase<E>::BatchLink(
 
 template <typename E>
 void EulerTourTreeBase<E>::BatchLink(const parlay::sequence<std::pair<int, int>>& links) {
-  const auto construct{[&](parlay::random* randomness, size_t i, E* uv, E* vu) {
+  const auto construct{[&](const parlay::random& randomness, size_t i, E* uv, E* vu) {
     const int u{links[i].first};
     const int v{links[i].second};
-    new (uv) E{randomness->ith_rand(2 * i), make_pair(u, v)};
-    new (vu) E{randomness->ith_rand(2 * i + 1), make_pair(v, u)};
+    new (uv) E{randomness.ith_rand(2 * i), make_pair(u, v)};
+    new (vu) E{randomness.ith_rand(2 * i + 1), make_pair(v, u)};
   }};
   BatchLink(links, construct);
 }
