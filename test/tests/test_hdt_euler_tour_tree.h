@@ -11,7 +11,7 @@ namespace hdt_euler_tour_tree {
 using EulerTourTree = parallel_euler_tour_tree::HdtEulerTourTree;
 
 TEST(HdtEulerTourTree, ComponentSize) {
-  const int n = 5;
+  const int n = 6;
   EulerTourTree ett = EulerTourTree{n};
 
   // 0 - 1   4
