@@ -39,7 +39,7 @@ class HdtEulerTourTree : public EulerTourTreeBase<HdtElement> {
 
   // Creates a NontreeEdgeFinder for v's connected component. The
   // NontreeEdgeFinder can be used to find level-i non-tree edges incident to
-  // the component
+  // the component.
   NontreeEdgeFinder CreateNontreeEdgeFinder(int v) const;
 
  private:
@@ -95,7 +95,7 @@ class NontreeEdgeFinder {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-//                  HdtEulerTourTree Implementation below.                   //
+//                  HdtEulerTourTree implementation below.                   //
 ///////////////////////////////////////////////////////////////////////////////
 
 HdtEulerTourTree::HdtEulerTourTree(int num_vertices) : Base{num_vertices} {}
@@ -152,7 +152,7 @@ NontreeEdgeFinder HdtEulerTourTree::CreateNontreeEdgeFinder(int v) const {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-//                  NontreeEdgeFinder Implementation below.                  //
+//                  NontreeEdgeFinder implementation below.                  //
 ///////////////////////////////////////////////////////////////////////////////
 
 // Implementation notes:
