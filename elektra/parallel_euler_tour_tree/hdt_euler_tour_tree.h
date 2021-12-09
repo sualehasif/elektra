@@ -68,10 +68,10 @@ class NontreeEdgeFinder {
   // these edges are incident on to allow the caller to iterate over the edges.
   //
   // f should be a function capable of running in concurrently with other copies
-  // of itself and should have the interface `void f(uint32_t vertex_id,
-  // uint32_t begin, uint32_t end)` where the arguments signify that f should
-  // operate upon the `begin`-th (inclusive) to `end`-th (exclusive) level-i
-  // non-tree edges of vertex `vertex_id`.
+  // of itself and should have the interface `void f(int vertex_id, uint32_t
+  // begin, uint32_t end)` where the arguments signify that f should operate
+  // upon the `begin`-th (inclusive) to `end`-th (exclusive) level-i non-tree
+  // edges of vertex `vertex_id`.
   template <typename Func>
   void ForEachIncidentVertex(Func f, uint64_t edges_begin, uint64_t edges_end) const;
 
