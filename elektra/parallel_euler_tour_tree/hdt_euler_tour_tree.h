@@ -28,7 +28,7 @@ class HdtEulerTourTree : public EulerTourTreeBase<HdtElement> {
   // In v's connected component, return all level-i tree edges and mark them as
   // no longer being level-i tree edges (because they're going to be pushed down
   // to the next level).
-  parlay::sequence<std::pair<int, int>> ClearLevelIEdges(int v);
+  parlay::sequence<std::pair<int, int>> GetAndClearLevelIEdges(int v);
 
   // Updates vertices[i]'s count of "number of level-i non-tree edges incident to this
   // vertex" to be new_values[i].
@@ -134,8 +134,8 @@ size_t HdtEulerTourTree::ComponentSize(int v) const {
   return vertices_[v].GetComponentSize();
 }
 
-parlay::sequence<std::pair<int, int>> HdtEulerTourTree::ClearLevelIEdges(int v) {
-  return vertices_[v].ClearLevelIEdges();
+parlay::sequence<std::pair<int, int>> HdtEulerTourTree::GetAndClearLevelIEdges(int v) {
+  return vertices_[v].GetAndClearLevelIEdges();
 }
 
 template <typename IntSeq>

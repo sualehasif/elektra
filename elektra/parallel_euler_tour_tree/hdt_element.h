@@ -71,7 +71,7 @@ class HdtElement : public ElementBase<HdtElement, _internal::HdtAugmentation> {
   // In the list that contains this element, returns all level-i tree edges
   // and mark them as no longer being level-i tree edges (because they're going
   // to be pushed down to the next level).
-  parlay::sequence<std::pair<int, int>> ClearLevelIEdges();
+  parlay::sequence<std::pair<int, int>> GetAndClearLevelIEdges();
 
   // For each HdtElement elements[i] (which should represent a vertex), updates
   // its count of "number of level-i non-tree edges incident to this element" to
@@ -108,7 +108,7 @@ size_t HdtElement::GetComponentSize() const {
   return num_vertices;
 }
 
-// Helper function for ClearLevelIEdges. Gets edges held in descendants of
+// Helper function for GetAndClearLevelIEdges. Gets edges held in descendants of
 // this element and writes them into the sequence starting at the offset.
 void HdtElement::GetLevelIEdgesBelow(parlay::sequence<HdtElement*>* s, int level, uint32_t offset) const {
   if (level == 0) {
@@ -147,7 +147,7 @@ void HdtElement::GetLevelIEdgesBelow(parlay::sequence<HdtElement*>* s, int level
   }
 }
 
-parlay::sequence<std::pair<int, int>> HdtElement::ClearLevelIEdges() {
+parlay::sequence<std::pair<int, int>> HdtElement::GetAndClearLevelIEdges() {
   HdtElement* const top_element{FindRepresentative()};
   const int level{top_element->height_ - 1};
 
