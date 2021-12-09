@@ -242,6 +242,9 @@ void NontreeEdgeFinder::ForEachIncidentVertexImpl(
 
 template <typename F>
 void NontreeEdgeFinder::ForEachIncidentVertex(F f, uint64_t l, uint64_t r) const {
+  if (l >= r) {
+    return;
+  }
   const int level{top_element_->height_ - 1};
   ForEachIncidentVertexImpl(f, r - l, l, level, top_element_);
 }
