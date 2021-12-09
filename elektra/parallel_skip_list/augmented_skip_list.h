@@ -316,13 +316,13 @@ void AugmentedElementBase<D, F>::BatchUpdate(const Seq& elements) {
   auto top_nodes{parlay::sequence<AugmentedElementBase<D, F>*>::uninitialized(len)};
 
   parlay::parallel_for(0, len, [&](const size_t i) {
-    if (elements[i] == nullptr) {
+    AugmentedElementBase<D, F>* curr{elements[i]};
+    if (curr == nullptr) {
       top_nodes[i] = nullptr;
       return;
     }
 
     int level{0};
-    AugmentedElementBase<D, F>* curr{elements[i]};
     while (true) {
       int curr_update_level{curr->update_level_};
       if (curr_update_level == _internal::NA && CAS(&curr->update_level_, _internal::NA, level)) {

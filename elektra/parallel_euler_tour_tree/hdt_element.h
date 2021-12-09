@@ -56,11 +56,11 @@ class HdtElement : public ElementBase<HdtElement, _internal::HdtAugmentation> {
   using Base = ElementBase<HdtElement, _internal::HdtAugmentation>;
 
   // `is_level_i_edge` refers to whether this element represents a level-i tree
-  // edge, where "level-i" refers to be the level (in the HDT algorithm) of
+  // edge, where "level-i" refers to the level (in the HDT algorithm) of
   // whatever ETT this skip list lives in.
-  explicit HdtElement(size_t random_int, std::pair<int, int>&& id, bool is_level_i_edge);
+  explicit HdtElement(size_t random_int, std::pair<int, int>&& id, bool is_level_i_edge = false);
 
-  // Get the number of vertices in the list that contains this element.
+  // Gets the number of vertices in the list that contains this element.
   size_t GetComponentSize() const;
 
   // Creates a NontreeEdgeFinder based on the list that contains this element.
@@ -68,78 +68,22 @@ class HdtElement : public ElementBase<HdtElement, _internal::HdtAugmentation> {
   // to vertices in this list.
   NontreeEdgeFinder CreateNontreeEdgeFinder() const;
 
-  // In the list that contains this element, return all level-i tree edges
+  // In the list that contains this element, returns all level-i tree edges
   // and mark them as no longer being level-i tree edges (because they're going
   // to be pushed down to the next level).
   parlay::sequence<std::pair<int, int>> ClearLevelIEdges();
 
-  // Updates the counts of "number of level-i non-tree edges incident to this
-  // vertex" for each element (which should represent a vertex) in `elements`.
-  //
-  // `IntSeq` should behave like `parlay::sequence<int>`.
-  template <typename IntSeq>
-  static void UpdateNontreeEdgeCounts(
-      const parlay::sequence<HdtElement*>& elements,
-      IntSeq&& new_values);
+  // For each HdtElement elements[i] (which should represent a vertex), updates
+  // its count of "number of level-i non-tree edges incident to this element" to
+  // be new_values[i].
+  template <typename ElemSeq, typename IntSeq>
+  static void UpdateNontreeEdgeCounts(const ElemSeq& elements, IntSeq&& new_values);
 
  private:
   friend Base::Base::Base;  // make parallel_skip_list::ElementBase a friend
   friend NontreeEdgeFinder;
 
   void GetLevelIEdgesBelow(parlay::sequence<HdtElement*>* s, int level, uint32_t offset) const;
-};
-
-// A NontreeEdgeFinder allows the user to find level-i non-tree edges incident
-// to a particular list.
-//
-// A NontreeEdgeFinder is no longer valid if the underlying list experiences a
-// join, a split, or an UpdateNontreeEdgeCounts().
-class NontreeEdgeFinder {
- public:
-  // The returns the number of level-i non-tree edges incident to the connected
-  // component.
-  uint64_t NumEdges() const;
-
-  // This function finds elements in the list that have incident level-i
-  // non-tree edges and applies `f` to the elements. The edges found are the
-  // first `num_edges` edges after skipping the first `search_offset` edges.
-  //
-  // Params:
-  // - f: A parallel function to apply to elements that have incident edges. The
-  //   interface of f should be `void f(uint32_t vertex_id, uint32_t begin,
-  //   uint32_t end)` where the arguments signify that f should operate upon the
-  //   `begin`-th (inclusive) to `end`-th (exclusive) level-i non-tree edges for
-  //   vertex `vertex_id`.
-  // - num_edges: Specifies how many level-i non-tree edges to search for.
-  // - search_offset: Specifies prefix of non-tree edges to skip in the search.
-  //   For instance, suppose you've already found 50 edges using
-  //   FindNontreeIncidentVertices(f, 50, 0). Then you can find the next 20 edges
-  //   using FindNontreeIncidentVertices(f, 20, 50).
-  template <typename Func>
-  void ForEachIncidentVertex(Func f, uint64_t num_desired_edges, uint64_t search_offset) const;
-
- private:
-  friend HdtElement;
-
-  NontreeEdgeFinder(const HdtElement* top_element);
-
-  template <typename F>
-  void ForEachIncidentVertexImpl(
-      F f,
-      uint64_t num_desired_edges,
-      uint64_t search_offset,
-      int level,
-      const HdtElement* element) const;
-
-  // A fixed representative element of the list.
-  const HdtElement* top_element_;
-  // The number of level-i non-tree edges incident to this component.
-  uint64_t num_incident_edges_{0};
-
-  // Implementation notes:
-  // - We implement this as separate class from HdtElement just to avoid recalculating
-  //   top_element_ every time we call ForEachIncidentVertex. This optimization is
-  //   probably completely insignificant.
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -162,10 +106,6 @@ size_t HdtElement::GetComponentSize() const {
     curr = curr->neighbors_[level].next;
   } while (curr != top_element);
   return num_vertices;
-}
-
-NontreeEdgeFinder HdtElement::CreateNontreeEdgeFinder() const {
-  return NontreeEdgeFinder{FindRepresentative()};
 }
 
 // Helper function for ClearLevelIEdges. Gets edges held in descendants of
@@ -244,100 +184,9 @@ parlay::sequence<std::pair<int, int>> HdtElement::ClearLevelIEdges() {
   return edges;
 }
 
-template <typename IntSeq>
-void HdtElement::UpdateNontreeEdgeCounts(
-    const parlay::sequence<HdtElement*>& elements,
-    IntSeq&& new_values) {
+template <typename ElemSeq, typename IntSeq>
+void HdtElement::UpdateNontreeEdgeCounts(const ElemSeq& elements, IntSeq&& new_values) {
   BatchUpdate<_internal::NontreeEdgeCountGetter>(elements, std::move(new_values));
-}
-
-NontreeEdgeFinder::NontreeEdgeFinder(const HdtElement* top_element)
-  : top_element_{top_element} {
-  const HdtElement* curr{top_element};
-  const int level{top_element_->height_ - 1};
-  do {
-    num_incident_edges_ += std::get<2>(curr->values_[level]);
-    curr = curr->neighbors_[level].next;
-  } while (curr != top_element);
-}
-
-uint64_t NontreeEdgeFinder::NumEdges() const {
-  return num_incident_edges_;
-}
-
-// Helper function for ForEachIncidentVertex. Starting at `element`, the
-// function traverses along `level` until reaching its right parent or returning
-// back to `top_element_`. While traversing, the function searches for the first
-// `num_desired_edges` level-i non-tree edges after skipping the first
-// `search_offset` edges.
-template <typename F>
-void NontreeEdgeFinder::ForEachIncidentVertexImpl(
-    F f,
-    uint64_t num_desired_edges,
-    uint64_t search_offset,
-    int level,
-    const HdtElement* element) const {
-  if (level <= 6) {
-    // run sequentially if we're near the bottom of the list and not doing as
-    // much work per thread
-    do {
-      const uint64_t num_edges{std::get<2>(element->values_[level])};
-      if (search_offset >= num_edges) {
-        search_offset -= num_edges;
-      } else {
-        if (level == 0) {
-          f(element->id_.first, search_offset, std::min<uint64_t>(search_offset + num_desired_edges, num_edges));
-        } else {
-          ForEachIncidentVertexImpl(f, num_desired_edges, search_offset, level - 1, element);
-        }
-        num_desired_edges -= std::min<uint64_t>(num_edges - search_offset, num_desired_edges);
-        search_offset = 0;
-      }
-      element = element->neighbors_[level].next;
-    } while (element->height_ <= level + 1 && num_desired_edges > 0 && element != top_element_);
-    return;
-  }
-
-  // run in parallel
-  struct LoopState {
-    const HdtElement* element;
-    uint64_t num_desired_edges;
-    uint64_t search_offset;
-  } loop_state = { element, num_desired_edges, search_offset };
-  const auto loop_condition{[&](const LoopState& state) {
-    return state.element->height_ <= level + 1 &&
-      num_desired_edges > 0 &&
-      element != top_element_;
-  }};
-  const auto loop_action{[&](const LoopState& state) {
-    const uint64_t num_edges{std::get<2>(state.element->values_[level])};
-    if (state.search_offset >= num_edges) {
-      return;
-    }
-    ForEachIncidentVertexImpl(f, state.num_desired_edges, state.search_offset, level - 1, state.element);
-  }};
-  const auto loop_update{[&](LoopState state) -> LoopState {
-    uint64_t num_edges{std::get<2>(state.element->values_[level])};
-    if (state.search_offset >= num_edges) {
-      state.search_offset -= num_edges;
-    } else {
-      state.num_desired_edges -= std::min<uint64_t>(num_edges - state.search_offset, state.num_desired_edges);
-      state.search_offset = 0;
-    }
-    state.element = state.element->neighbors_[level].next;
-    return state;
-  }};
-  constexpr bool is_do_while{true};
-  elektra::ParallelWhile(loop_condition, loop_action, loop_update, std::move(loop_state), is_do_while);
-}
-
-template <typename F>
-void NontreeEdgeFinder::ForEachIncidentVertex(
-    F f,
-    uint64_t num_desired_edges,
-    uint64_t search_offset) const {
-  const int level{top_element_->height_ - 1};
-  ForEachIncidentVertexImpl(f, num_desired_edges, search_offset, level, top_element_);
 }
 
 }  // namespace parallel_euler_tour_tree
