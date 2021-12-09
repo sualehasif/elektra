@@ -17,9 +17,10 @@ class HdtEulerTourTree : public EulerTourTreeBase<HdtElement> {
   // Adds edges to the forest, where `is_level_i_edge[i]` corresponds to whether
   // links[i] is a level-i edge.
   template <typename BoolSeq>
-  void BatchLink(
-      const parlay::sequence<std::pair<int, int>>& links,
-      const BoolSeq& is_level_i_edge);
+  void BatchLink(const parlay::sequence<std::pair<int, int>>& links, const BoolSeq& is_level_i_edge);
+  // Adds edges to the forest, where `is_level_i_edge` corresponds to whether
+  // links[i] is a level-i edge.
+  void BatchLink(const parlay::sequence<std::pair<int, int>>& links, bool is_level_i_edge);
 
   // Get the number of vertices in v's connected component.
   size_t ComponentSize(int v) const;
@@ -121,6 +122,12 @@ void HdtEulerTourTree::BatchLink(
     new (vu) Elem{randomness->ith_rand(2 * i + 1), make_pair(v, u), is_level_i};
   }};
   Base::BatchLink(links, construct);
+}
+
+void HdtEulerTourTree::BatchLink(
+    const parlay::sequence<std::pair<int, int>>& links,
+    bool is_level_i_edge) {
+  BatchLink(links, parlay::delayed_seq<bool>(links.size(), [&](size_t) { return is_level_i_edge; }));
 }
 
 size_t HdtEulerTourTree::ComponentSize(int v) const {
