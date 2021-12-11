@@ -198,5 +198,5 @@ TEST(HdtEulerTourTree, FindNonTreeEdges) {
   EXPECT_EQ(unique_visits(), 3);
 }
 
-}  // namespace hdt_element
+}  // namespace hdt_euler_tour_tree
 }  // namespace elektra::testing
