@@ -133,10 +133,10 @@ class AugmentedElementBase : public ElementBase<Derived> {
 
   static concurrent_array_allocator::Allocator<Value> values_allocator_;
 
-  Value* values_;
   // When updating augmented values, this marks the lowest index at which the
   // `values_` needs to be updated.
-  int update_level_;
+  int8_t update_level_;
+  Value* values_;
 
   friend Base;
   using Base::Join;
@@ -165,7 +165,7 @@ class AugmentedElement : public AugmentedElementBase<AugmentedElement, parlay::a
 
 namespace _internal {
 
-constexpr int NA{-1};
+constexpr int8_t NA{-1};
 
 template <typename T>
 inline bool write_min(T* a, T b) {
@@ -324,8 +324,8 @@ void AugmentedElementBase<D, F>::BatchUpdate(const Seq& elements) {
 
     int level{0};
     while (true) {
-      int curr_update_level{curr->update_level_};
-      if (curr_update_level == _internal::NA && CAS(&curr->update_level_, _internal::NA, level)) {
+      const int8_t curr_update_level{curr->update_level_};
+      if (curr_update_level == _internal::NA && CAS<int8_t>(&curr->update_level_, _internal::NA, level)) {
         level = curr->height_ - 1;
         AugmentedElementBase* parent{curr->FindLeftParent(level)};
         if (parent == nullptr) {
@@ -339,7 +339,7 @@ void AugmentedElementBase<D, F>::BatchUpdate(const Seq& elements) {
         // Someone other execution is shares this ancestor and has already
         // claimed it, so there's no need to walk further up.
         if (curr_update_level > level) {
-          _internal::write_min(&curr->update_level_, level);
+          _internal::write_min<int8_t>(&curr->update_level_, level);
 
         }
         top_nodes[i] = nullptr;
@@ -379,7 +379,7 @@ void AugmentedElementBase<D, F>::BatchSplit(const parlay::sequence<D*>& splits) 
     // splits occur at the same place, only one of them should walk up and
     // update.
     bool can_proceed{
-        curr->update_level_ == _internal::NA && CAS(&curr->update_level_, _internal::NA, 0)};
+        curr->update_level_ == _internal::NA && CAS<int8_t>(&curr->update_level_, _internal::NA, 0)};
     if (can_proceed) {
       // Update values of `curr`'s ancestors.
       typename F::T sum{curr->values_[0]};
