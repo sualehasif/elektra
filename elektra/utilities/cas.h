@@ -159,8 +159,8 @@ inline bool write_max(std::atomic<ET>* a, ET b, F less) {
 template <class ET>
 inline bool CAS(ET* ptr, ET oldv, ET newv) {
   if constexpr (sizeof(ET) == 1) {
-    return __sync_bool_compare_and_swap((bool*)ptr, *((bool*)&oldv),
-                                        *((bool*)&newv));
+    return __sync_bool_compare_and_swap((char*)ptr, *((char*)&oldv),
+                                        *((char*)&newv));
   } else if constexpr (sizeof(ET) == 4) {
     return __sync_bool_compare_and_swap((int*)ptr, *((int*)&oldv),
                                         *((int*)&newv));
