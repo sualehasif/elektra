@@ -1,16 +1,16 @@
 #pragma once
 
-#include <parlay/alloc.h>
+#include <unordered_set>
+#include <utility>
+
 #include <parlay/delayed_sequence.h>
 #include <parlay/parallel.h>
 #include <parlay/sequence.h>
 
-#include <unordered_set>
-#include <utility>
-
 #include "hash_pair.h"
 #include "edge_map.h"
 #include "element.h"
+#include "utilities.h"
 
 namespace parallel_euler_tour_tree {
 
@@ -76,12 +76,6 @@ class EulerTourTreeBase {
   size_t MemorySize() const;
 
  protected:
-  using ElementAllocator = parlay::type_allocator<Elem>;
-  int num_vertices_;
-  parlay::sequence<Elem> vertices_;
-  _internal::EdgeMap<Elem> edges_;
-  parlay::random randomness_;
-
   // This version of `Link` can be used if `Elem`s representing edges should be
   // constructed with the Elem(size_t random_int, std::pair<int, int>&& id) constructor.
   // The caller must instead perform construct `Elems` representing edges (u, v)
@@ -98,6 +92,11 @@ class EulerTourTreeBase {
   // `i` corresponds to an index into `links[]`.
   template <typename ElemConstructor>
   void BatchLink(const parlay::sequence<std::pair<int, int>>& links, ElemConstructor construct);
+
+  int num_vertices_;
+  parlay::sequence<Elem> vertices_;
+  _internal::EdgeMap<Elem> edges_;
+  parlay::random randomness_;
 
  private:
   template <typename ElemConstructor>
@@ -217,8 +216,6 @@ bool EulerTourTreeBase<E>::IsEmpty() const { return edges_.IsEmpty(); }
 
 template <typename E>
 void EulerTourTreeBase<E>::Link(int u, int v, E* uv, E* vu) {
-  uv->twin_ = vu;
-  vu->twin_ = uv;
   edges_.Insert(u, v, uv);
   E* u_left{&vertices_[u]};
   E* v_left{&vertices_[v]};
@@ -233,8 +230,7 @@ void EulerTourTreeBase<E>::Link(int u, int v, E* uv, E* vu) {
 
 template <typename E>
 void EulerTourTreeBase<E>::Link(int u, int v) {
-  E* uv = ElementAllocator::alloc();
-  E* vu = ElementAllocator::alloc();
+  auto [uv, vu] = _internal::AllocEdges<E>(u, v);
   new (uv) E{randomness_.ith_rand(0), make_pair(u, v)};
   new (vu) E{randomness_.ith_rand(1), make_pair(v, u)};
   randomness_ = randomness_.next();
@@ -250,10 +246,10 @@ void EulerTourTreeBase<E>::BatchLinkSequential(
   // updates, then do all augmented value updates at the end in a single
   // BatchUpdate.
   for (size_t i = 0; i < links.size(); i++) {
-    E* uv = ElementAllocator::alloc();
-    E* vu = ElementAllocator::alloc();
+    const auto [u, v] = links[i];
+    auto [uv, vu] = _internal::AllocEdges<E>(u, v);
     construct_elements(randomness_, i, uv, vu);
-    Link(links[i].first, links[i].second, uv, vu);
+    Link(u, v, uv, vu);
   }
   randomness_ = randomness_.next();
 }
@@ -293,11 +289,8 @@ void EulerTourTreeBase<E>::BatchLink(
     links_both_dirs[2 * i] = links[i];
     links_both_dirs[2 * i + 1] = {v, u};
 
-    E* uv{ElementAllocator::alloc()};
-    E* vu{ElementAllocator::alloc()};
+    auto [uv, vu] = _internal::AllocEdges<E>(u, v);
     construct_elements(randomness_, i, uv, vu);
-    uv->twin_ = vu;
-    vu->twin_ = uv;
     edges_.Insert(u, v, uv);
   });
   randomness_ = randomness_.next();
@@ -326,7 +319,7 @@ void EulerTourTreeBase<E>::BatchLink(
     int u, v;
     std::tie(u, v) = links_both_dirs[i];
     E* uv{edges_.Find(u, v)};
-    E* vu{uv->twin_};
+    E* vu{_internal::OppositeEdge(uv)};
     if (i == 0 || u != links_both_dirs[i - 1].first) {
       update_targets[i] = &vertices_[u];
       E::JoinWithoutUpdate(&vertices_[u], uv);
@@ -360,7 +353,7 @@ void EulerTourTreeBase<E>::BatchLink(const parlay::sequence<std::pair<int, int>>
 template <typename E>
 void EulerTourTreeBase<E>::Cut(int u, int v) {
   E* uv{edges_.Find(u, v)};
-  E* vu{uv->twin_};
+  E* vu{_internal::OppositeEdge(uv)};
   edges_.Delete(u, v);
   E* u_left{uv->GetPreviousElement()};
   E* v_left{vu->GetPreviousElement()};
@@ -368,12 +361,7 @@ void EulerTourTreeBase<E>::Cut(int u, int v) {
   E* u_right{vu->SplitWithoutUpdate()};
   u_left->SplitWithoutUpdate();
   v_left->SplitWithoutUpdate();
-
-  uv->~E();
-  ElementAllocator::free(uv);
-  vu->~E();
-  ElementAllocator::free(vu);
-
+  _internal::DestroyEdges(uv, vu);
   E::JoinWithoutUpdate(u_left, u_right);
   E::JoinWithoutUpdate(v_left, v_right);
   E::BatchUpdate(parlay::sequence<E*>{{u_left, v_left}});
@@ -433,7 +421,7 @@ void EulerTourTreeBase<E>::BatchCutRecurse(const parlay::sequence<std::pair<int,
       std::tie(u, v) = cuts[i];
       E* uv{edges_.Find(u, v)};
       edge_elements[i] = uv;
-      E* vu{uv->twin_};
+      E* vu{_internal::OppositeEdge(uv)};
       uv->split_mark_ = vu->split_mark_ = true;
     }
   });
@@ -446,7 +434,7 @@ void EulerTourTreeBase<E>::BatchCutRecurse(const parlay::sequence<std::pair<int,
       return;
     }
     E* uv{edge_elements[i]};
-    E* vu{uv->twin_};
+    E* vu{_internal::OppositeEdge(uv)};
 
     E* left_target{uv->GetPreviousElement()};
     if (left_target->split_mark_) {
@@ -454,7 +442,7 @@ void EulerTourTreeBase<E>::BatchCutRecurse(const parlay::sequence<std::pair<int,
     } else {
       E* right_target{vu->GetNextElement()};
       while (right_target->split_mark_) {
-        right_target = right_target->twin_->GetNextElement();
+        right_target = _internal::OppositeEdge(right_target)->GetNextElement();
       }
       join_targets[4 * i] = left_target;
       join_targets[4 * i + 1] = right_target;
@@ -466,7 +454,7 @@ void EulerTourTreeBase<E>::BatchCutRecurse(const parlay::sequence<std::pair<int,
     } else {
       E* right_target{uv->GetNextElement()};
       while (right_target->split_mark_) {
-        right_target = right_target->twin_->GetNextElement();
+        right_target = _internal::OppositeEdge(right_target)->GetNextElement();
       }
       join_targets[4 * i + 2] = left_target;
       join_targets[4 * i + 3] = right_target;
@@ -476,7 +464,7 @@ void EulerTourTreeBase<E>::BatchCutRecurse(const parlay::sequence<std::pair<int,
   parlay::parallel_for(0, len, [&](size_t i) {
     if (!ignored[i]) {
       E* uv{edge_elements[i]};
-      E* vu{uv->twin_};
+      E* vu{_internal::OppositeEdge(uv)};
       uv->SplitWithoutUpdate();
       vu->SplitWithoutUpdate();
       E* predecessor{uv->GetPreviousElement()};
@@ -496,12 +484,7 @@ void EulerTourTreeBase<E>::BatchCutRecurse(const parlay::sequence<std::pair<int,
       // because the concurrent hash table cannot handle simultaneous lookups
       // and deletions.
       E* uv{edge_elements[i]};
-      E* vu{uv->twin_};
-
-      uv->~E();
-      ElementAllocator::free(uv);
-      vu->~E();
-      ElementAllocator::free(vu);
+      _internal::DestroyEdges(uv);
 
       int u, v;
       std::tie(u, v) = cuts[i];

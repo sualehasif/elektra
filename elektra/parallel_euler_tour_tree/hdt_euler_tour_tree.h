@@ -2,6 +2,7 @@
 
 #include "euler_tour_tree.h"
 #include "hdt_element.h"
+#include "utilities.h"
 
 namespace parallel_euler_tour_tree {
 
@@ -103,8 +104,7 @@ class NontreeEdgeFinder {
 HdtEulerTourTree::HdtEulerTourTree(int num_vertices) : Base{num_vertices} {}
 
 void HdtEulerTourTree::Link(int u, int v, bool is_level_i_edge) {
-  Elem* uv = ElementAllocator::alloc();
-  Elem* vu = ElementAllocator::alloc();
+  auto [uv, vu] = _internal::AllocEdges<Elem>(u, v);
   new (uv) Elem{randomness_.ith_rand(0), make_pair(u, v), is_level_i_edge};
   new (vu) Elem{randomness_.ith_rand(1), make_pair(v, u), is_level_i_edge};
   randomness_ = randomness_.next();
