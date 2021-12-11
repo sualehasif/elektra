@@ -35,8 +35,6 @@ class ElementBase : public parallel_skip_list::AugmentedElementBase<Derived, Fun
   // If this element represents a vertex v, then id == (v, v). Otherwise if
   // this element represents a directed edge (u, v), then id == (u,v).
   std::pair<int, int> id_;
-  // If this element represents edge (u, v), `twin` should point towards (v, u).
-  Derived* twin_{nullptr};
   // When batch splitting, we mark this as `true` for an edge that we will
   // splice out in the current round of recursion.
   bool split_mark_{false};
