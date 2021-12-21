@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "../elektra/batch_dynamic_connectivity/graph.h"
+#include "../elektra/batch_dynamic_connectivity/connectivity-helpers.h"
 #include "get_time.h"
 #include "io.h"
 #include "parse_command_line.h"
@@ -10,11 +10,12 @@
 namespace elektra {
 namespace benchmark {
 
+typedef int V;
 typedef std::pair<uintE, uintE> intPair;
 using std::vector;
 typedef parlay::sequence<intPair> edgeList;
 using timer = elektra::timer;
-using UndirectedEdge = dynamicGraph::UndirectedEdge;
+using UndirectedEdge = std::pair<V, V>;
 
 // TODO: move this to a utility file
 template <typename T>

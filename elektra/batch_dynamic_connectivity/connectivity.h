@@ -1,21 +1,6 @@
 #pragma once
 
-#include <parlay/hash_table.h>
-#include <parlay/primitives.h>
-#include <parlay/sequence.h>
-
-#include <boost/pending/disjoint_sets.hpp>
-#include <boost/property_map/property_map.hpp>
-#include <cstdint>
-#include <map>
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
-
-#include "graph.h"
-#include "hash_pair.h"
-#include "parallel_euler_tour_tree/euler_tour_tree.hpp"
-#include "resizable_table.h"
+#include "connectivity-helpers.h"
 
 #define INITIAL_SIZE 50
 
@@ -29,19 +14,10 @@
  *  there's only a single edge between a pair of vertices.
  */
 
-namespace batchDynamicConnectivity {
-
-using UndirectedEdge = dynamicGraph::UndirectedEdge;
-using UndirectedEdgeHash = dynamicGraph::UndirectedEdgeHash;
-using BatchDynamicET = parallel_euler_tour_tree::EulerTourTree;
-
-using treeSet = std::unordered_set<UndirectedEdge, UndirectedEdgeHash>;
-// TODO(sualeh) Vertex -> vertex_id? uintV? Vertex sounds like a
-// struct for a vertex.
-using vertexSet = parlay::hashtable<parlay::hash_numeric<Vertex>>;
+namespace bdcty {
 
 class BatchDynamicConnectivity {
- public:
+public:
   /** Initializes an empty graph with a fixed number of vertices.
    *
    *  @param[in] num_vertices Number of vertices in the graph.
@@ -50,13 +26,13 @@ class BatchDynamicConnectivity {
    *  INT_MAX? How about having a type (smt like uintV) which
    *  we can set to either uint32_t or uint64_t, depending on the
    *  need?
-   *  Maybe make the "int" type here whatever we call "Vertex" in
+   *  Maybe make the "int" type here whatever we call "V" in
    *  graph.h?
    */
   explicit BatchDynamicConnectivity(int num_vertices);
 
   explicit BatchDynamicConnectivity(int num_vertices,
-                                    const parlay::sequence<UndirectedEdge> &se);
+                                    const parlay::sequence<E> &se);
 
   /** Deallocates the data structure. */
   ~BatchDynamicConnectivity() = default;
@@ -69,15 +45,15 @@ class BatchDynamicConnectivity {
   BatchDynamicConnectivity(const BatchDynamicConnectivity &other) = delete;
 
   /** Copy assignment not implemented. */
-  BatchDynamicConnectivity &operator=(const BatchDynamicConnectivity &other) =
-      delete;
+  auto operator=(const BatchDynamicConnectivity &other)
+      -> BatchDynamicConnectivity & = delete;
 
   /** Move constructor. */
-  BatchDynamicConnectivity(BatchDynamicConnectivity &&other) noexcept;
+  BatchDynamicConnectivity(BatchDynamicConnectivity &&other) = delete;
 
   /** Move assignment not implemented. */
-  BatchDynamicConnectivity &operator=(
-      BatchDynamicConnectivity &&other) noexcept;
+  auto operator=(BatchDynamicConnectivity &&other) noexcept
+      -> BatchDynamicConnectivity & = delete;
 
   /** Returns true if vertices \p u and \p v are connected in the graph.
    *
@@ -87,8 +63,26 @@ class BatchDynamicConnectivity {
    *
    *  TODO(sualeh): minor, but why is return type is char and not bool?
    */
-  parlay::sequence<char> BatchConnected(
-      parlay::sequence<std::pair<Vertex, Vertex>> suv) const;
+  [[nodiscard]] auto BatchConnected(parlay::sequence<std::pair<V, V>> suv) const
+      -> parlay::sequence<char>;
+
+  /** Adds a batch of edges to the graph.
+   *
+   *  @param[in] se A sequence of edges
+   */
+  void BatchAddEdges(const parlay::sequence<E> &se);
+
+  /** Deletes a batch of edges from the graph.
+   *
+   *  An exception will not be thrown if the edge is not in the graph.
+   *
+   *  Efficiency:
+   *
+   *  @param[in] se A sequence of edges
+   */
+  void BatchDeleteEdges(parlay::sequence<E> &se);
+
+  //  parlay::sequence<V> BatchFindRepr(const parlay::sequence<V> &sv);
 
   /** Returns true if edge \p edge is in the graph.
    *
@@ -98,60 +92,40 @@ class BatchDynamicConnectivity {
    *  @returns True if \p edge is in the graph, false if it is not.
    */
   // TODO(Sualeh): implement this
-  // bool HasEdge(const UndirectedEdge &edge) const;
+  // bool HasEdge(const E &edge) const;
 
   /** Returns the number of vertices in `v`'s connected component.
    *
    * Efficiency: logarithmic in the size of the graph.
    *
-   * @param[in] v Vertex.
+   * @param[in] v V.
    * @returns The number of vertices in \p v's connected component.
    */
   // TODO(Sualeh): implement this
-  // int64_t GetSizeOfConnectedComponent(Vertex v) const;
+  // int64_t GetSizeOfConnectedComponent(V v) const;
 
-  /** Adds an edge to the graph.
-   *
-   *  The edge must not already be in the graph and must not be a self-loop
-   * edge.
-   *
-   *  Efficiency:
-   *
-   *  @param[in] se A sequence of edges
-   */
-  void BatchAddEdges(const parlay::sequence<UndirectedEdge> &se);
+  [[maybe_unused]] void PrintStructure();
 
-  /** Deletes an edge from the graph.
-   *
-   *  An exception will be thrown if the edge is not in the graph.
-   *
-   *  Efficiency:
-   *
-   *  @param[in] se A sequence of edges
-   */
-  void BatchDeleteEdges(parlay::sequence<UndirectedEdge> &se);
-
-  parlay::sequence<Vertex> BatchFindRepr(const parlay::sequence<Vertex> &sv);
-
-  void PrintStructure();
   void PrintLevel(int8_t level);
+
   void PrintNonTreeEdges();
+
   void PrintNonTreeEdgesForLevel(int8_t level);
 
- private:
+private:
   const int64_t num_vertices_;
 
   const int8_t max_level_;
-  const detail::EdgeInfo empty_info = {-1, detail::EdgeType::kNonTree};
-  const std::tuple<std::pair<Vertex, Vertex>, detail::EdgeInfo> empty_edge =
-      std::make_tuple(std::make_pair(-1, -1), empty_info);
-  const std::tuple<std::pair<Vertex, Vertex>, detail::EdgeInfo> tombstone_edge =
-      std::make_tuple(std::make_pair(-1, -1), empty_info);
+  const bdcty::EInfo empty_info_ = {-1, bdcty::EType::K_NON_TREE};
+  const std::tuple<std::pair<V, V>, bdcty::EInfo> empty_edge_ =
+      std::make_tuple(std::make_pair(-1, -1), empty_info_);
+  const std::tuple<std::pair<V, V>, bdcty::EInfo> tombstone_edge_ =
+      std::make_tuple(std::make_pair(-1, -1), empty_info_);
 
   // `spanning_forests_[i]` stores F_i, the spanning forest for the i-th
   // subgraph. In particular, `spanning_forests[0]` is a spanning forest for the
   // whole graph.
-  parlay::sequence<BatchDynamicET *> parallel_spanning_forests_;
+  parlay::sequence<BatchDynamicEtt *> parallel_spanning_forests_;
 
   // `non_tree_adjacency_lists_[i][v]` contains the vertices connected to vertex
   // v by level-i non-tree edges.
@@ -163,91 +137,90 @@ class BatchDynamicConnectivity {
 
   // TODO: use a concurrent map here.
   // All edges in the graph.
-  // std::unordered_map<UndirectedEdge, detail::EdgeInfo, UndirectedEdgeHash>
+  // std::unordered_map<E, batchDynamicConnectivity::EInfo, EHash>
   //     edges_;
-  elektra::resizable_table<std::pair<Vertex, Vertex>, detail::EdgeInfo,
-                           HashIntPairStruct>
+  elektra::resizable_table<std::pair<V, V>, bdcty::EInfo, HashIntPairStruct>
       edges_;
 
-  UndirectedEdge componentSearch(int level, Vertex v);
+  auto GetSpanningTree(const parlay::sequence<E> &se) -> TreeSet;
 
-  treeSet getSpanningTree(const parlay::sequence<UndirectedEdge> &se);
-
-  void replacementSearch(int level, parlay::sequence<int> components,
-                         parlay::sequence<pair<int, int>> &promotedEdges);
+  void ReplacementSearch(int level, parlay::sequence<int> components,
+                         parlay::sequence<pair<int, int>> &promoted_edges);
 
   template <typename Rank, typename Parent>
-  treeSet constructTree(Rank &r, Parent &p,
-                        const parlay::sequence<UndirectedEdge> &se);
+  auto ConstructTree(Rank &r, Parent &p, const parlay::sequence<E> &se)
+      -> TreeSet;
 
-  parlay::sequence<int> removeDuplicates(parlay::sequence<int> &seq);
+  static auto RemoveDuplicates(parlay::sequence<int> &seq)
+      -> parlay::sequence<int>;
 };
 
 // auto generateInitialVertexLayer(int numVertices, int max_level_) {
 //   auto vtxLayer =
 //       parlay::sequence<vertexSet>::from_function(numVertices, [&](int n) {
-//         return vertexSet(INITIAL_SIZE, parlay::hash_numeric<Vertex>{});
+//         return vertexSet(INITIAL_SIZE, parlay::hash_numeric<V>{});
 //       });
 
 //   return vtxLayer;
 // }
 
-BatchDynamicConnectivity::BatchDynamicConnectivity(int numVertices)
-    : num_vertices_(numVertices), max_level_(parlay::log2_up(numVertices)) {
-  parallel_spanning_forests_ = parlay::sequence<BatchDynamicET *>(max_level_);
+BatchDynamicConnectivity::BatchDynamicConnectivity(int num_vertices)
+    : num_vertices_(num_vertices), max_level_(parlay::log2_up(num_vertices)) {
+  parallel_spanning_forests_ = parlay::sequence<BatchDynamicEtt *>(max_level_);
 
   parlay::parallel_for(0, max_level_, [&](int i) {
-    BatchDynamicET *ET = new BatchDynamicET{numVertices};
-    parallel_spanning_forests_[i] = ET;
+    auto *ett = new BatchDynamicEtt{num_vertices};
+    parallel_spanning_forests_[i] = ett;
   });
 
-  non_tree_adjacency_lists_ = NonTreeAdjacencyList(numVertices, max_level_);
+  non_tree_adjacency_lists_ = NonTreeAdjacencyList(num_vertices, max_level_);
 
   // make the base size smaller and update n_elms if we ever update.
-  edges_ = elektra::resizable_table<pair<Vertex, Vertex>, detail::EdgeInfo,
-                                    HashIntPairStruct>(
-      num_vertices_ * num_vertices_, empty_edge, tombstone_edge,
-      HashIntPairStruct());
+  edges_ =
+      elektra::resizable_table<pair<V, V>, bdcty::EInfo, HashIntPairStruct>(
+          num_vertices_ * num_vertices_, empty_edge_, tombstone_edge_,
+          HashIntPairStruct());
 }
 
 BatchDynamicConnectivity::BatchDynamicConnectivity(
-    int numVertices, const parlay::sequence<UndirectedEdge> &se)
-    : num_vertices_(numVertices), max_level_(parlay::log2_up(numVertices)) {
-  parallel_spanning_forests_ = parlay::sequence<BatchDynamicET *>(max_level_);
+    int num_vertices, const parlay::sequence<E> &se)
+    : num_vertices_(num_vertices), max_level_(parlay::log2_up(num_vertices)) {
+  parallel_spanning_forests_ = parlay::sequence<BatchDynamicEtt *>(max_level_);
 
   parlay::parallel_for(0, max_level_, [&](int i) {
-    BatchDynamicET *ET = new BatchDynamicET{numVertices};
-    parallel_spanning_forests_[i] = ET;
+    auto *ett = new BatchDynamicEtt{num_vertices};
+    parallel_spanning_forests_[i] = ett;
   });
 
-  non_tree_adjacency_lists_ = NonTreeAdjacencyList(numVertices, max_level_);
+  non_tree_adjacency_lists_ = NonTreeAdjacencyList(num_vertices, max_level_);
 
-  edges_ = elektra::resizable_table<pair<Vertex, Vertex>, detail::EdgeInfo,
-                                    HashIntPairStruct>(
-      num_vertices_ * num_vertices_, empty_edge, tombstone_edge,
-      HashIntPairStruct());
+  edges_ =
+      elektra::resizable_table<pair<V, V>, bdcty::EInfo, HashIntPairStruct>(
+          num_vertices_ * num_vertices_, empty_edge_, tombstone_edge_,
+          HashIntPairStruct());
 
   BatchAddEdges(se);
 }
 
 // TODO: fix the getRepresentative function
-// parlay::sequence<Vertex> BatchDynamicConnectivity::BatchFindRepr(
-//     const parlay::sequence<Vertex> &sv) {
+// parlay::sequence<V> BatchDynamicConnectivity::BatchFindRepr(
+//     const parlay::sequence<V> &sv) {
 //   auto pMaxLevelEulerTree = parallel_spanning_forests_[max_level_ - 1];
-//   // get representatives from the highest level foredt
-//   return parlay::map(sv, [&](Vertex v) {
+//   // get representatives from the highest level for ett
+//   return parlay::map(sv, [&](V v) {
 //     return (int64_t)pMaxLevelEulerTree->getRepresentative(v);
 //   });
 // }
 
 // TODO: get the concurrent union find for this
 template <typename Rank, typename Parent>
-treeSet BatchDynamicConnectivity::constructTree(
-    Rank &r, Parent &p, const parlay::sequence<UndirectedEdge> &se) {
+auto BatchDynamicConnectivity::ConstructTree(Rank &r, Parent &p,
+                                             const parlay::sequence<E> &se)
+    -> TreeSet {
   // Given a sequence of edges, returns a set of a
   // spanning forest of the graph formed by them
   boost::disjoint_sets<Rank, Parent> dsu(r, p);
-  treeSet tree;
+  TreeSet tree;
 
   // BUG POSSIBLE: check whether this causes a problem.
   for (auto v : se) {
@@ -256,9 +229,9 @@ treeSet BatchDynamicConnectivity::constructTree(
   }
 
   for (auto v : se) {
-    Vertex first = v.first;
-    Vertex second = v.second;
-    // TODO is there a race condition here if we paralize this? How can we
+    V first = v.first;
+    V second = v.second;
+    // TODO is there a race condition here if we parallelize this? How can we
     // resolve that
 
     if (dsu.find_set(first) != dsu.find_set(second)) {
@@ -270,26 +243,26 @@ treeSet BatchDynamicConnectivity::constructTree(
 }
 
 // TODO: add parallel DSU structure to implement this
-treeSet BatchDynamicConnectivity::getSpanningTree(
-    const parlay::sequence<UndirectedEdge> &se) {
+auto BatchDynamicConnectivity::GetSpanningTree(const parlay::sequence<E> &se)
+    -> TreeSet {
   // I am assuming the interface in
   // https://github.com/ParAlg/gbbs/blob/master/gbbs/union_find.h?fbclid=IwAR0U_Nbe1SpQF7mbmN0CEGLyF-5v362oy1q-9eQLvjQz916jhfTH69bMx9s
-  // could be worth paralelizing this
+  // could be worth it to parallelize this
 
-  typedef std::map<Vertex, size_t> rank_t;
-  typedef std::map<Vertex, Vertex> parent_t;
+  using RankT = std::map<V, size_t>;
+  using ParentT = std::map<V, V>;
 
-  rank_t rank_map;
-  parent_t parent_map;
+  RankT rank_map;
+  ParentT parent_map;
 
-  boost::associative_property_map<rank_t> rank_pmap(rank_map);
-  boost::associative_property_map<parent_t> parent_pmap(parent_map);
+  boost::associative_property_map<RankT> rank_pmap(rank_map);
+  boost::associative_property_map<ParentT> parent_pmap(parent_map);
 
-  return constructTree(rank_pmap, parent_pmap, se);
+  return ConstructTree(rank_pmap, parent_pmap, se);
 }
 
-parlay::sequence<std::pair<int, int>> edgeBatchToPairArray(
-    parlay::sequence<UndirectedEdge> &se) {
+auto EdgeBatchToPairArray(parlay::sequence<E> &se)
+    -> parlay::sequence<std::pair<int, int>> {
   // turns a sequence of edges to an array of pairs
   // useful for interfacing with EulerTourTrees
   auto array = parlay::sequence<std::pair<int, int>>::uninitialized(se.size());
@@ -301,7 +274,7 @@ parlay::sequence<std::pair<int, int>> edgeBatchToPairArray(
 }
 
 // We print the structure
-void BatchDynamicConnectivity::PrintStructure() {
+[[maybe_unused]] void BatchDynamicConnectivity::PrintStructure() {
   // print the structure of the graph
   // for each level, print the edges in the level
 
@@ -319,15 +292,15 @@ void BatchDynamicConnectivity::PrintStructure() {
 // We print the edges in each level of our structure
 void BatchDynamicConnectivity::PrintLevel(int8_t level) {
   // print the edges in the level
-  auto pLevelEulerTree = parallel_spanning_forests_[level];
+  auto p_level_euler_tree = parallel_spanning_forests_[level];
 
-  // if (pLevelEulerTree == nullptr || level >= max_level_ || level < 0 ||
-  //     pLevelEulerTree->IsEmpty()) {
+  // if (p_level_euler_tree == nullptr || level >= max_level_ || level < 0 ||
+  //     p_level_euler_tree->IsEmpty()) {
   //   return;
   // }
 
   std::cout << "Level " << (int)level << ": " << std::endl;
-  pLevelEulerTree->Print();
+  p_level_euler_tree->Print();
 }
 
 // We print the non tree edges
@@ -346,20 +319,20 @@ void BatchDynamicConnectivity::PrintNonTreeEdgesForLevel(int8_t level) {
   // TODO(sualeh) Note that non_tree_adjacency_lists[level] is a
   // parlay::sequence and so the below will create a copy. Instead you
   // can do:
-  // auto& vtxLayer = ...
-  auto vtxLayer = non_tree_adjacency_lists_[level];
+  // auto& vtx_layer = ...
+  auto vtx_layer = non_tree_adjacency_lists_[level];
 
   // scan through and build a set of all the edges
-  std::unordered_set<UndirectedEdge, UndirectedEdgeHash> edges;
+  std::unordered_set<E, EHash> edges;
 
   for (int i = 0; i < num_vertices_; i++) {
-    auto vtxSet = vtxLayer[i];
-    for (auto &kv : vtxSet.entries()) {
+    auto vtx_set = vtx_layer[i];
+    for (auto &kv : vtx_set.entries()) {
       // get the vertex by getting the first element of the tuple
       auto v = std::get<0>(kv);
       // order the insertion to avoid duplicates
       if (v > i) {
-        edges.insert(UndirectedEdge(i, v));
+        edges.insert(make_pair(i, v));
       }
     }
   }
@@ -371,4 +344,4 @@ void BatchDynamicConnectivity::PrintNonTreeEdgesForLevel(int8_t level) {
   std::cout << std::endl;
 }
 
-}  // namespace batchDynamicConnectivity
+} // namespace bdcty

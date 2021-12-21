@@ -1,3 +1,5 @@
+#pragma once
+
 #include <parlay/sequence.h>
 
 #include <unordered_set>
@@ -7,22 +9,22 @@
 #include "union_find.h"
 
 namespace elektra {
+  using std::make_pair;
+template <typename T>
 class SpanningTree {
  private:
-  using E = std::pair<uintE, uintE>;
+  using E = std::pair<T, T>;
   using Ehash = HashIntPairStruct;
   static constexpr auto empty_edge = make_pair(UINT_E_MAX, UINT_E_MAX);
 
   parlay::sequence<uintE> parents;
 
  public:
-  SpanningTree(const parlay::sequence<E> &edges, parlay::sequence<E> &tree);
 
   // return the tree
   auto get_spanning_tree();
-};
 
-SpanningTree::SpanningTree(const parlay::sequence<E> &edges,
+  SpanningTree(const parlay::sequence<E> &edges,
                            parlay::sequence<E> &tree) {
   constexpr auto find{find_variants::find_compress};
   auto unite{unite_variants::Unite<decltype(find)>{find}};
@@ -98,5 +100,8 @@ SpanningTree::SpanningTree(const parlay::sequence<E> &edges,
   //             << std::endl;
   // }
 }
+};
+
+
 
 }  // namespace elektra

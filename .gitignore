@@ -33,6 +33,8 @@
 
 # build files
 build/*
+cmake-*
+.idea/*
 
 # Swap files
 .*.swo
