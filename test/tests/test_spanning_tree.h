@@ -37,20 +37,21 @@ TEST_F(SpanningTree, MiniGraph) {
   parlay::sequence<E> tree;
 
   elektra::SpanningTree(edges, tree);
+  bdcty::PrintEdgeSequence(tree, "Spanning tree");
 
-  auto spanning_tree = tree.cut(1, num_vertices);
+  bdcty::PrintEdgeSequence(tree, "Spanning tree cut");
 
   // print the spanning tree
   // std::cout << "Spanning tree: " << std::endl;
-  // for (auto& e : spanning_tree) {
+  // for (auto& e : tree) {
   //   std::cout << e.first << " " << e.second << std::endl;
   // }
 
-  EXPECT_EQ(spanning_tree.size(), num_vertices - 1);
+  EXPECT_EQ(tree.size(), num_vertices - 1);
 
   // initialize a set of all vertices returned by the spanning tree
   std::set<uintE> vertices_in_spanning_tree;
-  for (auto& edge : spanning_tree) {
+  for (auto &edge : tree) {
     vertices_in_spanning_tree.insert(edge.first);
     vertices_in_spanning_tree.insert(edge.second);
   }
@@ -74,7 +75,7 @@ TEST_F(SpanningTree, MiniGraph2) {
                                E(2, 3), E(2, 4), E(3, 4)};
 
   // increase the value of each vertex in edges by 5
-  for (auto& e : edges) {
+  for (auto &e : edges) {
     e.first += 5;
     e.second += 5;
   }
@@ -83,19 +84,17 @@ TEST_F(SpanningTree, MiniGraph2) {
 
   elektra::SpanningTree(edges, tree);
 
-  auto spanning_tree = tree.cut(1, num_vertices);
-
   // print the spanning tree
   // std::cout << "Spanning tree: " << std::endl;
-  // for (auto& e : spanning_tree) {
+  // for (auto& e : tree) {
   //   std::cout << e.first << " " << e.second << std::endl;
   // }
 
-  EXPECT_EQ(spanning_tree.size(), num_vertices - 1);
+  EXPECT_EQ(tree.size(), num_vertices - 1);
 
   // initialize a set of all vertices returned by the spanning tree
   std::set<uintE> vertices_in_spanning_tree;
-  for (auto& edge : spanning_tree) {
+  for (auto &edge : tree) {
     vertices_in_spanning_tree.insert(edge.first);
     vertices_in_spanning_tree.insert(edge.second);
   }
@@ -122,7 +121,7 @@ TEST_F(SpanningTree, FixedSmallGraph) {
   }
 
   edges =
-      parlay::filter(edges, [&](const E& e) { return e.first != e.second; });
+      parlay::filter(edges, [&](const E &e) { return e.first != e.second; });
 
   // push back an edges starting with every vertex so that every vertex is
   // is initalized in the spanning tree
@@ -139,13 +138,11 @@ TEST_F(SpanningTree, FixedSmallGraph) {
 
   elektra::SpanningTree(edges, tree);
 
-  auto spanning_tree = tree.cut(1, num_vertices);
-
-  EXPECT_EQ(spanning_tree.size(), num_vertices - 1);
+  EXPECT_EQ(tree.size(), num_vertices - 1);
 
   // initialize a set of all vertices returned by the spanning tree
   std::set<uintE> vertices_in_spanning_tree;
-  for (auto& edge : spanning_tree) {
+  for (auto &edge : tree) {
     vertices_in_spanning_tree.insert(edge.first);
     vertices_in_spanning_tree.insert(edge.second);
   }
@@ -173,7 +170,7 @@ TEST_F(SpanningTree, BigGraph) {
   }
 
   edges =
-      parlay::filter(edges, [&](const E& e) { return e.first != e.second; });
+      parlay::filter(edges, [&](const E &e) { return e.first != e.second; });
 
   // push back an edges starting with every vertex so that every vertex is
   // is initalized in the spanning tree
@@ -190,13 +187,11 @@ TEST_F(SpanningTree, BigGraph) {
 
   elektra::SpanningTree(edges, tree);
 
-  auto spanning_tree = tree.cut(1, num_vertices);
-
-  EXPECT_EQ(spanning_tree.size(), num_vertices - 1);
+  EXPECT_EQ(tree.size(), num_vertices - 1);
 
   // initialize a set of all vertices returned by the spanning tree
   std::set<uintE> vertices_in_spanning_tree;
-  for (auto& edge : spanning_tree) {
+  for (auto &edge : tree) {
     vertices_in_spanning_tree.insert(edge.first);
     vertices_in_spanning_tree.insert(edge.second);
   }

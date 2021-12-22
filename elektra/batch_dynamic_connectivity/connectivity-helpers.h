@@ -33,6 +33,7 @@ using std::min;
 using std::pair;
 using std::tuple;
 using std::vector;
+typedef unsigned int uintE;
 
 using E = pair<V, V>;
 using EHash = HashIntPairStruct;
@@ -40,7 +41,7 @@ using BatchDynamicEtt = parallel_euler_tour_tree::EulerTourTree;
 
 using TreeSet = std::unordered_set<E, EHash>;
 
-using Level = int8_t;
+using Level = int;
 
 enum class EType {
   // Edge is in the spanning forest of the graph.
@@ -72,7 +73,7 @@ struct hash_kv {
 };
 
 using VertexConcurrentSet =
-    elektra::resizable_table<V, elektra::empty, hash_kv>;
+elektra::resizable_table<V, elektra::empty, hash_kv>;
 
 /**
  * @brief The structure that contains the Non-Tree edges.
@@ -83,7 +84,7 @@ using VertexConcurrentSet =
  *          level.
  */
 class NonTreeAdjacencyList {
-public:
+ public:
   /** Constructor.
    *  @param[in] numVertices Number of vertices in the graph.
    */
@@ -109,7 +110,7 @@ public:
    *  @returns The vertices connected to vertex v by level-i non-tree edges.
    */
   [[nodiscard]] auto operator[](bdcty::Level level)
-      -> parlay::sequence<VertexConcurrentSet> & {
+  -> parlay::sequence<VertexConcurrentSet> & {
     return non_tree_adjacency_lists_[level];
   }
 
@@ -119,7 +120,7 @@ public:
    *  @returns The vertices connected to vertex v by level-i non-tree edges.
    */
   [[maybe_unused]] [[nodiscard]] auto GetEdges(V v, bdcty::Level level) const
-      -> const VertexConcurrentSet & {
+  -> const VertexConcurrentSet & {
     return non_tree_adjacency_lists_[level][v];
   }
 
@@ -138,7 +139,7 @@ public:
    */
   //  int NumNonTreeEdgesForLevel(bdcty::Level level) const;
 
-private:
+ private:
   int num_vertices_{0};
   int max_level_{0};
 
@@ -281,6 +282,15 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
 
 auto PrintEdgeSequence(const parlay::sequence<pair<V, V>> &edges,
                        const std::string &name) {
+  std::cout << name << ": ";
+  for (const auto &e : edges) {
+    std::cout << "(" << e.first << ", " << e.second << "), ";
+  }
+  std::cout << std::endl;
+}
+
+template<typename T>
+auto PrintEdgeSequence(T &&edges, const std::string &name) {
   std::cout << name << ": ";
   for (const auto &e : edges) {
     std::cout << "(" << e.first << ", " << e.second << "), ";

@@ -46,9 +46,9 @@ void report_pathlen(uintE pathlen) {
 }
 
 namespace jayanti_rank {
-static constexpr uintE RANK_MASK = (uintE)INT_E_MAX;
+static constexpr uintE RANK_MASK = (uintE) INT_E_MAX;
 static constexpr uintE TOP_BIT_SHIFT = sizeof(uintE) * 8 - 1;
-static constexpr uintE TOP_BIT = ((uintE)1) << TOP_BIT_SHIFT;
+static constexpr uintE TOP_BIT = ((uintE) 1) << TOP_BIT_SHIFT;
 
 struct vdata {
   volatile uintE rank;  // top bit is used to indicate root or not
@@ -63,7 +63,7 @@ struct vdata {
 
   __attribute__((always_inline)) inline uintE combine_root_rank(
       bool is_root, uintE _rank) const {
-    return (((uintE)is_root) << TOP_BIT_SHIFT) + _rank;
+    return (((uintE) is_root) << TOP_BIT_SHIFT) + _rank;
   }
 
   __attribute__((always_inline)) inline bool is_root() const {
@@ -83,8 +83,8 @@ struct vdata {
   }
 };
 
-template <class S>
-void link(uintE u, uintE v, S& vdatas, parlay::random r) {
+template<class S>
+void link(uintE u, uintE v, S &vdatas, parlay::random r) {
   auto ud = vdatas[u];
   auto vd = vdatas[v];
   // spend two reads to abort early with no CASs if either of the
@@ -119,7 +119,7 @@ void link(uintE u, uintE v, S& vdatas, parlay::random r) {
   }
 }
 
-inline uintE find(uintE x, sequence<vdata>& vdatas) {
+inline uintE find(uintE x, sequence<vdata> &vdatas) {
   uintE u = x;
   uintE pathlen = 1;
   while (!vdatas[u].is_root()) {  // * on u.is_root()
@@ -130,7 +130,7 @@ inline uintE find(uintE x, sequence<vdata>& vdatas) {
   return u;  // u is a root
 }
 
-inline uintE find_twotry_splitting(uintE x, sequence<vdata>& vdatas) {
+inline uintE find_twotry_splitting(uintE x, sequence<vdata> &vdatas) {
   uintE u = x;
   uintE pathlen = 1;
   while (!vdatas[u].is_root()) {  // * on u.is_root()
@@ -172,8 +172,8 @@ inline uintE find_twotry_splitting(uintE x, sequence<vdata>& vdatas) {
   return u;  // u is a root
 }
 
-template <class S, class Find>
-void unite(uintE x, uintE y, S& vdatas, parlay::random r, Find& find) {
+template<class S, class Find>
+void unite(uintE x, uintE y, S &vdatas, parlay::random r, Find &find) {
   uintE u = find(x, vdatas);
   uintE v = find(y, vdatas);
   while (u != v) {
@@ -186,14 +186,14 @@ void unite(uintE x, uintE y, S& vdatas, parlay::random r, Find& find) {
 };  // namespace jayanti_rank
 
 namespace find_variants {
-inline uintE find_naive(uintE i, sequence<parent>& parents) {
+inline uintE find_naive(uintE i, sequence<parent> &parents) {
   while (i != parents[i]) {
     i = parents[i];
   }
   return i;
 }
 
-inline uintE find_compress(uintE i, sequence<parent>& parents) {
+inline uintE find_compress(uintE i, sequence<parent> &parents) {
   parent j = i;
   if (parents[j] == j) return j;
   do {
@@ -207,7 +207,7 @@ inline uintE find_compress(uintE i, sequence<parent>& parents) {
   return j;
 }
 
-inline uintE find_atomic_split(uintE i, sequence<parent>& parents) {
+inline uintE find_atomic_split(uintE i, sequence<parent> &parents) {
   while (1) {
     parent v = parents[i];
     parent w = parents[v];
@@ -215,20 +215,20 @@ inline uintE find_atomic_split(uintE i, sequence<parent>& parents) {
       return v;
     } else {
       atomic_compare_and_swap(&parents[i], v, w);
-      // i = its parents
+      // i = its parents_
       i = v;
     }
   }
 }
 
-inline uintE find_atomic_halve(uintE i, sequence<parent>& parents) {
+inline uintE find_atomic_halve(uintE i, sequence<parent> &parents) {
   while (1) {
     parent v = parents[i];
     parent w = parents[v];
     if (v == w) {
       return v;
     } else {
-      atomic_compare_and_swap(&parents[i], (parent)v, (parent)w);
+      atomic_compare_and_swap(&parents[i], (parent) v, (parent) w);
       // i = its grandparent
       i = parents[i];
     }
@@ -239,7 +239,7 @@ inline uintE find_atomic_halve(uintE i, sequence<parent>& parents) {
 namespace splice_variants {
 
 /* Used in Rem-CAS variants for splice */
-inline uintE split_atomic_one(uintE i, uintE x, sequence<parent>& parents) {
+inline uintE split_atomic_one(uintE i, uintE x, sequence<parent> &parents) {
   parent v = parents[i];
   parent w = parents[v];
   if (v == w)
@@ -252,7 +252,7 @@ inline uintE split_atomic_one(uintE i, uintE x, sequence<parent>& parents) {
 }
 
 /* Used in Rem-CAS variants for splice */
-inline uintE halve_atomic_one(uintE i, uintE x, sequence<parent>& parents) {
+inline uintE halve_atomic_one(uintE i, uintE x, sequence<parent> &parents) {
   parent v = parents[i];
   parent w = parents[v];
   if (v == w)
@@ -265,7 +265,7 @@ inline uintE halve_atomic_one(uintE i, uintE x, sequence<parent>& parents) {
 }
 
 /* Used in Rem-CAS variants for splice */
-inline uintE splice_atomic(uintE u, uintE v, sequence<parent>& parents) {
+inline uintE splice_atomic(uintE u, uintE v, sequence<parent> &parents) {
   parent z = parents[u];
   atomic_compare_and_swap(&parents[u], z, parents[v]);
   return z;
@@ -274,15 +274,15 @@ inline uintE splice_atomic(uintE u, uintE v, sequence<parent>& parents) {
 
 namespace unite_variants {
 
-template <class Find>
+template<class Find>
 struct Unite {
-  Find& find;
-  Unite(Find& find) : find(find) {}
+  Find &find;
+  Unite(Find &find) : find(find) {}
 
   using edge = std::pair<uintE, uintE>;
 
   inline uintE operator()(uintE u_orig, uintE v_orig,
-                          sequence<parent>& parents) {
+                          sequence<parent> &parents) {
     parent u = u_orig;
     parent v = v_orig;
     while (1) {
@@ -291,18 +291,18 @@ struct Unite {
       if (u == v)
         break;
       else if (u > v && parents[u] == u &&
-               atomic_compare_and_swap(&parents[u], u, v)) {
+          atomic_compare_and_swap(&parents[u], u, v)) {
         return u;
       } else if (v > u && parents[v] == v &&
-                 atomic_compare_and_swap(&parents[v], v, u)) {
+          atomic_compare_and_swap(&parents[v], v, u)) {
         return v;
       }
     }
     return UINT_E_MAX;
   }
 
-  inline void operator()(uintE u_orig, uintE v_orig, sequence<parent>& parents,
-                         sequence<edge>& edges) {
+  inline void operator()(uintE u_orig, uintE v_orig, sequence<parent> &parents,
+                         sequence<edge> &edges) {
     parent u = u_orig;
     parent v = v_orig;
     while (1) {
@@ -311,11 +311,11 @@ struct Unite {
       if (u == v)
         break;
       else if (u > v && parents[u] == u &&
-               atomic_compare_and_swap(&parents[u], u, v)) {
+          atomic_compare_and_swap(&parents[u], u, v)) {
         edges[u] = std::make_pair(u_orig, v_orig);
         break;
       } else if (v > u && parents[v] == v &&
-                 atomic_compare_and_swap(&parents[v], v, u)) {
+          atomic_compare_and_swap(&parents[v], v, u)) {
         edges[v] = std::make_pair(u_orig, v_orig);
         break;
       }
@@ -323,13 +323,13 @@ struct Unite {
   }
 };
 
-template <class Splice, class Compress, FindOption find_option>
+template<class Splice, class Compress, FindOption find_option>
 struct UniteRemLock {
   uintE n;
   sequence<bool> locks;
-  Compress& compress;
-  Splice& splice;
-  UniteRemLock(Compress& compress, Splice& splice, uintE n)
+  Compress &compress;
+  Splice &splice;
+  UniteRemLock(Compress &compress, Splice &splice, uintE n)
       : n(n), compress(compress), splice(splice) {
     locks = sequence<bool>(n, false);
   }
@@ -346,7 +346,7 @@ struct UniteRemLock {
   void release_lock(uintE u) { locks[u] = false; }
 
   inline uintE operator()(uintE u_orig, uintE v_orig,
-                          sequence<parent>& parents) {
+                          sequence<parent> &parents) {
     parent rx = u_orig;
     parent ry = v_orig;
     while (parents[rx] != parents[ry]) {
@@ -373,14 +373,14 @@ struct UniteRemLock {
   }
 };
 
-template <class Splice, class Compress, FindOption find_option>
+template<class Splice, class Compress, FindOption find_option>
 struct UniteRemCAS {
-  Compress& compress;
-  Splice& splice;
-  UniteRemCAS(Compress& compress, Splice& splice)
+  Compress &compress;
+  Splice &splice;
+  UniteRemCAS(Compress &compress, Splice &splice)
       : compress(compress), splice(splice) {}
 
-  inline uintE operator()(uintE x, uintE y, sequence<parent>& parents) {
+  inline uintE operator()(uintE x, uintE y, sequence<parent> &parents) {
     uintE rx = x;
     uintE ry = y;
     while (parents[rx] != parents[ry]) {
@@ -407,11 +407,11 @@ struct UniteRemCAS {
   }
 };
 
-template <class Find, FindOption find_option>
+template<class Find, FindOption find_option>
 struct UniteEarly {
-  Find& find;
-  UniteEarly(Find& find) : find(find) {}
-  inline uintE operator()(uintE u, uintE v, sequence<parent>& parents) {
+  Find &find;
+  UniteEarly(Find &find) : find(find) {}
+  inline uintE operator()(uintE u, uintE v, sequence<parent> &parents) {
     [[maybe_unused]] uintE u_orig = u, v_orig = v;
     uintE ret = UINT_E_MAX;
     while (u != v) {
@@ -434,16 +434,16 @@ struct UniteEarly {
   }
 };
 
-template <class Find>
+template<class Find>
 struct UniteND {
   Find find;
   sequence<uintE> hooks;
-  UniteND(size_t n, Find& find) : find(find) {
+  UniteND(size_t n, Find &find) : find(find) {
     hooks = sequence<uintE>(n, UINT_E_MAX);
   }
 
   inline uintE operator()(uintE u_orig, uintE v_orig,
-                          sequence<parent>& parents) {
+                          sequence<parent> &parents) {
     parent u = u_orig;
     parent v = v_orig;
     while (1) {

@@ -17,7 +17,7 @@
 namespace bdcty {
 
 class BatchDynamicConnectivity {
-public:
+ public:
   /** Initializes an empty graph with a fixed number of vertices.
    *
    *  @param[in] num_vertices Number of vertices in the graph.
@@ -46,14 +46,14 @@ public:
 
   /** Copy assignment not implemented. */
   auto operator=(const BatchDynamicConnectivity &other)
-      -> BatchDynamicConnectivity & = delete;
+  -> BatchDynamicConnectivity & = delete;
 
   /** Move constructor. */
   BatchDynamicConnectivity(BatchDynamicConnectivity &&other) = delete;
 
   /** Move assignment not implemented. */
   auto operator=(BatchDynamicConnectivity &&other) noexcept
-      -> BatchDynamicConnectivity & = delete;
+  -> BatchDynamicConnectivity & = delete;
 
   /** Returns true if vertices \p u and \p v are connected in the graph.
    *
@@ -64,7 +64,7 @@ public:
    *  TODO(sualeh): minor, but why is return type is char and not bool?
    */
   [[nodiscard]] auto BatchConnected(parlay::sequence<std::pair<V, V>> suv) const
-      -> parlay::sequence<char>;
+  -> parlay::sequence<char>;
 
   /** Adds a batch of edges to the graph.
    *
@@ -84,38 +84,17 @@ public:
 
   //  parlay::sequence<V> BatchFindRepr(const parlay::sequence<V> &sv);
 
-  /** Returns true if edge \p edge is in the graph.
-   *
-   *  Efficiency: constant on average.
-   *
-   *  @param[in] edge Edge.
-   *  @returns True if \p edge is in the graph, false if it is not.
-   */
-  // TODO(Sualeh): implement this
-  // bool HasEdge(const E &edge) const;
-
-  /** Returns the number of vertices in `v`'s connected component.
-   *
-   * Efficiency: logarithmic in the size of the graph.
-   *
-   * @param[in] v V.
-   * @returns The number of vertices in \p v's connected component.
-   */
-  // TODO(Sualeh): implement this
-  // int64_t GetSizeOfConnectedComponent(V v) const;
-
   [[maybe_unused]] void PrintStructure();
-
   void PrintLevel(int8_t level);
 
   void PrintNonTreeEdges();
 
   void PrintNonTreeEdgesForLevel(int8_t level);
 
-private:
+ private:
   const int64_t num_vertices_;
 
-  const int8_t max_level_;
+  const Level max_level_;
   const bdcty::EInfo empty_info_ = {-1, bdcty::EType::K_NON_TREE};
   const std::tuple<std::pair<V, V>, bdcty::EInfo> empty_edge_ =
       std::make_tuple(std::make_pair(-1, -1), empty_info_);
@@ -147,12 +126,12 @@ private:
   void ReplacementSearch(int level, parlay::sequence<int> components,
                          parlay::sequence<pair<int, int>> &promoted_edges);
 
-  template <typename Rank, typename Parent>
+  template<typename Rank, typename Parent>
   auto ConstructTree(Rank &r, Parent &p, const parlay::sequence<E> &se)
-      -> TreeSet;
+  -> TreeSet;
 
   static auto RemoveDuplicates(parlay::sequence<int> &seq)
-      -> parlay::sequence<int>;
+  -> parlay::sequence<int>;
 };
 
 // auto generateInitialVertexLayer(int numVertices, int max_level_) {
@@ -213,10 +192,10 @@ BatchDynamicConnectivity::BatchDynamicConnectivity(
 // }
 
 // TODO: get the concurrent union find for this
-template <typename Rank, typename Parent>
+template<typename Rank, typename Parent>
 auto BatchDynamicConnectivity::ConstructTree(Rank &r, Parent &p,
                                              const parlay::sequence<E> &se)
-    -> TreeSet {
+-> TreeSet {
   // Given a sequence of edges, returns a set of a
   // spanning forest of the graph formed by them
   boost::disjoint_sets<Rank, Parent> dsu(r, p);
@@ -244,7 +223,7 @@ auto BatchDynamicConnectivity::ConstructTree(Rank &r, Parent &p,
 
 // TODO: add parallel DSU structure to implement this
 auto BatchDynamicConnectivity::GetSpanningTree(const parlay::sequence<E> &se)
-    -> TreeSet {
+-> TreeSet {
   // I am assuming the interface in
   // https://github.com/ParAlg/gbbs/blob/master/gbbs/union_find.h?fbclid=IwAR0U_Nbe1SpQF7mbmN0CEGLyF-5v362oy1q-9eQLvjQz916jhfTH69bMx9s
   // could be worth it to parallelize this
@@ -262,7 +241,7 @@ auto BatchDynamicConnectivity::GetSpanningTree(const parlay::sequence<E> &se)
 }
 
 auto EdgeBatchToPairArray(parlay::sequence<E> &se)
-    -> parlay::sequence<std::pair<int, int>> {
+-> parlay::sequence<std::pair<int, int>> {
   // turns a sequence of edges to an array of pairs
   // useful for interfacing with EulerTourTrees
   auto array = parlay::sequence<std::pair<int, int>>::uninitialized(se.size());
@@ -299,7 +278,7 @@ void BatchDynamicConnectivity::PrintLevel(int8_t level) {
   //   return;
   // }
 
-  std::cout << "Level " << (int)level << ": " << std::endl;
+  std::cout << "Level " << (int) level << ": " << std::endl;
   p_level_euler_tree->Print();
 }
 
@@ -313,7 +292,7 @@ void BatchDynamicConnectivity::PrintNonTreeEdges() {
 
 // We print the non tree edges in each level of our structure
 void BatchDynamicConnectivity::PrintNonTreeEdgesForLevel(int8_t level) {
-  std::cout << "Level " << (int)level << ": " << std::endl;
+  std::cout << "Level " << (int) level << ": " << std::endl;
   // contains all the non-tree edges in the level
   //
   // TODO(sualeh) Note that non_tree_adjacency_lists[level] is a
