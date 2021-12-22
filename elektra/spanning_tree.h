@@ -82,6 +82,7 @@ class SpanningTree {
     tree = parlay::filter(tree, [&](const E &e) {
       return (e.first != static_cast<T>(-1)) && (e.second != static_cast<T>(-1));
     });
+
     // print the parents_ for each element in edges if you want
     // std::cout << "parents_: " << std::endl;
     // for (auto &e : edges) {

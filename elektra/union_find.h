@@ -463,4 +463,12 @@ struct UniteND {
 };
 
 }  // namespace unite_variants
+
+struct UnionFindCompress {
+  unsigned long size;
+  static constexpr auto find{find_variants::find_compress};
+  unite_variants::Unite<decltype(find)> unite{unite_variants::Unite<decltype(find)>{find}};
+  parlay::sequence<parent> parents = parlay::sequence<parent>::from_function(size, [](uintE i) { return i; });
+};
+
 }  // namespace elektra
