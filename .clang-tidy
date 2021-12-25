@@ -10,6 +10,7 @@ Checks:
   -clang-analyzer-alpha.deadcode.UnreachableCode,
   -misc-use-after-move,
   -misc-definitions-in-headers,
+  -misc-unused-using-decls,
   -cppcoreguidelines-pro-type-vararg,
   -modernize-use-emplace,
   -readability-identifier-length,

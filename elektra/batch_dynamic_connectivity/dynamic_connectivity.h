@@ -6,9 +6,6 @@
 
 #include "connectivity.h"
 namespace bdcty {
-template <typename T>
-using sequence = parlay::sequence<T>;
-
 // -------------
 // PUBLIC METHODS
 // -------------
@@ -20,14 +17,14 @@ using sequence = parlay::sequence<T>;
 // @description: This method checks if the batch of vertices is connected in
 // the graph
 auto BatchDynamicConnectivity::BatchConnected(sequence<pair<V, V>> suv) const
-    -> sequence<char> {
+-> sequence<char> {
   sequence<char> s_connected(suv.size(), 0);
   // check if they are connected in the highest level forest
   BatchDynamicEtt *p_max_level_euler_tree =
       parallel_spanning_forests_[max_level_ - 1];
 
   parlay::parallel_for(0, suv.size(), [&](size_t i) {
-    auto [v_1, v_2] = suv[i];
+    auto[v_1, v_2] = suv[i];
     s_connected[i] = p_max_level_euler_tree->IsConnected(v_1, v_2);
   });
 
@@ -46,175 +43,186 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
   BatchDynamicEtt *max_level_euler_tree =
       parallel_spanning_forests_[max_level_ - 1];
 
-#ifdef DEBUG
-  // you can print all the edges for debugging
-  std::cout << "Adding edges to the graph" << std::endl;
-  for (auto &e : se) {
-    std::cout << "Edge: " << e.first << " " << e.second << std::endl;
-  }
-#endif
-
-  // Construct the auxiliary edges.
-  sequence<pair<uintE, uintE>> aux_int_edges = parlay::map(se, [&](E e) {
-    return make_pair(
-        static_cast<uintE>(max_level_euler_tree->GetRepresentative(e.first)),
-        static_cast<uintE>(max_level_euler_tree->GetRepresentative(e.second)));
-  });
-
-  auto spanning_tree = sequence<pair<uintE, uintE>>::uninitialized(se.size());
-  elektra::SpanningTree(aux_int_edges, spanning_tree);
-
-  auto tree = TreeSet{};
-  for (auto &e : spanning_tree) {
-    tree.insert(E((int)e.first, (int)e.second));
-  }
-
-// print all the tree edges for debugging if wanted.
-#ifdef DEBUG
-  std::cout << "Tree edges" << std::endl;
-  for (auto &e : tree) {
-    std::cout << "Edge: " << e.first << " " << e.second << std::endl;
-  }
-#endif
-
-  // TODO(major: sualeh): get rid of this and just use the spanning tree vector.
-  auto tree_edges = sequence<pair<int, int>>();
-
-  // FIXME(sualeh): This is a hack to get the tree edges.
-  for (const auto &e : tree) {
-    tree_edges.push_back(make_pair(e.first, e.second));
-  }
-
-#ifdef DEBUG
-  printEdgeSequence(tree_edges, "Tree Edges from sequence");
-#endif
-
-  auto non_tree_edges =
-      sequence<pair<int, int>>(se.size(), pair<int, int>(-1, -1));
-
-  // This inserts the tree edges in to our hashtable.
+  // We get the spanning tree_set of the representatives of the vertices in the max_level_euler_tree.
+  // We get back a vector of type uintE.
+  auto spanning_tree = RepresentativeSpanningTree<E, uintE>(se, max_level_euler_tree);
+  auto tree_set = elektra::MakeSet<sequence<pair<uintE, uintE>>, E, EHash>(spanning_tree);
   parlay::parallel_for(0, spanning_tree.size(), [&](size_t i) {
     pair<V, V> e = E(spanning_tree[i].first, spanning_tree[i].second);
-    bdcty::EInfo ei = {max_level_ - 1, bdcty::EType::K_TREE};
-    edges_.insert(make_tuple(pair<V, V>(e.first, e.second), ei));
-
-    // TODO(sualeh): Think about whether you can get away without
-    // inserting the reverse edge add the reverse edge to the edges_ map
-    bdcty::EInfo ei_rev = {max_level_ - 1, bdcty::EType::K_TREE};
-    edges_.insert(make_tuple(pair<V, V>(e.second, e.first), ei_rev));
+    InsertIntoEdgeTable(e, EType::K_TREE, max_level_ - 1);
   });
-
-  // update the nonTree edges based on the ST computation
-  parlay::parallel_for(0, se.size(), [&](size_t i) {
-    if (tree.count(se[i]) == 0) {
-      // std::string edge_str = "Non Tree Edge: " +
-      // std::to_string(se[i].first)
-      // +
-      //                        " " + std::to_string(se[i].second) + "\n";
-      // std::cout << edge_str;
-      non_tree_edges[i] = (make_pair(se[i].first, se[i].second));
-      bdcty::EInfo ei = {max_level_ - 1, bdcty::EType::K_NON_TREE};
-      edges_.insert(make_tuple(pair<V, V>(se[i].first, se[i].second), ei));
-
-      // add the reverse edge to the edges_ map
-      bdcty::EInfo ei_rev = {max_level_ - 1, bdcty::EType::K_NON_TREE};
-      edges_.insert(make_tuple(pair<V, V>(se[i].second, se[i].first), ei_rev));
-    }
-  });
-
-  // add tree edges
-  // std::cout << "Adding tree edges to the ETT" << std::endl;
+  // TODO(major: sualeh): get rid of this and just use the spanning tree_set vector.
+  auto tree_edges = NewEdgeSequence<int>(spanning_tree);
   max_level_euler_tree->BatchLink(tree_edges);
 
-  // filter and add non-tree edges
+  auto non_tree_edges = sequence<E>(se.size(), E(-1, -1));
+  // update the nonTree edges based on the ST computation
+  parlay::parallel_for(0, se.size(), [&](size_t i) {
+    if (tree_set.count(se[i]) == 0) {
+      non_tree_edges[i] = (make_pair(se[i].first, se[i].second));
+      InsertIntoEdgeTable(se[i], EType::K_NON_TREE, max_level_ - 1);
+    }
+  });
+  // filter and add non-tree_set edges
   auto filtered_non_tree_edges = parlay::filter(
       non_tree_edges, [&](auto e) { return e.first != -1 && e.second != -1; });
 
-  // add to adjacency list
-#ifdef DEBUG
-  std::cout << "Adding the non-tree edges to the hashtable" << std::endl;
-  std::cout << "non_tree_edges.size() = " << non_tree_edges.size() << std::endl;
-  printEdgeSequence(non_tree_edges, "nonTreeEdgesUnfiltered");
-  printEdgeSequence(filtered_non_tree_edges, "nonTreeEdgesFiltered");
-#endif
-
   non_tree_adjacency_lists_.BatchAddEdgesToLevel(filtered_non_tree_edges,
                                                  max_level_ - 1);
+  // add to adjacency list
+#ifdef DEBUG
+  std::cout << "Tree edges" << std::endl;
+  for (auto &e : tree_set) {
+    std::cout << "Edge: " << e.first << " " << e.second << std::endl;
+  }
+  PrintEdgeSequence(tree_edges, "Tree Edges from sequence");
+  std::cout << "Adding the non-tree_set edges to the hashtable" << std::endl;
+  std::cout << "non_tree_edges.size() = " << non_tree_edges.size() << std::endl;
+  PrintEdgeSequence(non_tree_edges, "nonTreeEdgesUnfiltered");
+  PrintEdgeSequence(filtered_non_tree_edges, "nonTreeEdgesFiltered");
+#endif
 }
 
-// template <typename T>
-auto BatchDynamicConnectivity::RemoveDuplicates(sequence<int> &seq)
-    -> sequence<int> {
-  // TODO: possibly change this to use a semisort and not inplace sort
-  // sort the sequence
-  parlay::integer_sort_inplace(seq, [](int x) { return (unsigned)x; });
-  auto new_seq = parlay::unique(seq);
+void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
+  // first make sure all the edges are correctly oriented and remove all the
+  // edges that are not in the graph
+  RemoveUnknownEdges(se, edges_, kEmptyInfo);
 
-  return new_seq;
+  // split se into tree and non tree edges
+  sequence<E> tree_edges;
+  tree_edges.reserve(se.size());
+
+//  V min_tree_edge_level = static_cast<V>(max_level_);
+  std::atomic<V> min_tree_edge_level(max_level_);
+
+  std::mutex m;
+  std::unique_lock<std::mutex> lock(m, std::defer_lock);
+
+  // delete edges from the non tree adjacency lists.
+  // TODO(sualeh): maybe collect the edges to be deleted and then delete them
+  // in a batch
+  parlay::parallel_for(0, se.size(), [&](V i) {
+    const auto &[kU, kV] = se[i];
+    const auto &[kLevel, kType] = edges_.find(se[i]);
+
+    auto &ul = non_tree_adjacency_lists_[kLevel][kU];
+    auto &vl = non_tree_adjacency_lists_[kLevel][kV];
+
+    // if (kU, kV) is not a tree edge, then we need to remove it from the
+    // non tree adjacency list. Otherwise, we have to do hard work to remove it from the tree.
+    if (kType == EType::K_NON_TREE) {
+      ul.deleteVal(kV);
+      vl.deleteVal(kU);
+    } else {
+      tree_edges.push_back(se[i]);
+      parlay::write_min(&min_tree_edge_level, kLevel, std::less<>());
+    }
+#ifdef DEBUG
+    auto u_entries = ul.entries();
+    PrintSequence(u_entries, "ul: edges for vertex kU");
+    auto v_entries = vl.entries();
+    PrintSequence(v_entries, "vl: edges for vertex kV");
+#endif
+  });
+  // delete edges from the tree at each level from the minimum tree edge level
+  // to the maximum tree edge level
+  for (int l = min_tree_edge_level; l < max_level_; l++) {
+    auto *level_euler_tree = parallel_spanning_forests_[l];
+
+    // get the edges to delete which have level at max l.
+    auto to_delete = parlay::filter(tree_edges, [&](E e) {
+      return edges_.find(e).level <= l;
+    });
+    level_euler_tree->BatchCut(to_delete);
+
+#ifdef DEBUG
+    std::cout << "Deleting edges from level " << l << std::endl;
+      for (auto &e : to_delete) {
+        std::cout << e.first << " " << e.second << std::endl;
+      }
+#endif
+  }
+
+  // We now try to find replacement edges starting from the min level.
+  for (int l = min_tree_edge_level; l < max_level_; l++) {
+    auto *level_euler_tree = parallel_spanning_forests_[l];
+
+    auto edges_to_replace = parlay::filter(tree_edges, [&](E e) {
+      return edges_.find(pair<V, V>(e.first, e.second)).level == l;
+    });
+    auto components = sequence<V>::uninitialized(2 * edges_to_replace.size());
+    parlay::parallel_for(0, edges_to_replace.size(), [&](V i) {
+      components[2 * i] = level_euler_tree->GetRepresentative(edges_to_replace[i].first);
+      components[2 * i + 1] = level_euler_tree->GetRepresentative(edges_to_replace[i].second);
+    });
+
+    auto components_to_consider = RemoveDuplicates(std::move(components));
+#ifdef DEBUG
+    PrintEdgeSequence(edges_to_replace, "Edges to replace");
+    std::cout << " ----------Components to consider:------------" << std::endl;
+    for (auto &c : components_to_consider) {
+      auto cc = parallel_spanning_forests_[l]->ComponentEdges(c);
+      PrintEdgeSequence(cc, "Component" + std::to_string(c) + " edges");
+    }
+#endif
+    // TODO(sualeh: BUG): push down all the tree edges at level i.
+
+    // Doing a replacement search for the disconnected edge at level l.
+    sequence<E> promoted_edges;
+    promoted_edges.reserve(tree_edges.size());
+    ReplacementSearch(l, components_to_consider, promoted_edges);
+
+    if (!promoted_edges.empty()) {
+      level_euler_tree->BatchLink(promoted_edges);
+      // TODO: possibly coursen the loop
+      // update all the higher levels with the promoted tree edges
+      parlay::parallel_for(l + 1, max_level_, [&](int i) {
+        auto *level_euler_tree = parallel_spanning_forests_[i];
+        level_euler_tree->BatchLink(promoted_edges);
+      });
+      // remove the promoted edges from the non-tree edge lists
+      parlay::parallel_for(0, promoted_edges.size(), [&](auto i) {
+        const auto kE = promoted_edges[i];
+        const auto &[kU, kV] = kE;
+        const auto &[kLevel, kType] = edges_.find(kE);
+        // update the edges_ map to reflect that it is a tree edge
+        InsertIntoEdgeTable(kE, EType::K_TREE, kLevel);
+        // then we remove it from the non tree adjacency list.
+        auto &ul = non_tree_adjacency_lists_[kLevel][kU];
+        auto &vl = non_tree_adjacency_lists_[kLevel][kV];
+        assert(ul.contains(kV) || vl.contains(kU));
+        ul.deleteVal(kV);
+        vl.deleteVal(kU);
+        assert(!(ul.contains(kV) || vl.contains(kU)));
+#ifdef DEBUG
+        std::cout << "Removing edge " << kU << " " << kV << " at level: " << kLevel << std::endl;
+#endif
+      });
+    }
+  }
 }
 
 void BatchDynamicConnectivity::ReplacementSearch(
-    int level, sequence<int> components,
-    sequence<pair<int, int>> &promoted_edges) {
-  // set up a course search size and an overall stride for the component
-  // search
-  int search_size = 256;
-  int total_search_stride = 0;
-
-#ifdef DEBUG
-  // print out the components to consider
-  std::cout << "Components to consider" << std::endl;
-  for (auto &c : components) {
-    std::cout << c << " ";
-  }
-  std::cout << std::endl;
-#endif
-
-  // TODO: I think this should be 1 << (level - 1)
-  auto critical_component_size = 1 << level;
-
-  // make a vector of the components to consider with size components.size()
-  // and initialized to 0
-  std::vector<char> component_indicator(components.size(), 0);
-  auto component_map = std::unordered_map<int, int>();
-
-  // set up the component map
-  for (size_t i = 0; i < components.size(); i++) {
-    component_map[components[i]] = i;
-  }
-
-  sequence<pair<int, int>> push_down_edges;
+    Level level, sequence<V> components, sequence<E> &promoted_edges) {
+  // set up a course search size and an overall stride for the search.
+  constexpr auto kInitialSearchSize = 256;
+  uintE k_search_size = kInitialSearchSize;
+  uintE total_search_stride = 0;
+  const auto kCriticalComponentSize = 1U << (level - 1);
 
   auto *ett = parallel_spanning_forests_[level];
-
+  sequence<pair<V, V>> push_down_edges;
   auto union_find = elektra::UnionFindCompress{components.size()};
 
-  // TODO(tom): This needs to be supported as an augmentation.
+  // an indicator of whether we are done with that component.
+  std::vector<char> component_indicator(components.size(), 0);
+  // a component -> idx map
+  auto component_map = elektra::MakeIndexMap<V, V>(components);
+
   // set up non-tree edges to search through
   // The first sequence indexes by the component number
   // The second sequence indexes by the edges in the component
-  vector<vector<E>> non_tree_edges;
-
-  non_tree_edges.reserve(components.size());
-  for (uintE i = 0; i < components.size(); i++) {
-    non_tree_edges.emplace_back();
-  }
-
-  for (uintE i = 0; i < components.size(); i++) {
-    auto comp_id = components[i];
-    // get the ComponentVertices for the component
-    auto cc = ett->ComponentVertices(comp_id);
-
-    // for each vertex in the component
-    for (int u : cc) {
-      // for each edge in the component
-      for (auto &kw : non_tree_adjacency_lists_[level][u].entries()) {
-        auto w = std::get<0>(kw);
-        // push the edge into the non_tree_edges vector
-        non_tree_edges[i].push_back(E(u, w));
-      }
-    }
-  }
+  auto search_edges = GetSearchEdges(level, components, ett);
 
   while (parlay::count(component_indicator, 1) < components.size()) {
     parlay::parallel_for(0, components.size(), [&](int i) {
@@ -223,43 +231,35 @@ void BatchDynamicConnectivity::ReplacementSearch(
         return;
       }
 
-      auto non_tree_edges_i = non_tree_edges[i];
-      const int kNumEdges = non_tree_edges_i.size();
-
+      auto non_tree_edges_i = search_edges[i];
+      const uintE kNumEdges = non_tree_edges_i.size();
       // size check to ensure that we are only running over small components
-      if (kNumEdges > critical_component_size) {
+      if (kNumEdges > kCriticalComponentSize) {
         return;
       }
 
       // doing a search over the components.
-      parlay::parallel_for(0, min(kNumEdges, search_size) + 1, [&](int j) {
+      parlay::parallel_for(0, min(kNumEdges, k_search_size) + 1, [&](int j) {
         auto idx = j + total_search_stride;
         // if we have already searched this component, skip it.
         if (idx >= kNumEdges) {
           component_indicator[i] = 1;
           return;
         }
-        auto e = E{non_tree_edges_i[idx].first, non_tree_edges_i[idx].second};
-        auto u = e.first;
-        auto v = e.second;
+        const auto&[kU, kV] = non_tree_edges_i[idx];
+        auto u_component_rep = component_map.at(ett->GetRepresentative(kU));
+        auto v_component_rep = component_map.at(ett->GetRepresentative(kV));
 
-        auto u_component_rep = component_map[ett->GetRepresentative(u)];
-        auto v_component_rep = component_map[ett->GetRepresentative(v)];
+        auto u_parent = union_find.find(u_component_rep, union_find.parents);
+        auto v_parent = union_find.find(v_component_rep, union_find.parents);
 
-        auto new_u_parent =
-            union_find.find(u_component_rep, union_find.parents);
-        auto new_v_parent =
-            union_find.find(v_component_rep, union_find.parents);
-
-        if (new_u_parent != new_v_parent) {
+        if (u_parent != v_parent) {
           // link the two components together
-          // uf.link(u_parent, v_parent);
-          union_find.unite(new_u_parent, new_v_parent, union_find.parents);
-          // this should just be promoted.
-          promoted_edges.push_back(make_pair(u, v));
+          union_find.unite(u_parent, v_parent, union_find.parents);
+          promoted_edges.push_back(make_pair(kU, kV));
         } else {
           // this failed and will be pushed down a level.
-          push_down_edges.push_back(make_pair(u, v));
+          push_down_edges.push_back(make_pair(kU, kV));
         }
       });
 
@@ -267,243 +267,14 @@ void BatchDynamicConnectivity::ReplacementSearch(
       // Note we will promote the edges later.
     });
 
-    // update the total search stride
-    total_search_stride += search_size;
-
-    // update the search size
-    search_size *= 2;
+    // update the total search stride and search size
+    total_search_stride += k_search_size;
+    k_search_size *= 2;
   }
 
 #ifdef DEBUG
-  // print the promoted edges
-  std::cout << "Promoted edges" << std::endl;
-  for (auto &e : promoted_edges) {
-    std::cout << e.first << " " << e.second << std::endl;
-  }
-  std::cout << std::endl;
+  PrintEdgeSequence(promoted_edges, "Promoted Edges");
 #endif
 }
 
-void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
-  // first make sure all the edges are correctly oriented and remove all the
-  // edges that are not in the graph
-
-  parlay::parallel_for(0, se.size(), [&](size_t i) {
-    auto e = se[i];
-    auto u = e.first;
-    auto v = e.second;
-
-    if (edges_.find(pair<V, V>(v, u)) != empty_info_) {
-      // swap the edges
-      se[i] = E(v, u);
-    } else if (edges_.find(pair<V, V>(u, v)) == empty_info_) {
-      // if the edge is not in the graph, skip it
-      se[i] = E(-1, -1);
-    }
-  });
-
-  // filter out the (-1, -1) edges
-  parlay::filter(se, [&](E e) { return e.first != -1; });
-
-  // split se into tree and non tree edges
-  sequence<E> tree_edges;
-  // reserve space for the sequence
-  tree_edges.reserve(se.size());
-
-  int min_tree_edge_level = static_cast<int>(max_level_);
-  // std::atomic<int8_t> min_tree_edge_level(max_level_);
-
-  std::mutex m;
-  std::unique_lock<std::mutex> lock(m, std::defer_lock);
-
-  // delete edges from the non tree adjacency lists.
-  // TODO(sualeh): maybe collect the edges to be deleted and then delete them
-  // in a batch
-  parlay::parallel_for(0, se.size(), [&](int i) {
-    auto level = edges_.find(pair<V, V>(se[i].first, se[i].second)).level;
-    auto u = se[i].first;
-    auto v = se[i].second;
-
-    auto &ul = non_tree_adjacency_lists_[level][u];
-    auto &vl = non_tree_adjacency_lists_[level][v];
-
-#ifdef DEBUG
-    // print ul
-    std::cout << "ul" << std::endl;
-    for (auto &e : ul.entries()) {
-      std::cout << "(" << u << " " << std::get<0>(e) << "), ";
-    }
-    std::cout << std::endl;
-
-    // print vl
-    std::cout << "vl" << std::endl;
-    for (auto &e : vl.entries()) {
-      std::cout << "(" << v << " " << std::get<0>(e) << "), ";
-    }
-    std::cout << std::endl;
-#endif
-
-    // if (u, v) is not a tree edge, then we need to remove it from the
-    // non tree adjacency list
-    // TODO: could this possibly do this with edges_[se[i]] == K_TREE?
-    if (ul.contains(v)) {
-      non_tree_adjacency_lists_[level][u].deleteVal(v);
-      non_tree_adjacency_lists_[level][v].deleteVal(u);
-
-    } else {
-      // if it is a tree edge, then we need to add it to the tree edges
-      tree_edges.push_back(se[i]);
-
-      // atomic compare and swap to find the minimum tree edge level
-      // FIXME: Fix this. Find a way to do this without locking
-      if (level < min_tree_edge_level) {
-        lock.lock();
-        if (level < min_tree_edge_level) {
-          min_tree_edge_level = level;
-        }
-        lock.unlock();
-      }
-      // if (level < min_tree_edge_level) {
-      //   std::atomic_compare_exchange_strong(
-      //       &min_tree_edge_level, &min_tree_edge_level,
-      //       std::min(atomic_level, min_tree_edge_level));
-      // }
-    }
-  });
-
-#ifdef DEBUG
-  // print min and max level here
-  std::cout << "min tree edge level: " << min_tree_edge_level << std::endl;
-  std::cout << "max tree edge level: " << (int)max_level_ << std::endl;
-#endif
-
-  // delete edges from the tree at each level from the minimum tree edge level
-  // to the maximum tree edge level
-  for (int l = min_tree_edge_level; l < max_level_; l++) {
-    auto *level_euler_tree = parallel_spanning_forests_[l];
-
-    // get the edges to delete which have level at max l.
-    auto to_delete = parlay::filter(tree_edges, [&](E e) {
-      return edges_.find(pair<V, V>(e.first, e.second)).level <= l;
-    });
-
-#ifdef DEBUG
-    std::cout << "Deleting edges from level " << l << std::endl;
-    for (auto &e : to_delete) {
-      std::cout << e.first << " " << e.second << std::endl;
-    }
-#endif
-
-    // FIXME: We do an extraneously expensive copy here because of API design.
-    sequence<pair<int, int>> to_delete_pair_sequence =
-        EdgeBatchToPairArray(to_delete);
-
-#ifdef DEBUG
-    for (auto &e : to_delete_pair_sequence) {
-      std::cout << e.first << " " << e.second << std::endl;
-    }
-#endif
-
-    level_euler_tree->BatchCut(to_delete_pair_sequence);
-  }
-
-  // We now try to find replacement edges starting from the min level
-  // and working our way up.
-  for (int l = min_tree_edge_level; l < max_level_; l++) {
-    auto *level_euler_tree = parallel_spanning_forests_[l];
-
-    auto edges_to_replace = parlay::filter(tree_edges, [&](E e) {
-      return edges_.find(pair<V, V>(e.first, e.second)).level == l;
-    });
-
-#ifdef DEBUG
-    // print out the edges to replace
-    std::cout << "Edges to replace" << std::endl;
-    for (auto &e : edges_to_replace) {
-      std::cout << "(" << e.first << ", " << e.second << "), ";
-    }
-    std::cout << std::endl << std::endl;
-#endif
-
-    sequence<int> lcomponents = parlay::map(edges_to_replace, [&](E e) {
-      return level_euler_tree->GetRepresentative(e.first);
-    });
-    sequence<int> rcomponents = parlay::map(edges_to_replace, [&](E e) {
-      return level_euler_tree->GetRepresentative(e.second);
-    });
-    lcomponents.append(rcomponents);
-
-    auto components_to_consider = RemoveDuplicates(lcomponents);
-
-// print out the components to consider if debug is defined
-#ifdef DEBUG
-    std::cout << " ----------------------" << std::endl;
-    std::cout << "Components to consider:" << std::endl;
-
-    for (auto &c : components_to_consider) {
-      std::cout << "Component " << c << " contains the edges:";
-      auto ett = parallel_spanning_forests_[l];
-      auto cc = ett->ComponentEdges(c);
-      for (auto &e : cc) {
-        std::cout << "(" << e.first << ", " << e.second << "), ";
-      }
-      std::cout << std::endl;
-    }
-#endif
-
-    // FIXME: we might have to reserve space here.
-    sequence<pair<int, int>> promoted_edges;
-
-    // Doing a replacement search for the disconnected edge at level l.
-    // BUG: push down all the tree edges at level i.
-    ReplacementSearch(l, components_to_consider, promoted_edges);
-
-    if (!promoted_edges.empty()) {
-      // We have some promoted edges.
-      level_euler_tree->BatchLink(promoted_edges);
-      // TODO: possibly coursen the loop
-      // update the tree edges with the promoted edges for all the higher
-      // levels
-      parlay::parallel_for(l + 1, max_level_, [&](int i) {
-        auto *level_euler_tree = parallel_spanning_forests_[i];
-        level_euler_tree->BatchLink(promoted_edges);
-      });
-
-      // remove the promoted edges from the non-tree edge lists
-      parlay::parallel_for(0, promoted_edges.size(), [&](int i) {
-        auto e = promoted_edges[i];
-        auto level = edges_.find(e).level;
-        auto u = promoted_edges[i].first;
-        auto v = promoted_edges[i].second;
-
-// if DEBUG is defined
-#ifdef DEBUG
-        // print
-        std::cout << "Removing edge " << e.first << " " << e.second
-                  << std::endl;
-        // level
-        std::cout << "level: " << (int)level << std::endl;
-#endif
-
-        // update the edges_ map to reflect that it is a tree edge
-        bdcty::EInfo ei = {level, bdcty::EType::K_TREE};
-        edges_.insert(make_tuple(e, ei));
-        edges_.insert(make_tuple(make_pair(e.second, e.first), ei));
-
-        auto &ul = non_tree_adjacency_lists_[level][u];
-        auto &vl = non_tree_adjacency_lists_[level][v];
-
-        // if (u, v) is a tree edge, then we need to remove it from the
-        // non tree adjacency list
-
-        assert(ul.contains(v) || vl.contains(u));
-
-        ul.deleteVal(v);
-        vl.deleteVal(u);
-
-        assert(!(ul.contains(v) || vl.contains(u)));
-      });
-    }
-  }
-}
 }  // namespace bdcty

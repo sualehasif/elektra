@@ -54,8 +54,7 @@ struct hash_edge {
             : ((std::get<1>(v) == std::get<1>(b)) ? 0 : -1);
     return (std::get<0>(v) > std::get<0>(b))
                ? 1
-               : ((std::get<0>(v) == std::get<0>(b)) ? return cmpSecond(v, b)
-                                                     : -1);
+               : ((std::get<0>(v) == std::get<0>(b)) ? cmpSecond(v, b) : -1);
   }
   bool replaceQ(eType, eType) { return 0; }
   eType update(eType v, eType) { return v; }

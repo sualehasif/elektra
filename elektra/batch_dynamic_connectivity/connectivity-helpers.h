@@ -4,8 +4,6 @@
 #include <parlay/primitives.h>
 #include <parlay/sequence.h>
 
-#include <boost/pending/disjoint_sets.hpp>
-#include <boost/property_map/property_map.hpp>
 #include <cstdint>
 #include <map>
 #include <ostream>
@@ -14,8 +12,10 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <cstddef>
 
 #include "hash_pair.h"
+#include "hash_table_utils.h"
 #include "macros.h"
 #include "parallel_euler_tour_tree/euler_tour_tree.hpp"
 #include "resizable_table.h"
@@ -33,7 +33,9 @@ using std::min;
 using std::pair;
 using std::tuple;
 using std::vector;
-typedef unsigned int uintE;
+
+using parlay::sequence;
+using uintE = unsigned int;
 
 using E = pair<V, V>;
 using EHash = HashIntPairStruct;
@@ -66,6 +68,8 @@ struct EInfo {
   }
 };
 
+const bdcty::EInfo kEmptyInfo = {-1, bdcty::EType::K_NON_TREE};
+
 // make a hashtable with an empty value type
 // hash32 is sufficient
 struct hash_kv {
@@ -74,6 +78,9 @@ struct hash_kv {
 
 using VertexConcurrentSet =
 elektra::resizable_table<V, elektra::empty, hash_kv>;
+
+using EdgeSet =
+elektra::resizable_table<std::pair<V, V>, bdcty::EInfo, HashIntPairStruct>;
 
 /**
  * @brief The structure that contains the Non-Tree edges.
@@ -89,10 +96,7 @@ class NonTreeAdjacencyList {
    *  @param[in] numVertices Number of vertices in the graph.
    */
   NonTreeAdjacencyList() = default;
-  NonTreeAdjacencyList(int num_vertices, int max_level);
-
-  /** Destructor. */
-  // ~NonTreeAdjacencyList();
+  NonTreeAdjacencyList(V num_vertices, V max_level);
 
   /** Adds a batch of edges to the graph.
    *  The insertion happens in parallel and ensures that the internal
@@ -140,7 +144,7 @@ class NonTreeAdjacencyList {
   //  int NumNonTreeEdgesForLevel(bdcty::Level level) const;
 
  private:
-  int num_vertices_{0};
+  V num_vertices_{0};
   int max_level_{0};
 
   // `non_tree_adjacency_lists_[i][v]` contains the vertices connected to vertex
@@ -153,12 +157,12 @@ class NonTreeAdjacencyList {
       non_tree_adjacency_lists_;
 
   // generate a vertex layer
-  static auto GenerateVertexLayer(int num_vertices);
+  static auto GenerateVertexLayer(V num_vertices);
 };
 
-auto NonTreeAdjacencyList::GenerateVertexLayer(int num_vertices) {
+auto NonTreeAdjacencyList::GenerateVertexLayer(V num_vertices) {
   auto vtx_layer = parlay::sequence<VertexConcurrentSet>::from_function(
-      num_vertices, [&](int n) {
+      num_vertices, [&](auto n) {
         return VertexConcurrentSet(
             VERTEX_LAYER_SIZE, std::make_tuple(INT_E_MAX, elektra::empty{}),
             std::make_tuple(INT_E_MAX - 1, elektra::empty{}), hash_kv());
@@ -167,13 +171,13 @@ auto NonTreeAdjacencyList::GenerateVertexLayer(int num_vertices) {
   return vtx_layer;
 }
 
-NonTreeAdjacencyList::NonTreeAdjacencyList(int num_vertices, int max_level)
+NonTreeAdjacencyList::NonTreeAdjacencyList(V num_vertices, V max_level)
     : num_vertices_(num_vertices), max_level_(max_level) {
   // We set up the non-tree adjacency lists.
   non_tree_adjacency_lists_ =
       parlay::sequence<parlay::sequence<VertexConcurrentSet>>(max_level);
 
-  parlay::parallel_for(0, max_level, [&](int i) {
+  parlay::parallel_for(0, max_level, [&](auto i) {
     auto vtx_layer = GenerateVertexLayer(num_vertices);
     non_tree_adjacency_lists_[i] = vtx_layer;
   });
@@ -188,7 +192,7 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
   }
 
   // add all the reverse e's of the edges to the graph
-  parlay::parallel_for(0, ne, [&](int i) {
+  parlay::parallel_for(0, ne, [&](auto i) {
     auto e = edges[i];
     edges[ne + i] = std::make_pair(e.second, e.first);
   });
@@ -205,7 +209,7 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
 #ifdef DEBUG
   // print the sorted edges
   std::cout << "Sorted edges:" << std::endl;
-  for (int i = 0; i < (int)ne * 2; i++) {
+  for (auto i = 0; i < (int)ne * 2; i++) {
     std::cout << "(" << edges[i].first << ", " << edges[i].second << ")"
               << std::endl;
   }
@@ -222,7 +226,7 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
 
 #ifdef DEBUG
   std::cout << "Unique starting vertices:" << std::endl;
-  for (int i = 0; i < (int)unique_starting_vertices.size(); i++) {
+  for (auto i = 0; i < (int)unique_starting_vertices.size(); i++) {
     std::cout << "(" << unique_starting_vertices[i].first << ", "
               << unique_starting_vertices[i].second << "), ";
   }
@@ -232,7 +236,7 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
   V edge_positions[unique_starting_vertices.size() + 1];
 
   // find the position of each vertex in the unique vertices
-  parlay::parallel_for(0, unique_starting_vertices.size(), [&](int i) {
+  parlay::parallel_for(0, unique_starting_vertices.size(), [&](auto i) {
     auto *pos = parlay::find(edges, unique_starting_vertices[i]);
     edge_positions[i] = pos - edges.begin();
   });
@@ -242,14 +246,14 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
   // print the positions of the vertices in DEBUG
 #ifdef DEBUG
   std::cout << "Positions of unique starting vertices:" << std::endl;
-  for (int i = 0; i < (int)unique_starting_vertices.size(); i++) {
+  for (auto i = 0; i < (int)unique_starting_vertices.size(); i++) {
     std::cout << edge_positions[i] << ", ";
   }
   std::cout << std::endl;
 #endif
 
   // then we add the edges to the graph
-  parlay::parallel_for(0, unique_starting_vertices.size(), [&](int i) {
+  parlay::parallel_for(0, unique_starting_vertices.size(), [&](auto i) {
     auto &vtx = unique_starting_vertices[i];
     auto &vertex_list = level_lists[vtx.first];
 
@@ -265,7 +269,7 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
 #ifdef DEBUG
     std::cout << "V insertion for vertex " << vtx.first << ": ("
               << num_edges_for_vertex << " edges to be inserted)" << std::endl;
-    for (int i = 0; i < num_edges_for_vertex; i++) {
+    for (auto i = 0; i < num_edges_for_vertex; i++) {
       auto &edge = edges[start_pos + i];
       std::cout << "(" << edge.first << ", " << edge.second << "), ";
     }
@@ -273,15 +277,46 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
 #endif
 
     // add the edges to the graph
-    for (int j = 0; j < num_edges_for_vertex; j++) {
+    for (auto j = 0; j < num_edges_for_vertex; j++) {
       auto &edge = edges[start_pos + j];
       vertex_list.insert(make_tuple(edge.second, elektra::empty{}));
     }
   });
 }
 
+template<class Edge, class EdgeSet, typename EdgeInfo>
+void RemoveUnknownEdges(sequence<Edge> &se, EdgeSet edges, EdgeInfo e_info) {
+  parlay::parallel_for(0, se.size(), [&](size_t i) {
+    auto e = se[i];
+    auto u = e.first;
+    auto v = e.second;
+
+    if (edges.find(Edge(v, u)) != e_info) {
+      // swap the edges
+      se[i] = E(v, u);
+    } else if (edges.find(Edge(u, v)) == e_info) {
+      // if the edge is not in the graph, skip it
+      se[i] = E(-1, -1);
+    }
+  });
+
+  // filter out the (-1, -1) edges
+  parlay::filter(se, [&](E e) { return e.first != -1; });
+
+}
+
+template<typename T>
+auto PrintSequence(T &seq, const std::string &&name) {
+  //TODO: using tuple_size make this print if not a tuple
+  std::cout << name << ": ";
+  for (size_t i = 0; i < seq.size(); i++) {
+    std::cout << std::get<0>(seq[i]) << ", ";
+  }
+  std::cout << std::endl;
+}
+
 auto PrintEdgeSequence(const parlay::sequence<pair<V, V>> &edges,
-                       const std::string &name) {
+                       const std::string &&name) {
   std::cout << name << ": ";
   for (const auto &e : edges) {
     std::cout << "(" << e.first << ", " << e.second << "), ";
@@ -290,7 +325,7 @@ auto PrintEdgeSequence(const parlay::sequence<pair<V, V>> &edges,
 }
 
 template<typename T>
-auto PrintEdgeSequence(T &&edges, const std::string &name) {
+auto PrintEdgeSequence(T &edges, const std::string &&name) {
   std::cout << name << ": ";
   for (const auto &e : edges) {
     std::cout << "(" << e.first << ", " << e.second << "), ";
@@ -298,4 +333,4 @@ auto PrintEdgeSequence(T &&edges, const std::string &name) {
   std::cout << std::endl;
 }
 
-} // namespace bdcty
+}  // namespace bdcty
