@@ -27,11 +27,13 @@
 
 using V = int;
 namespace bdcty {
-using std::make_pair;
-using std::make_tuple;
 using std::min;
 using std::pair;
+using std::make_pair;
 using std::tuple;
+using std::make_tuple;
+using std::unique_ptr;
+using std::make_unique;
 using std::vector;
 
 using parlay::sequence;

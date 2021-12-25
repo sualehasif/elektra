@@ -39,14 +39,14 @@ class BatchDynamicConnectivity {
 
   /** Copy assignment not implemented. */
   auto operator=(const BatchDynamicConnectivity &other)
-  -> BatchDynamicConnectivity & = delete;
+      -> BatchDynamicConnectivity & = delete;
 
   /** Move constructor. */
   BatchDynamicConnectivity(BatchDynamicConnectivity &&other) = delete;
 
   /** Move assignment not implemented. */
   auto operator=(BatchDynamicConnectivity &&other) noexcept
-  -> BatchDynamicConnectivity & = delete;
+      -> BatchDynamicConnectivity & = delete;
 
   /** Returns true if vertices \p u and \p v are connected in the graph.
    *
@@ -57,7 +57,7 @@ class BatchDynamicConnectivity {
    *  TODO(sualeh): minor, but why is return type is char and not bool?
    */
   [[nodiscard]] auto BatchConnected(parlay::sequence<std::pair<V, V>> suv) const
-  -> parlay::sequence<char>;
+      -> parlay::sequence<char>;
 
   /** Adds a batch of edges to the graph.
    *
@@ -96,7 +96,7 @@ class BatchDynamicConnectivity {
   // `spanning_forests_[i]` stores F_i, the spanning forest for the i-th
   // subgraph. In particular, `spanning_forests[0]` is a spanning forest for the
   // whole graph.
-  parlay::sequence<BatchDynamicEtt *> parallel_spanning_forests_;
+  parlay::sequence<unique_ptr<BatchDynamicEtt>> parallel_spanning_forests_;
 
   // `non_tree_adjacency_lists_[i][v]` contains the vertices connected to vertex
   // v by level-i non-tree edges.
@@ -111,19 +111,27 @@ class BatchDynamicConnectivity {
                          parlay::sequence<pair<V, V>> &promoted_edges);
 
   static auto RemoveDuplicates(parlay::sequence<V> &seq) -> parlay::sequence<V>;
-  static auto RemoveDuplicates(parlay::sequence<V> &&seq) -> parlay::sequence<V>;
-  inline void InsertIntoEdgeTable(const pair<V, V> &e, EType e_type, Level level);
-  inline auto GetSearchEdges(Level level, sequence<V> &components, BatchDynamicEtt *ett) -> vector<vector<E>>;
+  static auto RemoveDuplicates(parlay::sequence<V> &&seq)
+      -> parlay::sequence<V>;
+  inline void InsertIntoEdgeTable(const pair<V, V> &e, EType e_type,
+                                  Level level);
+  inline auto GetSearchEdges(Level level, sequence<V> &components,
+                             unique_ptr<BatchDynamicEtt> &ett)
+      -> vector<vector<E>>;
 };
 
 BatchDynamicConnectivity::BatchDynamicConnectivity(V num_vertices)
     : num_vertices_(num_vertices), max_level_(parlay::log2_up(num_vertices)) {
-  parallel_spanning_forests_ = parlay::sequence<BatchDynamicEtt *>(max_level_);
+  parallel_spanning_forests_ =
+      parlay::sequence<unique_ptr<BatchDynamicEtt>>::from_function(
+          max_level_, [&](size_t i) {
+            return make_unique<BatchDynamicEtt>(num_vertices_);
+          });
 
-  parlay::parallel_for(0, max_level_, [&](auto i) {
-    auto *ett = new BatchDynamicEtt{(int) num_vertices};
-    parallel_spanning_forests_[i] = ett;
-  });
+  // parlay::parallel_for(0, max_level_, [&](auto i) {
+  //   parallel_spanning_forests_[i] =
+  //   make_unique<BatchDynamicEtt>(num_vertices_);
+  // });
 
   non_tree_adjacency_lists_ = NonTreeAdjacencyList(num_vertices, max_level_);
 
@@ -137,12 +145,16 @@ BatchDynamicConnectivity::BatchDynamicConnectivity(V num_vertices)
 BatchDynamicConnectivity::BatchDynamicConnectivity(
     V num_vertices, const parlay::sequence<E> &se)
     : num_vertices_(num_vertices), max_level_(parlay::log2_up(num_vertices)) {
-  parallel_spanning_forests_ = parlay::sequence<BatchDynamicEtt *>(max_level_);
+  parallel_spanning_forests_ =
+      parlay::sequence<unique_ptr<BatchDynamicEtt>>::from_function(
+          max_level_, [&](size_t i) {
+            return make_unique<BatchDynamicEtt>(num_vertices_);
+          });
 
-  parlay::parallel_for(0, max_level_, [&](auto i) {
-    auto *ett = new BatchDynamicEtt{(int) num_vertices};
-    parallel_spanning_forests_[i] = ett;
-  });
+  // parlay::parallel_for(0, max_level_, [&](auto i) {
+  //   parallel_spanning_forests_[i] =
+  //   make_unique<BatchDynamicEtt>(num_vertices_);
+  // });
 
   non_tree_adjacency_lists_ = NonTreeAdjacencyList(num_vertices, max_level_);
 
@@ -154,13 +166,13 @@ BatchDynamicConnectivity::BatchDynamicConnectivity(
   BatchAddEdges(se);
 }
 
-template<typename E, typename N=E>
-auto RepresentativeSpanningTree(const parlay::sequence<E> &se, BatchDynamicEtt *ett) {
-// Construct the auxiliary edges.
+template <typename E, typename N = E>
+auto RepresentativeSpanningTree(const parlay::sequence<E> &se,
+                                unique_ptr<BatchDynamicEtt> &ett) {
+  // Construct the auxiliary edges.
   sequence<pair<N, N>> aux_int_edges = parlay::map(se, [&](E e) {
-    return make_pair(
-        static_cast<N>(ett->GetRepresentative(e.first)),
-        static_cast<N>(ett->GetRepresentative(e.second)));
+    return make_pair(static_cast<N>(ett->GetRepresentative(e.first)),
+                     static_cast<N>(ett->GetRepresentative(e.second)));
   });
 
   auto spanning_tree = sequence<pair<N, N>>::uninitialized(se.size());
@@ -169,9 +181,9 @@ auto RepresentativeSpanningTree(const parlay::sequence<E> &se, BatchDynamicEtt *
   return spanning_tree;
 }
 
-template<typename T, class VType>
+template <typename T, class VType>
 auto NewEdgeSequence(parlay::sequence<pair<VType, VType>> &se)
--> parlay::sequence<std::pair<T, T>> {
+    -> parlay::sequence<std::pair<T, T>> {
   // turns a sequence of edges to an array of pairs
   // useful for V with EulerTourTrees
   auto array = parlay::sequence<std::pair<T, T>>::uninitialized(se.size());
@@ -183,21 +195,22 @@ auto NewEdgeSequence(parlay::sequence<pair<VType, VType>> &se)
   return array;
 }
 
-inline void BatchDynamicConnectivity::InsertIntoEdgeTable(const pair<V, V> &e, EType e_type, Level level) {
+inline void BatchDynamicConnectivity::InsertIntoEdgeTable(const pair<V, V> &e,
+                                                          EType e_type,
+                                                          Level level) {
   EInfo ei = {level, e_type};
   edges_.insert(make_tuple(pair<V, V>(e.first, e.second), ei));
 
   // TODO(sualeh): Think about whether you can get away without
-// inserting the reverse edge add the reverse edge to the edges_ map
+  // inserting the reverse edge add the reverse edge to the edges_ map
   EInfo ei_rev = {level, e_type};
   edges_.insert(make_tuple(pair<V, V>(e.second, e.first), ei_rev));
 }
 
 // TODO(tom): This needs to be supported as an augmentation.
-inline auto BatchDynamicConnectivity::GetSearchEdges(Level level,
-                                                     sequence<V> &components,
-                                                     BatchDynamicEtt *ett)
--> vector<vector<E>> {
+inline auto BatchDynamicConnectivity::GetSearchEdges(
+    Level level, sequence<V> &components, unique_ptr<BatchDynamicEtt> &ett)
+    -> vector<vector<E>> {
   vector<vector<E>> non_tree_edges;
   non_tree_edges.reserve(components.size());
   for (auto _ : components) {
@@ -219,17 +232,17 @@ inline auto BatchDynamicConnectivity::GetSearchEdges(Level level,
 }
 
 auto BatchDynamicConnectivity::RemoveDuplicates(sequence<V> &seq)
--> sequence<V> {
+    -> sequence<V> {
   // TODO: possibly change this to use a semisort and not inplace sort
   // sort the sequence
-  parlay::integer_sort_inplace(seq, [](V x) { return (unsigned) x; });
+  parlay::integer_sort_inplace(seq, [](V x) { return (unsigned)x; });
 
   return parlay::unique(seq);
 }
 
 auto BatchDynamicConnectivity::RemoveDuplicates(sequence<V> &&seq)
--> sequence<V> {
-  parlay::integer_sort_inplace(seq, [](V x) { return (unsigned) x; });
+    -> sequence<V> {
+  parlay::integer_sort_inplace(seq, [](V x) { return (unsigned)x; });
   return parlay::unique(seq);
 }
 
@@ -252,7 +265,7 @@ auto BatchDynamicConnectivity::RemoveDuplicates(sequence<V> &&seq)
 // We print the edges in each level of our structure
 void BatchDynamicConnectivity::PrintLevel(Level level) {
   // print the edges in the level
-  auto p_level_euler_tree = parallel_spanning_forests_[level];
+  auto &p_level_euler_tree = parallel_spanning_forests_[level];
 
   // if (p_level_euler_tree == nullptr || level >= max_level_ || level < 0 ||
   //     p_level_euler_tree->IsEmpty()) {
@@ -285,7 +298,7 @@ void BatchDynamicConnectivity::PrintNonTreeEdgesForLevel(Level level) {
   // scan through and build a set of all the edges
   std::unordered_set<E, EHash> edges;
 
-  for (int i = 0; i < (int) num_vertices_; i++) {
+  for (int i = 0; i < (int)num_vertices_; i++) {
     auto vtx_set = vtx_layer[i];
     for (auto &kv : vtx_set.entries()) {
       // get the vertex by getting the first element of the tuple

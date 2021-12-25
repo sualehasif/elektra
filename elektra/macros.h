@@ -1,6 +1,7 @@
 #pragma once
 
 #include <limits.h>
+#include <memory>
 #include <parlay/random.h>
 #include <parlay/sequence.h>
 

@@ -20,8 +20,7 @@ auto BatchDynamicConnectivity::BatchConnected(sequence<pair<V, V>> suv) const
 -> sequence<char> {
   sequence<char> s_connected(suv.size(), 0);
   // check if they are connected in the highest level forest
-  BatchDynamicEtt *p_max_level_euler_tree =
-      parallel_spanning_forests_[max_level_ - 1];
+  const auto &p_max_level_euler_tree = parallel_spanning_forests_[max_level_ - 1];
 
   parlay::parallel_for(0, suv.size(), [&](size_t i) {
     auto[v_1, v_2] = suv[i];
@@ -40,18 +39,20 @@ auto BatchDynamicConnectivity::BatchConnected(sequence<pair<V, V>> suv) const
 // present in the graph.
 void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
   // Look at the max level Euler Tour Tree in the parallel spanning forests.
-  BatchDynamicEtt *max_level_euler_tree =
-      parallel_spanning_forests_[max_level_ - 1];
+  auto &max_level_euler_tree = parallel_spanning_forests_[max_level_ - 1];
 
-  // We get the spanning tree_set of the representatives of the vertices in the max_level_euler_tree.
-  // We get back a vector of type uintE.
-  auto spanning_tree = RepresentativeSpanningTree<E, uintE>(se, max_level_euler_tree);
-  auto tree_set = elektra::MakeSet<sequence<pair<uintE, uintE>>, E, EHash>(spanning_tree);
+  // We get the spanning tree_set of the representatives of the vertices in the
+  // max_level_euler_tree. We get back a vector of type uintE.
+  auto spanning_tree =
+      RepresentativeSpanningTree<E, uintE>(se, max_level_euler_tree);
+  auto tree_set =
+      elektra::MakeSet<sequence<pair<uintE, uintE>>, E, EHash>(spanning_tree);
   parlay::parallel_for(0, spanning_tree.size(), [&](size_t i) {
     pair<V, V> e = E(spanning_tree[i].first, spanning_tree[i].second);
     InsertIntoEdgeTable(e, EType::K_TREE, max_level_ - 1);
   });
-  // TODO(major: sualeh): get rid of this and just use the spanning tree_set vector.
+  // TODO(major: sualeh): get rid of this and just use the spanning tree_set
+  // vector.
   auto tree_edges = NewEdgeSequence<int>(spanning_tree);
   max_level_euler_tree->BatchLink(tree_edges);
 
@@ -92,7 +93,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
   sequence<E> tree_edges;
   tree_edges.reserve(se.size());
 
-//  V min_tree_edge_level = static_cast<V>(max_level_);
+  //  V min_tree_edge_level = static_cast<V>(max_level_);
   std::atomic<V> min_tree_edge_level(max_level_);
 
   std::mutex m;
@@ -109,7 +110,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
     auto &vl = non_tree_adjacency_lists_[kLevel][kV];
 
     // if (kU, kV) is not a tree edge, then we need to remove it from the
-    // non tree adjacency list. Otherwise, we have to do hard work to remove it from the tree.
+    // non tree adjacency list. Otherwise, we have to do hard work to remove it
+    // from the tree.
     if (kType == EType::K_NON_TREE) {
       ul.deleteVal(kV);
       vl.deleteVal(kU);
@@ -127,33 +129,34 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
   // delete edges from the tree at each level from the minimum tree edge level
   // to the maximum tree edge level
   for (int l = min_tree_edge_level; l < max_level_; l++) {
-    auto *level_euler_tree = parallel_spanning_forests_[l];
+    auto &level_euler_tree = parallel_spanning_forests_[l];
 
     // get the edges to delete which have level at max l.
-    auto to_delete = parlay::filter(tree_edges, [&](E e) {
-      return edges_.find(e).level <= l;
-    });
+    auto to_delete = parlay::filter(
+        tree_edges, [&](E e) { return edges_.find(e).level <= l; });
     level_euler_tree->BatchCut(to_delete);
 
 #ifdef DEBUG
     std::cout << "Deleting edges from level " << l << std::endl;
-      for (auto &e : to_delete) {
-        std::cout << e.first << " " << e.second << std::endl;
-      }
+    for (auto &e : to_delete) {
+      std::cout << e.first << " " << e.second << std::endl;
+    }
 #endif
   }
 
   // We now try to find replacement edges starting from the min level.
   for (int l = min_tree_edge_level; l < max_level_; l++) {
-    auto *level_euler_tree = parallel_spanning_forests_[l];
+    auto &level_euler_tree = parallel_spanning_forests_[l];
 
     auto edges_to_replace = parlay::filter(tree_edges, [&](E e) {
       return edges_.find(pair<V, V>(e.first, e.second)).level == l;
     });
     auto components = sequence<V>::uninitialized(2 * edges_to_replace.size());
-    parlay::parallel_for(0, edges_to_replace.size(), [&](V i) {
-      components[2 * i] = level_euler_tree->GetRepresentative(edges_to_replace[i].first);
-      components[2 * i + 1] = level_euler_tree->GetRepresentative(edges_to_replace[i].second);
+    parlay::parallel_for(0, edges_to_replace.size(), [&](size_t i) {
+      components[2 * i] =
+          level_euler_tree->GetRepresentative(edges_to_replace[i].first);
+      components[2 * i + 1] =
+          level_euler_tree->GetRepresentative(edges_to_replace[i].second);
     });
 
     auto components_to_consider = RemoveDuplicates(std::move(components));
@@ -177,7 +180,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
       // TODO: possibly coursen the loop
       // update all the higher levels with the promoted tree edges
       parlay::parallel_for(l + 1, max_level_, [&](int i) {
-        auto *level_euler_tree = parallel_spanning_forests_[i];
+        auto &level_euler_tree = parallel_spanning_forests_[i];
         level_euler_tree->BatchLink(promoted_edges);
       });
       // remove the promoted edges from the non-tree edge lists
@@ -195,22 +198,24 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
         vl.deleteVal(kU);
         assert(!(ul.contains(kV) || vl.contains(kU)));
 #ifdef DEBUG
-        std::cout << "Removing edge " << kU << " " << kV << " at level: " << kLevel << std::endl;
+        std::cout << "Removing edge " << kU << " " << kV
+                  << " at level: " << kLevel << std::endl;
 #endif
       });
     }
   }
 }
 
-void BatchDynamicConnectivity::ReplacementSearch(
-    Level level, sequence<V> components, sequence<E> &promoted_edges) {
+void BatchDynamicConnectivity::ReplacementSearch(Level level,
+                                                 sequence<V> components,
+                                                 sequence<E> &promoted_edges) {
   // set up a course search size and an overall stride for the search.
   constexpr auto kInitialSearchSize = 256;
   uintE k_search_size = kInitialSearchSize;
   uintE total_search_stride = 0;
   const auto kCriticalComponentSize = 1U << (level - 1);
 
-  auto *ett = parallel_spanning_forests_[level];
+  auto &ett = parallel_spanning_forests_[level];
   sequence<pair<V, V>> push_down_edges;
   auto union_find = elektra::UnionFindCompress{components.size()};
 
@@ -226,14 +231,14 @@ void BatchDynamicConnectivity::ReplacementSearch(
 
   while (parlay::count(component_indicator, 1) < components.size()) {
     parlay::parallel_for(0, components.size(), [&](int i) {
-      // check if the component is already marked
+      // early return if the component is already marked
       if (component_indicator[i] == 1) {
         return;
       }
 
       auto non_tree_edges_i = search_edges[i];
       const uintE kNumEdges = non_tree_edges_i.size();
-      // size check to ensure that we are only running over small components
+      // early return if the component is big
       if (kNumEdges > kCriticalComponentSize) {
         return;
       }
@@ -246,15 +251,16 @@ void BatchDynamicConnectivity::ReplacementSearch(
           component_indicator[i] = 1;
           return;
         }
-        const auto&[kU, kV] = non_tree_edges_i[idx];
+
+        const auto &[kU, kV] = non_tree_edges_i[idx];
         auto u_component_rep = component_map.at(ett->GetRepresentative(kU));
         auto v_component_rep = component_map.at(ett->GetRepresentative(kV));
-
         auto u_parent = union_find.find(u_component_rep, union_find.parents);
         auto v_parent = union_find.find(v_component_rep, union_find.parents);
 
         if (u_parent != v_parent) {
-          // link the two components together
+          // link the two components together: we found an edge that connects
+          // them
           union_find.unite(u_parent, v_parent, union_find.parents);
           promoted_edges.push_back(make_pair(kU, kV));
         } else {
