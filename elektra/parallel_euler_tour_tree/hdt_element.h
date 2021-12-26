@@ -6,6 +6,7 @@
 
 #include "element.h"
 #include "utilities/while_loop.h"
+#include "utilities.h"
 
 namespace parallel_euler_tour_tree {
 
@@ -16,7 +17,7 @@ struct HdtAugmentation {
   // 1. Augment each edge element to get "number of level-i edges in this list".
   // 2. Augment each vertex element to get "number of level-i non-tree edges
   //    incident to vertices in this list".
-  using T = std::tuple<uint32_t, uint32_t, uint64_t>;
+  using T = std::tuple<v_int, v_int, uint64_t>;
   static T f(const T& a, const T& b) {
     return {
       std::get<0>(a) + std::get<0>(b),
@@ -58,7 +59,7 @@ class HdtElement : public ElementBase<HdtElement, _internal::HdtAugmentation> {
   // `is_level_i_edge` refers to whether this element represents a level-i tree
   // edge, where "level-i" refers to the level (in the HDT algorithm) of
   // whatever ETT this skip list lives in.
-  explicit HdtElement(size_t random_int, std::pair<int, int>&& id, bool is_level_i_edge = false);
+  explicit HdtElement(size_t random_int, std::pair<v_int, v_int>&& id, bool is_level_i_edge = false);
 
   // Gets the number of vertices in the list that contains this element.
   size_t GetComponentSize() const;
@@ -71,7 +72,7 @@ class HdtElement : public ElementBase<HdtElement, _internal::HdtAugmentation> {
   // In the list that contains this element, returns all level-i tree edges
   // and mark them as no longer being level-i tree edges (because they're going
   // to be pushed down to the next level).
-  parlay::sequence<std::pair<int, int>> GetAndClearLevelIEdges();
+  parlay::sequence<std::pair<v_int, v_int>> GetAndClearLevelIEdges();
 
   // For each HdtElement elements[i] (which should represent a vertex), updates
   // its count of "number of level-i non-tree edges incident to this element" to
@@ -83,14 +84,14 @@ class HdtElement : public ElementBase<HdtElement, _internal::HdtAugmentation> {
   friend Base::Base::Base;  // make parallel_skip_list::ElementBase a friend
   friend NontreeEdgeFinder;
 
-  void GetLevelIEdgesBelow(parlay::sequence<HdtElement*>* s, int level, uint32_t offset) const;
+  void GetLevelIEdgesBelow(parlay::sequence<HdtElement*>* s, int level, v_int offset) const;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 //                           Implementation below.                           //
 ///////////////////////////////////////////////////////////////////////////////
 
-HdtElement::HdtElement(size_t random_int, std::pair<int, int>&& id, bool is_level_i_edge)
+HdtElement::HdtElement(size_t random_int, std::pair<v_int, v_int>&& id, bool is_level_i_edge)
   // Using std::move(id) and also accessing id's fields is sketchy but should
   // be OK since std::move's immediate effect is really just a cast.
   : Base{random_int, std::move(id), {id.first == id.second, id.first < id.second && is_level_i_edge, 0}} {}
@@ -110,7 +111,7 @@ size_t HdtElement::GetComponentSize() const {
 
 // Helper function for GetAndClearLevelIEdges. Gets edges held in descendants of
 // this element and writes them into the sequence starting at the offset.
-void HdtElement::GetLevelIEdgesBelow(parlay::sequence<HdtElement*>* s, int level, uint32_t offset) const {
+void HdtElement::GetLevelIEdgesBelow(parlay::sequence<HdtElement*>* s, int level, v_int offset) const {
   if (level == 0) {
     if (std::get<1>(values_[0])) {
       (*s)[offset] = const_cast<HdtElement*>(this);
@@ -133,7 +134,7 @@ void HdtElement::GetLevelIEdgesBelow(parlay::sequence<HdtElement*>* s, int level
   } else {  // run in parallel
     struct LoopState {
       const HdtElement* curr;
-      uint32_t offset;
+      v_int offset;
     } loop_state = { this, offset };
     const auto loop_condition{[&](const LoopState& state) { return state.curr->height_ < level + 1; }};
     const auto loop_action{[&](const LoopState& state) {
@@ -147,7 +148,7 @@ void HdtElement::GetLevelIEdgesBelow(parlay::sequence<HdtElement*>* s, int level
   }
 }
 
-parlay::sequence<std::pair<int, int>> HdtElement::GetAndClearLevelIEdges() {
+parlay::sequence<std::pair<v_int, v_int>> HdtElement::GetAndClearLevelIEdges() {
   HdtElement* const top_element{FindRepresentative()};
   const int level{top_element->height_ - 1};
 
@@ -163,7 +164,7 @@ parlay::sequence<std::pair<int, int>> HdtElement::GetAndClearLevelIEdges() {
   parlay::sequence<HdtElement*> edge_elements(num_edges);
   struct LoopState {
     const HdtElement* curr;
-    uint32_t offset;
+    v_int offset;
   } loop_state = { top_element, 0 };
   const auto loop_condition{[&](const LoopState& state) { return state.curr != top_element; }};
   const auto loop_action{[&](const LoopState& state) {
@@ -177,8 +178,8 @@ parlay::sequence<std::pair<int, int>> HdtElement::GetAndClearLevelIEdges() {
 
   BatchUpdate<_internal::IsLevelIEdgeGetter>(
       edge_elements,
-      parlay::delayed_seq<int>(num_edges, [](size_t) { return 0; }));
-  parlay::sequence<std::pair<int, int>> edges{
+      parlay::delayed_seq<v_int>(num_edges, [](size_t) { return 0; }));
+  parlay::sequence<std::pair<v_int, v_int>> edges{
     parlay::map(edge_elements, [](const HdtElement* elem) { return elem->id_; })
   };
   return edges;

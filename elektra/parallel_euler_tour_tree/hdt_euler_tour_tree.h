@@ -8,44 +8,44 @@ namespace parallel_euler_tour_tree {
 
 class HdtEulerTourTree : public EulerTourTreeBase<HdtElement> {
  public:
-  HdtEulerTourTree(int num_vertices);
+  HdtEulerTourTree(v_int num_vertices);
 
   // Adds an edge to the forest.
   //
   // `is_level_i_edge` refers to whether this element represents a level-i edge,
   // where "level-i" refers to the level (in the HDT algorithm) of this ETT.
-  void Link(int u, int v, bool is_level_i_edge);
+  void Link(v_int u, v_int v, bool is_level_i_edge);
   // Adds edges to the forest, where `is_level_i_edge[i]` corresponds to whether
   // links[i] is a level-i edge.
   template <typename BoolSeq>
-  void BatchLink(const parlay::sequence<std::pair<int, int>>& links, const BoolSeq& is_level_i_edge);
+  void BatchLink(const parlay::sequence<std::pair<v_int, v_int>>& links, const BoolSeq& is_level_i_edge);
   // Adds edges to the forest, where `is_level_i_edge` corresponds to whether
   // links[i] is a level-i edge.
-  void BatchLink(const parlay::sequence<std::pair<int, int>>& links, bool is_level_i_edge);
+  void BatchLink(const parlay::sequence<std::pair<v_int, v_int>>& links, bool is_level_i_edge);
 
   // Get the number of vertices in v's connected component.
-  size_t ComponentSize(int v) const;
+  size_t ComponentSize(v_int v) const;
   // Returns all vertices in v's connected component.
-  parlay::sequence<int> ComponentVertices(int v) const;
+  parlay::sequence<v_int> ComponentVertices(v_int v) const;
   // Returns all edges in `v`'s connected component..
-  parlay::sequence<std::pair<int, int>> ComponentEdges(int v) const;
+  parlay::sequence<std::pair<v_int, v_int>> ComponentEdges(v_int v) const;
 
   // In v's connected component, return all level-i tree edges and mark them as
   // no longer being level-i tree edges (because they're going to be pushed down
   // to the next level).
-  parlay::sequence<std::pair<int, int>> GetAndClearLevelIEdges(int v);
+  parlay::sequence<std::pair<v_int, v_int>> GetAndClearLevelIEdges(v_int v);
 
   // Updates vertices[i]'s count of "number of level-i non-tree edges incident to this
   // vertex" to be new_values[i].
   template <typename IntSeq>
   void UpdateNontreeEdgeCounts(
-      const parlay::sequence<int>& vertices,
+      const parlay::sequence<v_int>& vertices,
       const IntSeq& new_values);
 
   // Creates a NontreeEdgeFinder for v's connected component. The
   // NontreeEdgeFinder can be used to find level-i non-tree edges incident to
   // the component.
-  NontreeEdgeFinder CreateNontreeEdgeFinder(int v) const;
+  NontreeEdgeFinder CreateNontreeEdgeFinder(v_int v) const;
 
  private:
   using Base = EulerTourTreeBase<HdtElement>;
@@ -73,10 +73,10 @@ class NontreeEdgeFinder {
   // these edges are incident on to allow the caller to iterate over the edges.
   //
   // f should be a function capable of running in concurrently with other copies
-  // of itself and should have the interface `void f(int vertex_id, uint32_t
-  // begin, uint32_t end)` where the arguments signify that f should operate
-  // upon the `begin`-th (inclusive) to `end`-th (exclusive) level-i non-tree
-  // edges of vertex `vertex_id`.
+  // of itself and should have the interface `void f(v_int vertex_id, v_int
+  // begin, v_int end)` where the arguments signify that f should operate upon
+  // the `begin`-th (inclusive) to `end`-th (exclusive) level-i non-tree edges
+  // of vertex `vertex_id`.
   template <typename Func>
   void ForEachIncidentVertex(Func f, uint64_t edges_begin, uint64_t edges_end) const;
 
@@ -101,9 +101,9 @@ class NontreeEdgeFinder {
 //                  HdtEulerTourTree implementation below.                   //
 ///////////////////////////////////////////////////////////////////////////////
 
-HdtEulerTourTree::HdtEulerTourTree(int num_vertices) : Base{num_vertices} {}
+HdtEulerTourTree::HdtEulerTourTree(v_int num_vertices) : Base{num_vertices} {}
 
-void HdtEulerTourTree::Link(int u, int v, bool is_level_i_edge) {
+void HdtEulerTourTree::Link(v_int u, v_int v, bool is_level_i_edge) {
   auto [uv, vu] = _internal::AllocEdges<Elem>(u, v);
   new (uv) Elem{randomness_.ith_rand(0), make_pair(u, v), is_level_i_edge};
   new (vu) Elem{randomness_.ith_rand(1), make_pair(v, u), is_level_i_edge};
@@ -113,11 +113,11 @@ void HdtEulerTourTree::Link(int u, int v, bool is_level_i_edge) {
 
 template <typename BoolSeq>
 void HdtEulerTourTree::BatchLink(
-    const parlay::sequence<std::pair<int, int>>& links,
+    const parlay::sequence<std::pair<v_int, v_int>>& links,
     const BoolSeq& is_level_i_edge) {
   const auto construct{[&](const parlay::random& randomness, size_t i, Elem* uv, Elem* vu) {
-    const int u{links[i].first};
-    const int v{links[i].second};
+    const v_int u{links[i].first};
+    const v_int v{links[i].second};
     const bool is_level_i{is_level_i_edge[i]};
     new (uv) Elem{randomness.ith_rand(2 * i), make_pair(u, v), is_level_i};
     new (vu) Elem{randomness.ith_rand(2 * i + 1), make_pair(v, u), is_level_i};
@@ -126,19 +126,19 @@ void HdtEulerTourTree::BatchLink(
 }
 
 void HdtEulerTourTree::BatchLink(
-    const parlay::sequence<std::pair<int, int>>& links,
+    const parlay::sequence<std::pair<v_int, v_int>>& links,
     bool is_level_i_edge) {
   BatchLink(links, parlay::delayed_seq<bool>(links.size(), [&](size_t) { return is_level_i_edge; }));
 }
 
-size_t HdtEulerTourTree::ComponentSize(int v) const {
+size_t HdtEulerTourTree::ComponentSize(v_int v) const {
   return vertices_[v].GetComponentSize();
 }
 
-parlay::sequence<int> HdtEulerTourTree::ComponentVertices(int v) const {
+parlay::sequence<v_int> HdtEulerTourTree::ComponentVertices(v_int v) const {
   // TODO(tomtseng) implement this more efficiently if we actually need this
   // function
-  parlay::sequence<int> vertices;
+  parlay::sequence<v_int> vertices;
   vertices.reserve(ComponentSize(v));
   const Elem* const start_element{&vertices_[v]};
   const Elem* curr{start_element};
@@ -153,10 +153,10 @@ parlay::sequence<int> HdtEulerTourTree::ComponentVertices(int v) const {
 }
 
 // Returns all edges in `v`'s connected component..
-parlay::sequence<std::pair<int, int>> HdtEulerTourTree::ComponentEdges(int v) const {
+parlay::sequence<std::pair<v_int, v_int>> HdtEulerTourTree::ComponentEdges(v_int v) const {
   // TODO(tomtseng) implement this more efficiently if we actually need this
   // function
-  parlay::sequence<std::pair<int, int>> edges;
+  parlay::sequence<std::pair<v_int, v_int>> edges;
   edges.reserve(ComponentSize(v) - 1);
   const Elem* const start_element{&vertices_[v]};
   const Elem* curr{start_element};
@@ -170,13 +170,13 @@ parlay::sequence<std::pair<int, int>> HdtEulerTourTree::ComponentEdges(int v) co
   return edges;
 }
 
-parlay::sequence<std::pair<int, int>> HdtEulerTourTree::GetAndClearLevelIEdges(int v) {
+parlay::sequence<std::pair<v_int, v_int>> HdtEulerTourTree::GetAndClearLevelIEdges(v_int v) {
   return vertices_[v].GetAndClearLevelIEdges();
 }
 
 template <typename IntSeq>
 void HdtEulerTourTree::UpdateNontreeEdgeCounts(
-    const parlay::sequence<int>& vertices,
+    const parlay::sequence<v_int>& vertices,
     const IntSeq& new_values) {
   const auto elements{parlay::delayed_seq<Elem*>(
       vertices.size(),
@@ -184,7 +184,7 @@ void HdtEulerTourTree::UpdateNontreeEdgeCounts(
   Elem::UpdateNontreeEdgeCounts(elements, new_values);
 }
 
-NontreeEdgeFinder HdtEulerTourTree::CreateNontreeEdgeFinder(int v) const {
+NontreeEdgeFinder HdtEulerTourTree::CreateNontreeEdgeFinder(v_int v) const {
   return NontreeEdgeFinder{vertices_[v].FindRepresentative()};
 }
 

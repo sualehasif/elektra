@@ -3,6 +3,8 @@
 #include <parlay/parallel.h>
 #include <parlay/primitives.h>
 
+#include <limits>
+
 #include "concurrentMap.h"
 #include "element.h"
 #include "hash_pair.h"
@@ -21,14 +23,14 @@ template <typename Elem>
 class EdgeMap {
  public:
   EdgeMap() = delete;
-  explicit EdgeMap(int num_vertices);
+  explicit EdgeMap(v_int num_vertices);
   ~EdgeMap();
 
-  bool Insert(int u, int v, Elem* edge);
-  bool Delete(int u, int v);
-  Elem* Find(int u, int v);
+  bool Insert(v_int u, v_int v, Elem* edge);
+  bool Delete(v_int u, v_int v);
+  Elem* Find(v_int u, v_int v);
 
-  int IsEmpty() const;
+  bool IsEmpty() const;
 
   // Deallocate all elements held in the map. This assumes that all elements
   // in the map were allocated through `allocator`.
@@ -41,24 +43,27 @@ class EdgeMap {
   size_t AllocatedMemorySize() const;
 
  private:
-  concurrent_map::concurrentHT<std::pair<int, int>, Elem*, HashIntPairStruct>
+  concurrent_map::concurrentHT<std::pair<v_int, v_int>, Elem*, HashIntPairStruct>
       map_;
 };
 
 template <typename Elem>
-EdgeMap<Elem>::EdgeMap(int num_vertices)
-    : map_{nullptr, static_cast<size_t>(num_vertices - 1),
-           std::make_pair(-1, -1), std::make_pair(-2, -2)} {}
+EdgeMap<Elem>::EdgeMap(v_int num_vertices)
+    : map_{
+      nullptr,
+      static_cast<size_t>(num_vertices),
+      std::make_pair(std::numeric_limits<v_int>::max(), std::numeric_limits<v_int>::max()),
+      std::make_pair(std::numeric_limits<v_int>::max() - 1, std::numeric_limits<v_int>::max() - 1)} {}
 
 template <typename Elem>
 EdgeMap<Elem>::~EdgeMap() { map_.del(); }
 
 // Check whether the hash table is empty.
 template <typename Elem>
-int EdgeMap<Elem>::IsEmpty() const { return map_.n_elms == 0; }
+bool EdgeMap<Elem>::IsEmpty() const { return map_.n_elms == 0; }
 
 template <typename Elem>
-bool EdgeMap<Elem>::Insert(int u, int v, Elem* edge) {
+bool EdgeMap<Elem>::Insert(v_int u, v_int v, Elem* edge) {
   if (u > v) {
     std::swap(u, v);
     edge = OppositeEdge(edge);
@@ -67,7 +72,7 @@ bool EdgeMap<Elem>::Insert(int u, int v, Elem* edge) {
 }
 
 template <typename Elem>
-bool EdgeMap<Elem>::Delete(int u, int v) {
+bool EdgeMap<Elem>::Delete(v_int u, v_int v) {
   if (u > v) {
     std::swap(u, v);
   }
@@ -75,7 +80,7 @@ bool EdgeMap<Elem>::Delete(int u, int v) {
 }
 
 template <typename Elem>
-Elem* EdgeMap<Elem>::Find(int u, int v) {
+Elem* EdgeMap<Elem>::Find(v_int u, v_int v) {
   if (u > v) {
     Elem* vu{*map_.find(make_pair(v, u))};
     return vu == nullptr ? nullptr : OppositeEdge(vu);
@@ -100,7 +105,7 @@ template <typename Elem>
 size_t EdgeMap<Elem>::AllocatedMemorySize() const {
   return sizeof(map_.table[0]) * map_.capacity +
     parlay::reduce(
-      parlay::map(map_.entries(), [&](std::tuple<std::pair<int, int>, Elem*> kv) {
+      parlay::map(map_.entries(), [&](std::tuple<std::pair<v_int, v_int>, Elem*> kv) {
         const Elem* elem{std::get<1>(kv)};
         return 2 * sizeof(*elem)
           + elem->AllocatedMemorySize() + OppositeEdge(elem)->AllocatedMemorySize();

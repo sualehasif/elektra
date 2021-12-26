@@ -8,6 +8,9 @@
 
 namespace parallel_euler_tour_tree {
 
+// Integer type able to hold the number of vertices in the graph.
+using v_int = uint32_t;
+
 namespace _internal {
 
 // For an undirected edge {u,v}, we allocate elements representing (u,v) and
@@ -35,7 +38,7 @@ Elem* OppositeEdge(const Elem* uv) {
 
 // For an edge {u,v}, returns elements representing (u,v) and (v,u).
 template <typename Elem>
-std::pair<Elem*, Elem*> AllocEdges(int u, int v) {
+std::pair<Elem*, Elem*> AllocEdges(v_int u, v_int v) {
   Elem* edges = *EdgesAllocator<Elem>::alloc();
   if (u < v) {
     return {edges, edges + 1};

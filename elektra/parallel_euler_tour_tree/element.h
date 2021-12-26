@@ -8,6 +8,7 @@
 
 #include "parallel_skip_list/augmented_skip_list.h"
 #include "utilities/while_loop.h"
+#include "utilities.h"
 
 namespace parallel_euler_tour_tree {
 
@@ -18,7 +19,7 @@ class ElementBase : public parallel_skip_list::AugmentedElementBase<Derived, Fun
   using Base = parallel_skip_list::AugmentedElementBase<Derived, Func>;
   using Value = typename Func::T;
 
-  ElementBase(size_t random_int, std::pair<int, int>&& id, const Value& value);
+  ElementBase(size_t random_int, std::pair<v_int, v_int>&& id, const Value& value);
 
   // Returns a representative vertex from the sequence the element lives in.
   // Whereas `FindRepresentative()` returns a representative element that might
@@ -26,7 +27,7 @@ class ElementBase : public parallel_skip_list::AugmentedElementBase<Derived, Fun
   // simplicity, this function also assumes that the sequence is circular (as is
   // the case for a sequence representing an ETT component that is not currently
   // performing a join or split).
-  int FindRepresentativeVertex() const;
+  v_int FindRepresentativeVertex() const;
 
   // Returns an estimate of the amount of memory in bytes this element occupies
   // beyond what's captured by sizeof(Element).
@@ -34,7 +35,7 @@ class ElementBase : public parallel_skip_list::AugmentedElementBase<Derived, Fun
 
   // If this element represents a vertex v, then id == (v, v). Otherwise if
   // this element represents a directed edge (u, v), then id == (u,v).
-  std::pair<int, int> id_;
+  std::pair<v_int, v_int> id_;
   // When batch splitting, we mark this as `true` for an edge that we will
   // splice out in the current round of recursion.
   bool split_mark_{false};
@@ -49,11 +50,11 @@ class ElementBase : public parallel_skip_list::AugmentedElementBase<Derived, Fun
 // Example of an ETT skip list element augmented with the ability to
 // - fetch component sizes
 // - fetch all elements in a list representing (u, v) with u < v.
-class Element : public ElementBase<Element, parlay::addm<int>> {
-  using Base = ElementBase<Element, parlay::addm<int>>;
+class Element : public ElementBase<Element, parlay::addm<v_int>> {
+  using Base = ElementBase<Element, parlay::addm<v_int>>;
 
  public:
-  Element(size_t random_int, std::pair<int, int>&& id)
+  Element(size_t random_int, std::pair<v_int, v_int>&& id)
     // Augment with the function "count the number of edges (u, v) such that u <
     // v in this list".
     //
@@ -63,7 +64,7 @@ class Element : public ElementBase<Element, parlay::addm<int>> {
 
   // Get all edges {u, v} in the sequence that contains this element, assuming
   // that the sequence represents an ETT component.
-  parlay::sequence<std::pair<int, int>> GetEdges() const;
+  parlay::sequence<std::pair<v_int, v_int>> GetEdges() const;
   // Get the number of vertices in the sequence that contains this element.
   size_t GetComponentSize() const;
 
@@ -72,19 +73,19 @@ class Element : public ElementBase<Element, parlay::addm<int>> {
 
   // Gets edges held in descendants of this element and writes them into
   // the sequence starting at the offset. `values_` needs to be up to date.
-  void GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int level, uint32_t offset) const;
+  void GetEdgesBelow(parlay::sequence<std::pair<v_int, v_int>>* s, int level, v_int offset) const;
 };
 
 template <typename D, typename F>
 ElementBase<D, F>::ElementBase(
     size_t random_int,
-    std::pair<int, int>&& id,
+    std::pair<v_int, v_int>&& id,
     const Value& value)
     : Base{random_int, value}
     , id_{std::move(id)} {}
 
 template <typename D, typename F>
-int ElementBase<D, F>::FindRepresentativeVertex() const {
+v_int ElementBase<D, F>::FindRepresentativeVertex() const {
   const D* current_element{static_cast<const D*>(this)};
   const D* seen_element{nullptr};
   int current_level{current_element->height_ - 1};
@@ -104,10 +105,10 @@ int ElementBase<D, F>::FindRepresentativeVertex() const {
 
   // look for minimum ID vertex in top level, or try again at lower levels if no
   // vertex is found
-  int min_vertex{std::numeric_limits<int>::max()};
-  while (current_level >= 0 && min_vertex == std::numeric_limits<int>::max()) {
+  v_int min_vertex{std::numeric_limits<v_int>::max()};
+  while (current_level >= 0 && min_vertex == std::numeric_limits<v_int>::max()) {
     do {
-      const std::pair<int, int>& id{current_element->id_};
+      const std::pair<v_int, v_int>& id{current_element->id_};
       if (id.first == id.second && id.first < min_vertex) {
         min_vertex = id.first;
       }
@@ -115,7 +116,7 @@ int ElementBase<D, F>::FindRepresentativeVertex() const {
     } while (current_element != seen_element);
     current_level--;
   }
-  return min_vertex == std::numeric_limits<int>::max() ? -1 : min_vertex;
+  return min_vertex;
 }
 
 template <typename D, typename F>
@@ -125,7 +126,7 @@ size_t ElementBase<D, F>::AllocatedMemorySize() const {
   return (sizeof(neighbors_[0]) + sizeof(values_[0])) * (1 << parlay::log2_up(height_));
 }
 
-void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int level, uint32_t offset) const {
+void Element::GetEdgesBelow(parlay::sequence<std::pair<v_int, v_int>>* s, int level, v_int offset) const {
   if (level == 0) {
     if (values_[0]) {
       (*s)[offset] = id_;
@@ -148,7 +149,7 @@ void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int level,
   } else {  // run in parallel
     struct LoopState {
       const Element* curr;
-      uint32_t offset;
+      v_int offset;
     } loop_state = { this, offset };
     const auto loop_condition{[&](const LoopState& state) { return state.curr->height_ < level + 1; }};
     const auto loop_action{[&](const LoopState& state) {
@@ -162,7 +163,7 @@ void Element::GetEdgesBelow(parlay::sequence<std::pair<int, int>>* s, int level,
   }
 }
 
-parlay::sequence<std::pair<int, int>> Element::GetEdges() const {
+parlay::sequence<std::pair<v_int, v_int>> Element::GetEdges() const {
   Element* const top_element{FindRepresentative()};
   const int level = top_element->height_ - 1;
 
@@ -175,11 +176,11 @@ parlay::sequence<std::pair<int, int>> Element::GetEdges() const {
     } while (curr != top_element);
   }
 
-  parlay::sequence<std::pair<int, int>> edges(num_edges);
+  parlay::sequence<std::pair<v_int, v_int>> edges(num_edges);
 
   struct LoopState {
     const Element* curr;
-    uint32_t offset;
+    v_int offset;
   } loop_state = { top_element, 0 };
   const auto loop_condition{[&](const LoopState& state) { return state.curr != top_element; }};
   const auto loop_action{[&](const LoopState& state) {

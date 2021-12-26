@@ -18,7 +18,7 @@ using ::testing::MockFunction;
 using ::testing::Pair;
 using ::testing::UnorderedElementsAre;
 
-using MockForEachIncidentVertexCallback = MockFunction<void(int, uint32_t, uint32_t)>;
+using MockForEachIncidentVertexCallback = MockFunction<void(uint32_t, uint32_t, uint32_t)>;
 
 TEST(HdtEulerTourTree, ComponentSize_Singleton) {
   // Check ComponentSize() works on a singleton vertex.
@@ -29,13 +29,13 @@ TEST(HdtEulerTourTree, ComponentSize_Singleton) {
 }
 
 TEST(HdtEulerTourTree, ComponentSize) {
-  const int n = 5;
+  const uint32_t n = 5;
   EulerTourTree ett = EulerTourTree{n};
 
   // 0 - 1
   // | \
   // 2   3 - 4
-  parlay::sequence<std::pair<int, int>> links{{{0, 1}, {0, 2}, {0, 3}, {4, 3}}};
+  parlay::sequence<std::pair<uint32_t, uint32_t>> links{{{0, 1}, {0, 2}, {0, 3}, {4, 3}}};
   ett.BatchLink(links, false);
   EXPECT_EQ(ett.ComponentSize(3), 5);
   EXPECT_THAT(ett.ComponentVertices(3), UnorderedElementsAre(0, 1, 2, 3, 4));
@@ -59,13 +59,13 @@ TEST(HdtEulerTourTree, GetAndClearLevelIEdges_Singleton) {
 }
 
 TEST(HdtEulerTourTree, GetAndClearLevelIEdges) {
-  const int n = 7;
+  const uint32_t n = 7;
   EulerTourTree ett = EulerTourTree{n};
 
   // 0 - 1   4   6
   // | \     |
   // 2   3   5
-  parlay::sequence<std::pair<int, int>> links{{{0, 1}, {0, 2}, {0, 3}, {4, 5}}};
+  parlay::sequence<std::pair<uint32_t, uint32_t>> links{{{0, 1}, {0, 2}, {0, 3}, {4, 5}}};
   parlay::sequence<bool> is_level_i_edge{{true, false, true, true}};
   ett.BatchLink(links, is_level_i_edge);
 
@@ -94,7 +94,7 @@ TEST(HdtEulerTourTree, FindNonTreeEdges_SingletonWithEdges) {
   // Check FindNonTreeEdges() works on a singleton vertex with incident non-tree
   // edges.
   EulerTourTree ett = EulerTourTree{1};
-  ett.UpdateNontreeEdgeCounts({0}, parlay::sequence<int>(1, 50));
+  ett.UpdateNontreeEdgeCounts({0}, parlay::sequence<uint32_t>(1, 50));
   const auto finder = ett.CreateNontreeEdgeFinder(0);
 
   InSequence s;
@@ -116,7 +116,7 @@ TEST(HdtEulerTourTree, FindNonTreeEdges_NoEdges) {
   // 0 - 1
   // | \
   // 2   3 - 4
-  parlay::sequence<std::pair<int, int>> links{{{0, 1}, {0, 2}, {0, 3}, {4, 3}}};
+  parlay::sequence<std::pair<uint32_t, uint32_t>> links{{{0, 1}, {0, 2}, {0, 3}, {4, 3}}};
   ett.BatchLink(links, false);
 
   const auto finder = ett.CreateNontreeEdgeFinder(0);
@@ -129,44 +129,44 @@ TEST(HdtEulerTourTree, FindNonTreeEdges_NoEdges) {
 
 TEST(HdtEulerTourTree, FindNonTreeEdges) {
   // Check FindNonTreeEdges() works.
-  int n = 5;
+  uint32_t n = 5;
   EulerTourTree ett = EulerTourTree{n};
   // 0 - 1
   // | \
   // 2   3   4
-  parlay::sequence<std::pair<int, int>> links{{{0, 1}, {0, 2}, {0, 3}}};
+  parlay::sequence<std::pair<uint32_t, uint32_t>> links{{{0, 1}, {0, 2}, {0, 3}}};
   ett.BatchLink(links, false);
 
-  parlay::sequence<int> edge_counts = {0, 3, 1, 4, 5};
+  parlay::sequence<uint32_t> edge_counts = {0, 3, 1, 4, 5};
   ett.UpdateNontreeEdgeCounts({0, 1, 2, 3, 4}, edge_counts);
 
   // We don't know how the NontreeEdgeFinder will order the non-tree edges, so
   // we'll explicitly track how many times each of the edges has been visited.
-  std::vector<std::vector<int>> edge_visit_counts(5, std::vector<int>{});
+  std::vector<std::vector<uint32_t>> edge_visit_counts(5, std::vector<uint32_t>{});
 
-  const auto visit = [&](int vertex_id, uint32_t start, uint32_t end) {
+  const auto visit = [&](uint32_t vertex_id, uint32_t start, uint32_t end) {
     for (size_t i = start; i < end; i++) {
       edge_visit_counts[vertex_id][i]++;
     }
   };
   const auto reset_counts = [&]() {
-    for (int i = 0; i < n; i++) {
-      edge_visit_counts[i] = std::vector<int>(edge_counts[i], 0);
+    for (uint32_t i = 0; i < n; i++) {
+      edge_visit_counts[i] = std::vector<uint32_t>(edge_counts[i], 0);
     }
   };
   const auto sum_counts = [&]() {
-    int sum = 0;
-    for (int i = 0; i < n; i++) {
-      for (int j = 0; j < edge_counts[i]; j++) {
+    uint32_t sum = 0;
+    for (uint32_t i = 0; i < n; i++) {
+      for (uint32_t j = 0; j < edge_counts[i]; j++) {
         sum += edge_visit_counts[i][j];
       }
     }
     return sum;
   };
   const auto unique_visits = [&]() {
-    int count = 0;
-    for (int i = 0; i < n; i++) {
-      for (int j = 0; j < edge_counts[i]; j++) {
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < n; i++) {
+      for (uint32_t j = 0; j < edge_counts[i]; j++) {
         if (edge_visit_counts[i][j] > 0) {
           count++;
         }
