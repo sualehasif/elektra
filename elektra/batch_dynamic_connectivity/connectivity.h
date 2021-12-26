@@ -39,14 +39,14 @@ class BatchDynamicConnectivity {
 
   /** Copy assignment not implemented. */
   auto operator=(const BatchDynamicConnectivity &other)
-      -> BatchDynamicConnectivity & = delete;
+  -> BatchDynamicConnectivity & = delete;
 
   /** Move constructor. */
   BatchDynamicConnectivity(BatchDynamicConnectivity &&other) = delete;
 
   /** Move assignment not implemented. */
   auto operator=(BatchDynamicConnectivity &&other) noexcept
-      -> BatchDynamicConnectivity & = delete;
+  -> BatchDynamicConnectivity & = delete;
 
   /** Returns true if vertices \p u and \p v are connected in the graph.
    *
@@ -57,7 +57,7 @@ class BatchDynamicConnectivity {
    *  TODO(sualeh): minor, but why is return type is char and not bool?
    */
   [[nodiscard]] auto BatchConnected(parlay::sequence<std::pair<V, V>> suv) const
-      -> parlay::sequence<char>;
+  -> parlay::sequence<char>;
 
   /** Adds a batch of edges to the graph.
    *
@@ -112,12 +112,12 @@ class BatchDynamicConnectivity {
 
   static auto RemoveDuplicates(parlay::sequence<V> &seq) -> parlay::sequence<V>;
   static auto RemoveDuplicates(parlay::sequence<V> &&seq)
-      -> parlay::sequence<V>;
+  -> parlay::sequence<V>;
   inline void InsertIntoEdgeTable(const pair<V, V> &e, EType e_type,
                                   Level level);
   inline auto GetSearchEdges(Level level, sequence<V> &components,
-                             unique_ptr<BatchDynamicEtt> &ett)
-      -> vector<vector<E>>;
+                             const unique_ptr<BatchDynamicEtt> &ett)
+  -> vector<vector<E>>;
 };
 
 BatchDynamicConnectivity::BatchDynamicConnectivity(V num_vertices)
@@ -166,9 +166,9 @@ BatchDynamicConnectivity::BatchDynamicConnectivity(
   BatchAddEdges(se);
 }
 
-template <typename E, typename N = E>
+template<typename E, typename N = E>
 auto RepresentativeSpanningTree(const parlay::sequence<E> &se,
-                                unique_ptr<BatchDynamicEtt> &ett) {
+                                const unique_ptr<BatchDynamicEtt> &ett) {
   // Construct the auxiliary edges.
   sequence<pair<N, N>> aux_int_edges = parlay::map(se, [&](E e) {
     return make_pair(static_cast<N>(ett->GetRepresentative(e.first)),
@@ -181,9 +181,9 @@ auto RepresentativeSpanningTree(const parlay::sequence<E> &se,
   return spanning_tree;
 }
 
-template <typename T, class VType>
+template<typename T, class VType>
 auto NewEdgeSequence(parlay::sequence<pair<VType, VType>> &se)
-    -> parlay::sequence<std::pair<T, T>> {
+-> parlay::sequence<std::pair<T, T>> {
   // turns a sequence of edges to an array of pairs
   // useful for V with EulerTourTrees
   auto array = parlay::sequence<std::pair<T, T>>::uninitialized(se.size());
@@ -209,8 +209,8 @@ inline void BatchDynamicConnectivity::InsertIntoEdgeTable(const pair<V, V> &e,
 
 // TODO(tom): This needs to be supported as an augmentation.
 inline auto BatchDynamicConnectivity::GetSearchEdges(
-    Level level, sequence<V> &components, unique_ptr<BatchDynamicEtt> &ett)
-    -> vector<vector<E>> {
+    Level level, sequence<V> &components, const unique_ptr<BatchDynamicEtt> &ett)
+-> vector<vector<E>> {
   vector<vector<E>> non_tree_edges;
   non_tree_edges.reserve(components.size());
   for (auto _ : components) {
@@ -232,17 +232,17 @@ inline auto BatchDynamicConnectivity::GetSearchEdges(
 }
 
 auto BatchDynamicConnectivity::RemoveDuplicates(sequence<V> &seq)
-    -> sequence<V> {
+-> sequence<V> {
   // TODO: possibly change this to use a semisort and not inplace sort
   // sort the sequence
-  parlay::integer_sort_inplace(seq, [](V x) { return (unsigned)x; });
+  parlay::integer_sort_inplace(seq, [](V x) { return (unsigned) x; });
 
   return parlay::unique(seq);
 }
 
 auto BatchDynamicConnectivity::RemoveDuplicates(sequence<V> &&seq)
-    -> sequence<V> {
-  parlay::integer_sort_inplace(seq, [](V x) { return (unsigned)x; });
+-> sequence<V> {
+  parlay::integer_sort_inplace(seq, [](V x) { return (unsigned) x; });
   return parlay::unique(seq);
 }
 
@@ -298,7 +298,7 @@ void BatchDynamicConnectivity::PrintNonTreeEdgesForLevel(Level level) {
   // scan through and build a set of all the edges
   std::unordered_set<E, EHash> edges;
 
-  for (int i = 0; i < (int)num_vertices_; i++) {
+  for (int i = 0; i < (int) num_vertices_; i++) {
     auto vtx_set = vtx_layer[i];
     for (auto &kv : vtx_set.entries()) {
       // get the vertex by getting the first element of the tuple

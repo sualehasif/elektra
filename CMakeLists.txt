@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.11.0)
 
-# set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
+set(CMAKE_CXX_COMPILER "/Users/sualeh/code/OpenCilk-12.0.0-Darwin/bin/clang++")
 
 project(
         elektra
@@ -13,14 +13,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Set up the CMAKE Generator
-set(CMAKE_GENERATOR "Ninja")
-set(CMAKE_MAKE_PROGRAM "Ninja")
+#set(CMAKE_GENERATOR "Ninja")
+#set(CMAKE_MAKE_PROGRAM "Ninja")
 
 include(CheckCXXCompilerFlag)
 include(GNUInstallDirs)
 
 # Setting up the C++ CMAKE_CXX_FLAGS initial
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -O3 -g -fopencilk -DPARLAY_CILK")
 
 # Setting up some unused checks
 set(CMAKE_CXX_FLAGS
@@ -94,8 +94,8 @@ target_link_libraries(elektra ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 # Testing
 add_executable(elektra_test test/elektra_test.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)
 target_link_libraries(elektra_test gmock_main gtest_main)
-include(GoogleTest)
-gtest_discover_tests(elektra_test)
+#include(GoogleTest)
+#gtest_discover_tests(elektra_test)
 
 # Set up the CMAKE Generator
 set(CMAKE_GENERATOR "Ninja")

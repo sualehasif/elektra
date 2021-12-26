@@ -20,7 +20,8 @@ auto BatchDynamicConnectivity::BatchConnected(sequence<pair<V, V>> suv) const
 -> sequence<char> {
   sequence<char> s_connected(suv.size(), 0);
   // check if they are connected in the highest level forest
-  const auto &p_max_level_euler_tree = parallel_spanning_forests_[max_level_ - 1];
+  const auto &p_max_level_euler_tree =
+      parallel_spanning_forests_[max_level_ - 1];
 
   parlay::parallel_for(0, suv.size(), [&](size_t i) {
     auto[v_1, v_2] = suv[i];
@@ -39,7 +40,7 @@ auto BatchDynamicConnectivity::BatchConnected(sequence<pair<V, V>> suv) const
 // present in the graph.
 void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
   // Look at the max level Euler Tour Tree in the parallel spanning forests.
-  auto &max_level_euler_tree = parallel_spanning_forests_[max_level_ - 1];
+  const auto &max_level_euler_tree = parallel_spanning_forests_[max_level_ - 1];
 
   // We get the spanning tree_set of the representatives of the vertices in the
   // max_level_euler_tree. We get back a vector of type uintE.
@@ -129,7 +130,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
   // delete edges from the tree at each level from the minimum tree edge level
   // to the maximum tree edge level
   for (int l = min_tree_edge_level; l < max_level_; l++) {
-    auto &level_euler_tree = parallel_spanning_forests_[l];
+    const auto &level_euler_tree = parallel_spanning_forests_[l];
 
     // get the edges to delete which have level at max l.
     auto to_delete = parlay::filter(
@@ -146,7 +147,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
 
   // We now try to find replacement edges starting from the min level.
   for (int l = min_tree_edge_level; l < max_level_; l++) {
-    auto &level_euler_tree = parallel_spanning_forests_[l];
+    const auto &level_euler_tree = parallel_spanning_forests_[l];
 
     auto edges_to_replace = parlay::filter(tree_edges, [&](E e) {
       return edges_.find(pair<V, V>(e.first, e.second)).level == l;
@@ -215,7 +216,7 @@ void BatchDynamicConnectivity::ReplacementSearch(Level level,
   uintE total_search_stride = 0;
   const auto kCriticalComponentSize = 1U << (level - 1);
 
-  auto &ett = parallel_spanning_forests_[level];
+  const auto &ett = parallel_spanning_forests_[level];
   sequence<pair<V, V>> push_down_edges;
   auto union_find = elektra::UnionFindCompress{components.size()};
 
