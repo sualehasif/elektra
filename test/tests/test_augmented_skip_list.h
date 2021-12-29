@@ -59,7 +59,7 @@ TEST(AugmentedParallelSkipListTest, SumLengthOneLists) {
 
 // Check that lists have the correct sum after batch joins and splits to form
 // linear lists.
-TEST(AugmentedParallelSkipListTest, DISABLED_SumLinearList) {
+TEST(AugmentedParallelSkipListTest, SumLinearList) {
   auto elements = CreateElements(8);
   parlay::sequence<std::pair<Element*, Element*>> joins =
       CreateJoins(elements, {

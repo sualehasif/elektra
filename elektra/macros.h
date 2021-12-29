@@ -1,12 +1,12 @@
 #pragma once
 
 #include <limits.h>
-#include <memory>
 #include <parlay/random.h>
 #include <parlay/sequence.h>
 
 #include <fstream>   // std::ifstream
 #include <iostream>  // std::cout
+#include <memory>
 #include <tuple>
 
 #include "utilities/cas.h"
@@ -14,11 +14,11 @@
 namespace elektra {
 //#define LONG 1
 
-#ifndef NDEBUG
-#define debug(_body) _body;
-#else
-#define debug(_body)
-#endif
+// #ifndef NDEBUG
+// #define debug(_body) _body;
+// #else
+// #define debug(_body)
+// #endif
 
 using uint = unsigned int;
 using ulong = unsigned long;
@@ -70,7 +70,7 @@ constexpr const size_t kDefaultGranularity = 2048;
 
 struct empty {
   // equality operator
-  auto operator==(const empty & /*unused*/) const -> bool { return true; }
+  auto operator==(const empty& /*unused*/) const -> bool { return true; }
 };  // struct containing no data (used for empty base optimization)
 
 // A templated sequence for ease of use.

@@ -13,8 +13,7 @@ namespace {
 using std::make_pair;
 
 using UndirectedEdge = pair<V, V>;
-using BatchDynamicConnectivity =
-    bdcty::BatchDynamicConnectivity;
+using BatchDynamicConnectivity = bdcty::BatchDynamicConnectivity;
 
 class ParallelConnectivityTest : public ::testing::Test {
  protected:

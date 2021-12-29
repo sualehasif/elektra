@@ -1,9 +1,15 @@
 cmake_minimum_required(VERSION 3.11.0)
 
-set(CMAKE_CXX_COMPILER "/Users/sualeh/code/OpenCilk-12.0.0-Darwin/bin/clang++")
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(MACOSX TRUE)
+    set(CILK TRUE)
+endif ()
 
-project(
-        elektra
+if (${MACOSX} OR ${CILK})
+    set(CMAKE_CXX_COMPILER "/Users/sualeh/code/OpenCilk-12.0.0-Darwin/bin/clang++")
+endif ()
+
+project(elektra
         VERSION 0.1.0
         DESCRIPTION "A collection of parallel dynamic graph algorithms"
         LANGUAGES CXX)
@@ -13,14 +19,17 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Set up the CMAKE Generator
-#set(CMAKE_GENERATOR "Ninja")
-#set(CMAKE_MAKE_PROGRAM "Ninja")
+set(CMAKE_GENERATOR "Ninja")
+set(CMAKE_MAKE_PROGRAM "Ninja")
 
 include(CheckCXXCompilerFlag)
 include(GNUInstallDirs)
 
 # Setting up the C++ CMAKE_CXX_FLAGS initial
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -O3 -g -fopencilk -DPARLAY_CILK")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -O1 -fsanitize=address -fno-omit-frame-pointer -DDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2")
 
 # Setting up some unused checks
 set(CMAKE_CXX_FLAGS
@@ -31,18 +40,14 @@ set(CMAKE_CXX_FLAGS
     -Wno-unused-value \
     ")
 
-# # Compile with no parallelism if debugging or asked to be linear
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DDEBUG")
+if (${MACOS} OR ${CILK})
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopencilk -DPARLAY_CILK")
 endif ()
-
-# Add Pthread 
-find_package(Threads REQUIRED)
-add_compile_options(-pthread)
 
 message(STATUS "--------------- General configuration -------------")
 message(STATUS "CMake Generator: ${CMAKE_GENERATOR}")
 message(STATUS "Compiler: \
+    ${CMAKE_CXX_COMPILER} \
     ${CMAKE_CXX_COMPILER_ID} \
     ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "Build type: \
@@ -97,9 +102,6 @@ target_link_libraries(elektra_test gmock_main gtest_main)
 #include(GoogleTest)
 #gtest_discover_tests(elektra_test)
 
-# Set up the CMAKE Generator
-set(CMAKE_GENERATOR "Ninja")
-set(CMAKE_MAKE_PROGRAM "Ninja")
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
