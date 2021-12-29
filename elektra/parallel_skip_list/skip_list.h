@@ -85,7 +85,7 @@ class ElementBase {
   // neighbors_[i] holds neighbors at level i, where level 0 is the lowest level
   // and is the level at which the list contains all elements
   Neighbors* neighbors_;
-  int height_;
+  int8_t height_;
 };
 
 // Basic phase-concurrent skip list. See interface of `ElementBase<T>`.

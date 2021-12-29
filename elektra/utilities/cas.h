@@ -2,6 +2,9 @@
 
 #include <type_traits>
 #include <utility>
+
+template <class...> constexpr std::false_type always_false{};
+
 namespace elektra {
 
 // ========================= atomic ops  ==========================
@@ -32,40 +35,38 @@ inline bool atomic_compare_and_swap(ET* a, ET oldval, ET newval) {
     return __sync_bool_compare_and_swap_16(reinterpret_cast<__int128*>(a),
                                            r_oval, r_nval);
   } else {
-    std::cout << "Bad CAS Length" << sizeof(ET) << std::endl;
-    exit(0);
+    static_assert(always_false<ET>);
   }
 }
 
 template <typename ET>
 inline bool atomic_compare_and_swap(volatile ET* a, ET oldval, ET newval) {
-  if (sizeof(ET) == 1) {
+  if constexpr (sizeof(ET) == 1) {
     uint8_t r_oval, r_nval;
     std::memcpy(&r_oval, &oldval, sizeof(ET));
     std::memcpy(&r_nval, &newval, sizeof(ET));
     return __sync_bool_compare_and_swap(reinterpret_cast<volatile uint8_t*>(a),
                                         r_oval, r_nval);
-  } else if (sizeof(ET) == 4) {
+  } else if constexpr (sizeof(ET) == 4) {
     uint32_t r_oval, r_nval;
     std::memcpy(&r_oval, &oldval, sizeof(ET));
     std::memcpy(&r_nval, &newval, sizeof(ET));
     return __sync_bool_compare_and_swap(reinterpret_cast<volatile uint32_t*>(a),
                                         r_oval, r_nval);
-  } else if (sizeof(ET) == 8) {
+  } else if constexpr (sizeof(ET) == 8) {
     uint64_t r_oval, r_nval;
     std::memcpy(&r_oval, &oldval, sizeof(ET));
     std::memcpy(&r_nval, &newval, sizeof(ET));
     return __sync_bool_compare_and_swap(reinterpret_cast<volatile uint64_t*>(a),
                                         r_oval, r_nval);
-  } else if (sizeof(ET) == 16) {
+  } else if constexpr (sizeof(ET) == 16) {
     __int128 r_oval, r_nval;
     std::memcpy(&r_oval, &oldval, sizeof(ET));
     std::memcpy(&r_nval, &newval, sizeof(ET));
     return __sync_bool_compare_and_swap_16(
         reinterpret_cast<volatile __int128*>(a), r_oval, r_nval);
   } else {
-    std::cout << "Bad CAS Length" << sizeof(ET) << std::endl;
-    exit(0);
+    static_assert(always_false<ET>);
   }
 }
 
@@ -157,23 +158,22 @@ inline bool write_max(std::atomic<ET>* a, ET b, F less) {
 
 template <class ET>
 inline bool CAS(ET* ptr, ET oldv, ET newv) {
-  if (sizeof(ET) == 1) {
-    return __sync_bool_compare_and_swap((bool*)ptr, *((bool*)&oldv),
-                                        *((bool*)&newv));
-  } else if (sizeof(ET) == 4) {
+  if constexpr (sizeof(ET) == 1) {
+    return __sync_bool_compare_and_swap((char*)ptr, *((char*)&oldv),
+                                        *((char*)&newv));
+  } else if constexpr (sizeof(ET) == 4) {
     return __sync_bool_compare_and_swap((int*)ptr, *((int*)&oldv),
                                         *((int*)&newv));
-  } else if (sizeof(ET) == 8) {
+  } else if constexpr (sizeof(ET) == 8) {
     return __sync_bool_compare_and_swap((long*)ptr, *((long*)&oldv),
                                         *((long*)&newv));
   }
 #if defined(MCX16)
-  else if (sizeof(ET) == 16) {
+  else if constexpr (sizeof(ET) == 16) {
     return CAS128(ptr, oldv, newv);
   }
 #endif
   else {
-    std::cout << "CAS bad length : " << sizeof(ET) << std::endl;
-    abort();
+    static_assert(always_false<ET>);
   }
 }
