@@ -8,11 +8,9 @@
 #include <unordered_set>
 #include <vector>
 
-#include "utilities/cas.h"
+#include "macros.h"
 
 namespace elektra {
-
-using parlay::sequence;
 
 constexpr size_t kResizableTableCacheLineSz = 128;
 
@@ -307,7 +305,8 @@ class resizable_table {
 
 template <class K, class V, class KeyHash>
 inline resizable_table<K, V, KeyHash> make_resizable_table(
-    size_t m, std::tuple<K, V> empty, KeyHash key_hash) {
-  return resizable_table<K, V, KeyHash>(m, empty, key_hash);
+    size_t m, std::tuple<K, V> empty, std::tuple<K, V> tombstone,
+    KeyHash key_hash) {
+  return resizable_table<K, V, KeyHash>(m, empty, tombstone, key_hash);
 }
 }  // namespace elektra

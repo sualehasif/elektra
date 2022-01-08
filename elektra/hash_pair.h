@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <utility>
 
+// TODO(sualeh, urgent): very cleanly change this to use absl::hash_combine.
 inline unsigned int hashInt(unsigned int a) {
   a = (a + 0x7ed55d16) + (a << 12);
   a = (a ^ 0xc761c23c) ^ (a >> 19);
@@ -13,7 +14,7 @@ inline unsigned int hashInt(unsigned int a) {
   return a;
 }
 
-inline unsigned hashIntPair(const std::pair<unsigned, unsigned> &p) {
+inline auto HashIntPair(const std::pair<unsigned int, unsigned int> &p) -> unsigned {
   unsigned h{hashInt(p.first)};
   h ^= hashInt(p.second) + 0x9e3779b9 + (h << 6) + (h >> 2);
   return h;
@@ -23,7 +24,10 @@ inline unsigned hashIntPair(const std::pair<unsigned, unsigned> &p) {
 //   std::unordered_map<std::pair<int, int>, std::string, HashIntPairStruct>
 //     int_to_string_map;
 struct HashIntPairStruct {
-  size_t operator()(const std::pair<int, int> &p) const {
-    return hashIntPair(p);
+  auto operator()(const std::pair<int, int> &p) const -> size_t {
+    return HashIntPair(p);
+  }
+  auto operator()(const std::pair<unsigned int, unsigned int> &p) const -> size_t {
+    return HashIntPair(p);
   }
 };
