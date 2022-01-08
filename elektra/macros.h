@@ -1,37 +1,43 @@
 #pragma once
 
 #include <limits.h>
+#include <parlay/random.h>
+#include <parlay/sequence.h>
 
 #include <fstream>   // std::ifstream
 #include <iostream>  // std::cout
+#include <memory>
+#include <tuple>
+
+#include "utilities/cas.h"
 
 namespace elektra {
-#define LONG 1
+//#define LONG 1
 
-#ifndef NDEBUG
-#define debug(_body) _body;
-#else
-#define debug(_body)
-#endif
+// #ifndef NDEBUG
+// #define debug(_body) _body;
+// #else
+// #define debug(_body)
+// #endif
 
-typedef unsigned int uint;
-typedef unsigned long ulong;
+using uint = unsigned int;
+using ulong = unsigned long;
 
 // vertex size macros
-typedef int intV;
-typedef unsigned int uintV;
+using intV = int;
+using uintV = unsigned int;
 
 // size of edge-offsets.
 // If the number of edges is more than sizeof(MAX_UINT),
 // you should set the LONG flag on the command line.
 #if defined(LONG)
-typedef long intT;
-typedef unsigned long uintT;
+using intT = long;
+using uintT = unsigned long;
 #define INT_T_MAX LONG_MAX
 #define UINT_T_MAX ULONG_MAX
 #else
-typedef int intT;
-typedef unsigned int uintT;
+using intT = int;
+using uintT = unsigned int;
 #define INT_T_MAX INT_MAX
 #define UINT_T_MAX UINT_MAX
 #endif
@@ -45,8 +51,8 @@ typedef unsigned long uintE;
 #define INT_E_MAX LONG_MAX
 #define UINT_E_MAX ULONG_MAX
 #else
-typedef int intE;
-typedef unsigned int uintE;
+using intE = int;
+using uintE = unsigned int;
 #define INT_E_MAX INT_MAX
 #define UINT_E_MAX UINT_MAX
 #endif
@@ -64,7 +70,11 @@ constexpr const size_t kDefaultGranularity = 2048;
 
 struct empty {
   // equality operator
-  bool operator==(const empty&) const { return true; }
+  auto operator==(const empty& /*unused*/) const -> bool { return true; }
 };  // struct containing no data (used for empty base optimization)
+
+// A templated sequence for ease of use.
+
+using parlay::sequence;
 
 }  // namespace elektra

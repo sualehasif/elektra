@@ -10,10 +10,10 @@
 
 namespace elektra::testing {
 namespace {
+using std::make_pair;
 
-using UndirectedEdge = dynamicGraph::UndirectedEdge;
-using BatchDynamicConnectivity =
-    batchDynamicConnectivity::BatchDynamicConnectivity;
+using UndirectedEdge = pair<V, V>;
+using BatchDynamicConnectivity = bdcty::BatchDynamicConnectivity;
 
 class ParallelConnectivityTest : public ::testing::Test {
  protected:
@@ -40,13 +40,13 @@ class ParallelConnectivityTest : public ::testing::Test {
 TEST_F(ParallelConnectivityTest, SimpleEdgeInsertion1) {
   parlay::sequence<UndirectedEdge> edges;
 
-  edges.push_back(UndirectedEdge(0, 1));
-  edges.push_back(UndirectedEdge(1, 2));
-  edges.push_back(UndirectedEdge(3, 4));
+  edges.push_back(make_pair(0, 1));
+  edges.push_back(make_pair(1, 2));
+  edges.push_back(make_pair(3, 4));
 
   BatchDynamicConnectivity x(5, edges);
 
-  parlay::sequence<std::pair<Vertex, Vertex>> queries;
+  parlay::sequence<std::pair<V, V>> queries;
   parlay::sequence<char> expectedOut;
 
   queries.push_back(std::make_pair(0, 1));
@@ -62,13 +62,13 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeInsertion1) {
 TEST_F(ParallelConnectivityTest, SimpleInsertionAndQuery1) {
   parlay::sequence<UndirectedEdge> edges;
 
-  edges.push_back(UndirectedEdge(0, 1));
-  edges.push_back(UndirectedEdge(1, 2));
-  edges.push_back(UndirectedEdge(3, 4));
+  edges.push_back(make_pair(0, 1));
+  edges.push_back(make_pair(1, 2));
+  edges.push_back(make_pair(3, 4));
 
   BatchDynamicConnectivity x(5, edges);
 
-  parlay::sequence<std::pair<Vertex, Vertex>> queries;
+  parlay::sequence<std::pair<V, V>> queries;
   parlay::sequence<char> expectedOut;
 
   queries.push_back(std::make_pair(0, 1));
@@ -108,7 +108,7 @@ TEST_F(ParallelConnectivityTest, SimpleInsertionAndQuery2) {
 
   BatchDynamicConnectivity x(10, edges);
 
-  parlay::sequence<std::pair<Vertex, Vertex>> queries;
+  parlay::sequence<std::pair<V, V>> queries;
   parlay::sequence<char> expectedOut;
 
   for (long i = 0; i < 10; i++) {
@@ -135,7 +135,7 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion1) {
 
   BatchDynamicConnectivity x(5, edges);
 
-  parlay::sequence<std::pair<Vertex, Vertex>> queries;
+  parlay::sequence<std::pair<V, V>> queries;
   parlay::sequence<char> expectedOut;
 
   queries.push_back(std::make_pair(0, 2));
@@ -184,7 +184,7 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion2) {
 
   // x.PrintStructure();
 
-  parlay::sequence<std::pair<Vertex, Vertex>> queries;
+  parlay::sequence<std::pair<V, V>> queries;
   parlay::sequence<char> expectedOut;
 
   // set up the sequence of queries
@@ -250,7 +250,7 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion3) {
 
   BatchDynamicConnectivity x(num_vertices, edges);
 
-  parlay::sequence<std::pair<Vertex, Vertex>> queries;
+  parlay::sequence<std::pair<V, V>> queries;
   parlay::sequence<char> expectedOut;
 
   // set up the sequence of queries
@@ -331,7 +331,7 @@ TEST_F(ParallelConnectivityTest, SimpleEdgeDeletion4) {
 
   BatchDynamicConnectivity x(num_vertices, edges);
 
-  parlay::sequence<std::pair<Vertex, Vertex>> queries;
+  parlay::sequence<std::pair<V, V>> queries;
   parlay::sequence<char> expectedOut;
 
   // set up the sequence of queries

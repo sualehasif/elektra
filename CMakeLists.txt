@@ -1,12 +1,18 @@
 cmake_minimum_required(VERSION 3.11.0)
 
-# set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(MACOSX TRUE)
+    set(CILK TRUE)
+endif ()
 
-project(
-  elektra
-  VERSION 0.1.0
-  DESCRIPTION "A collection of parallel dynamic graph algorithms"
-  LANGUAGES CXX)
+if (${MACOSX} OR ${CILK})
+    set(CMAKE_CXX_COMPILER "/Users/sualeh/code/OpenCilk-12.0.0-Darwin/bin/clang++")
+endif ()
+
+project(elektra
+        VERSION 0.1.0
+        DESCRIPTION "A collection of parallel dynamic graph algorithms"
+        LANGUAGES CXX)
 
 # specify the C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -21,28 +27,27 @@ include(GNUInstallDirs)
 
 # Setting up the C++ CMAKE_CXX_FLAGS initial
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -O1 -fsanitize=address -fno-omit-frame-pointer -DDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2")
 
 # Setting up some unused checks
 set(CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS} \
+        "${CMAKE_CXX_FLAGS} \
     -Wno-unused-parameter -Wno-unused-variable \
     -Wno-unused-function -Wno-unused-private-field \
     -Wno-unused-local-typedef -Wno-unused-const-variable \
     -Wno-unused-value \
     ")
 
-# # Compile with no parallelism if debugging or asked to be linear
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPARLAY_SEQUENTIAL -DDEBUG")
-endif()
-
-# Add Pthread 
-find_package (Threads REQUIRED)
-add_compile_options(-pthread)
+if (${MACOS} OR ${CILK})
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopencilk -DPARLAY_CILK")
+endif ()
 
 message(STATUS "--------------- General configuration -------------")
 message(STATUS "CMake Generator: ${CMAKE_GENERATOR}")
 message(STATUS "Compiler: \
+    ${CMAKE_CXX_COMPILER} \
     ${CMAKE_CXX_COMPILER_ID} \
     ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "Build type: \
@@ -67,9 +72,9 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/benchmarks)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/test)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/parlaylib/include/)
 include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/googletest/googlemock/include)
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/googletest/googlemock/include)
 include_directories(
-  ${CMAKE_CURRENT_SOURCE_DIR}/external/googletest/googletest/include)
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/googletest/googletest/include)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/external/googletest)
 
@@ -77,30 +82,26 @@ find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 
 
-
 include(FetchContent)
 FetchContent_Declare(
-  googletest
-  URL https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip
+        googletest
+        URL https://github.com/google/googletest/archive/609281088cfefc76f9d0ce82e1ff6c30cc3591e5.zip
 )
 
 link_directories(${Boost_LIBRARY_DIRS})
 
 enable_testing()
 
-add_executable(elektra elektra.cpp)
+add_executable(elektra elektra.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)
 
 target_link_libraries(elektra ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
 # Testing
-add_executable(elektra_test test/elektra_test.cpp)
+add_executable(elektra_test test/elektra_test.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)
 target_link_libraries(elektra_test gmock_main gtest_main)
-include(GoogleTest)
-gtest_discover_tests(elektra_test)
+#include(GoogleTest)
+#gtest_discover_tests(elektra_test)
 
-# Set up the CMAKE Generator
-set(CMAKE_GENERATOR "Ninja")
-set(CMAKE_MAKE_PROGRAM "Ninja")
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
