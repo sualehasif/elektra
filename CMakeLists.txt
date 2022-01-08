@@ -5,7 +5,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(CILK TRUE)
 endif ()
 
-if (${MACOSX} OR ${CILK})
+if (${CILK})
     set(CMAKE_CXX_COMPILER "/Users/sualeh/code/OpenCilk-12.0.0-Darwin/bin/clang++")
 endif ()
 
@@ -40,7 +40,7 @@ set(CMAKE_CXX_FLAGS
     -Wno-unused-value \
     ")
 
-if (${MACOS} OR ${CILK})
+if (${CILK})
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopencilk -DPARLAY_CILK")
 endif ()
 

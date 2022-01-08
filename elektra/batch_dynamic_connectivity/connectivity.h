@@ -27,7 +27,7 @@ class BatchDynamicConnectivity {
   explicit BatchDynamicConnectivity(V num_vertices,
                                     const parlay::sequence<E> &se);
 
-  /** Deallocates the data structure. */
+  /** Deallocates the data structure.
   ~BatchDynamicConnectivity() = default;
 
   /** The default constructor is invalid because the number of vertices in the
