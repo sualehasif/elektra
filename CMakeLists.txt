@@ -15,7 +15,7 @@ project(elektra
         LANGUAGES CXX)
 
 # specify the C++ standard
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Set up the CMAKE Generator
@@ -27,7 +27,8 @@ include(GNUInstallDirs)
 
 # Setting up the C++ CMAKE_CXX_FLAGS initial
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O1 -fsanitize=address -fno-omit-frame-pointer -DDEBUG")
+# set(CMAKE_CXX_FLAGS_DEBUG "-g -O1 -fsanitize=address -fno-omit-frame-pointer -DDEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2")
 
@@ -42,6 +43,10 @@ set(CMAKE_CXX_FLAGS
 
 if (${CILK})
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopencilk -DPARLAY_CILK")
+endif ()
+
+if (${SEQUENTIAL})
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPARLAY_SEQUENTIAL")
 endif ()
 
 message(STATUS "--------------- General configuration -------------")

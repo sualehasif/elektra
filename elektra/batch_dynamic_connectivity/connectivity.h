@@ -28,10 +28,11 @@ class BatchDynamicConnectivity {
                                     const parlay::sequence<E> &se);
 
   /** Deallocates the data structure.
-  ~BatchDynamicConnectivity() = default;
+   * ~BatchDynamicConnectivity() = default;
 
-  /** The default constructor is invalid because the number of vertices in the
-   *  graph must be known. */
+   * The default constructor is invalid because the number of vertices in the
+   *  graph must be known.
+  */
   BatchDynamicConnectivity() = delete;
 
   /** Copy constructor not implemented. */
@@ -92,6 +93,11 @@ class BatchDynamicConnectivity {
       std::make_tuple(std::make_pair(-1, -1), kEmptyInfo);
   const std::tuple<std::pair<V, V>, bdcty::EInfo> tombstone_edge_ =
       std::make_tuple(std::make_pair(-1, -1), kEmptyInfo);
+  const std::tuple<std::pair<V, V>, elektra::empty> edge_with_empty_struct_ =
+      std::make_tuple(std::make_pair(-1, -1), elektra::empty{});
+  const std::tuple<std::pair<V, V>, elektra::empty>
+      tombstone_with_empty_struct_ =
+          std::make_tuple(std::make_pair(-1, -1), elektra::empty{});
 
   // `spanning_forests_[i]` stores F_i, the spanning forest for the i-th
   // subgraph. In particular, `spanning_forests[0]` is a spanning forest for the
@@ -109,6 +115,9 @@ class BatchDynamicConnectivity {
 
   void ReplacementSearch(Level level, parlay::sequence<V> components,
                          parlay::sequence<pair<V, V>> &promoted_edges);
+
+  void PushDownTreeEdgesFromComponents(Level l, parlay::sequence<V> &components);
+  void PushDownNonTreeEdges(Level l, parlay::sequence<E> &non_tree_edges);
 
   static auto RemoveDuplicates(parlay::sequence<V> &seq) -> parlay::sequence<V>;
   static auto RemoveDuplicates(parlay::sequence<V> &&seq)

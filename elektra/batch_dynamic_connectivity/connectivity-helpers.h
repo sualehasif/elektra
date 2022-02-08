@@ -200,7 +200,8 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
   });
 
 #ifdef DEBUG
-  std::cout << "Adding " << ne * 2 << " = " << edges.size() << " edges to level"
+  std::cout << "---- Batch add edges to level ----" << std::endl;
+  std::cout << "Adding " << ne * 2 << " = " << edges.size() << " edges to level: "
             << level << std::endl;
 #endif
 
@@ -276,6 +277,7 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
       std::cout << "(" << edge.first << ", " << edge.second << "), ";
     }
     std::cout << std::endl;
+    std::cout << "--------------------------------------------" << std::endl;
 #endif
 
     // add the edges to the graph

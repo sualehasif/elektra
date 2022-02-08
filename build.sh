@@ -7,7 +7,7 @@ if [ ! -d "build" ]; then
 fi
 
 cd build
-cmake ..
+cmake -DCILK=1 ..
 make -j 4
 cd ..
 
