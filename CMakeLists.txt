@@ -2,12 +2,12 @@ cmake_minimum_required(VERSION 3.11.0)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(MACOSX TRUE)
-    set(CILK TRUE)
+    set(CILK FALSE)
 endif ()
 
-if (${CILK})
-    set(CMAKE_CXX_COMPILER "/Users/sualeh/code/OpenCilk-12.0.0-Darwin/bin/clang++")
-endif ()
+#if (${CILK})
+#    set(CMAKE_CXX_COMPILER "/Users/sualeh/code/OpenCilk-12.0.0-Darwin/bin/clang++")
+#endif ()
 
 project(elektra
         VERSION 0.1.0
@@ -41,9 +41,9 @@ set(CMAKE_CXX_FLAGS
     -Wno-unused-value \
     ")
 
-if (${CILK})
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopencilk -DPARLAY_CILK")
-endif ()
+#if (${CILK})
+#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopencilk -DPARLAY_CILK")
+#endif ()
 
 if (${SEQUENTIAL})
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPARLAY_SEQUENTIAL")

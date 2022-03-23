@@ -18,14 +18,14 @@ namespace bdcty {
 // @description: This method checks if the batch of vertices is connected in
 // the graph
 auto BatchDynamicConnectivity::BatchConnected(sequence<pair<V, V>> suv) const
--> sequence<char> {
+    -> sequence<char> {
   sequence<char> s_connected(suv.size(), 0);
   // check if they are connected in the highest level forest
   const auto &p_max_level_euler_tree =
       parallel_spanning_forests_[max_level_ - 1];
 
   parlay::parallel_for(0, suv.size(), [&](size_t i) {
-    auto[v_1, v_2] = suv[i];
+    auto [v_1, v_2] = suv[i];
     s_connected[i] = p_max_level_euler_tree->IsConnected(v_1, v_2);
   });
 
@@ -55,10 +55,10 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
   });
   // TODO(major: sualeh): get rid of this and just use the spanning tree_set
   // vector.
-  auto tree_edges = NewEdgeSequence<int>(spanning_tree);
+  auto tree_edges = NewEdgeSequence<uint32_t>(spanning_tree);
   max_level_euler_tree->BatchLink(tree_edges);
 
-  auto non_tree_edges = sequence<E>(se.size(), E(-1, -1));
+  auto non_tree_edges = sequence<E>(se.size(), E(kV_Max, kV_Max));
   // update the nonTree edges based on the ST computation
   parlay::parallel_for(0, se.size(), [&](size_t i) {
     if (tree_set.count(se[i]) == 0) {
@@ -67,8 +67,9 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
     }
   });
   // filter and add non-tree_set edges
-  auto filtered_non_tree_edges = parlay::filter(
-      non_tree_edges, [&](auto e) { return e.first != -1 && e.second != -1; });
+  auto filtered_non_tree_edges = parlay::filter(non_tree_edges, [&](auto e) {
+    return e.first != kV_Max && e.second != kV_Max;
+  });
 
   non_tree_adjacency_lists_.BatchAddEdgesToLevel(filtered_non_tree_edges,
                                                  max_level_ - 1);
@@ -76,20 +77,21 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
   {
 #ifdef DEBUG
     std::cout << "Tree edges" << std::endl;
-    for (auto &e : tree_set) {
+    for (const auto &e : tree_set) {
       std::cout << "Edge: " << e.first << " " << e.second << std::endl;
     }
     PrintEdgeSequence(tree_edges, "Tree Edges from sequence");
     std::cout << "Adding the non-tree_set edges to the hashtable" << std::endl;
-    std::cout << "non_tree_edges.size() = " << non_tree_edges.size() << std::endl;
+    std::cout << "non_tree_edges.size() = " << non_tree_edges.size()
+              << std::endl;
     PrintEdgeSequence(non_tree_edges, "nonTreeEdgesUnfiltered");
     PrintEdgeSequence(filtered_non_tree_edges, "nonTreeEdgesFiltered");
 #endif
   }
-
 }
 
-void BatchDynamicConnectivity::PushDownTreeEdgesFromComponents(Level l, sequence<V> &components) {
+void BatchDynamicConnectivity::PushDownTreeEdgesFromComponents(
+    Level l, sequence<V> &components) {
   auto &euler_tree = parallel_spanning_forests_[l];
   auto &lower_level_euler_tree = parallel_spanning_forests_[l - 1];
 
@@ -168,7 +170,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
       vl.deleteVal(kU);
     } else {
       tree_edges.push_back(se[i]);
-      parlay::write_min(&min_tree_edge_level, kLevel, std::less<>());
+      //      URGENT(sualeh): fix this.
+      //      parlay::write_min(&min_tree_edge_level, kLevel, std::less<>());
     }
 
     {
@@ -179,7 +182,6 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
       PrintSequence(v_entries, "vl: edges for vertex kV");
 #endif
     }
-
   });
   // delete edges from the tree at each level from the minimum tree edge level
   // to the maximum tree edge level
@@ -199,7 +201,6 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
       }
 #endif
     }
-
   }
 
   // We now try to find replacement edges starting from the min level.
@@ -363,19 +364,19 @@ void BatchDynamicConnectivity::ReplacementSearch(Level level,
 
       // ensure that the reverse edges of promoted edges are not pushed down
       // TODO(sualeh): this is very expensive. dont see an immediate fix.
-      auto push_down_edges_v1 = push_down_edges.entries();
-      auto push_down_edges_v2 =
-          sequence<E>::from_function(push_down_edges_v1.size(), [&](int i) {
-            auto e = std::get<0>(push_down_edges_v1[i]);
+      auto push_down_edges_v_1 = push_down_edges.entries();
+      auto push_down_edges_v_2 =
+          sequence<E>::from_function(push_down_edges_v_1.size(), [&](int i) {
+            auto e = std::get<0>(push_down_edges_v_1[i]);
             auto rev_e = make_pair(e.second, e.first);
             cout << "e: " << e.first << " " << e.second << endl;
             if (promoted_edges_table.contains(rev_e)) {
-              return make_pair(-1, -1);
+              return make_pair(kV_Max, kV_Max);
             }
             return e;
           });
-      auto push_down_seq = parlay::filter(push_down_edges_v2,
-                                          [](auto e) { return e.first != -1; });
+      auto push_down_seq = parlay::filter(
+          push_down_edges_v_2, [](auto e) { return e.first != kV_Max; });
 
       cout << "Pushing down edges!!!!!!!!!!!!" << endl;
       PrintEdgeSequence(promoted_edges, "promoted_edges: ");
@@ -391,4 +392,4 @@ void BatchDynamicConnectivity::ReplacementSearch(Level level,
   }
 }
 
-}  // namespace bdcty
+} // namespace bdcty
