@@ -107,14 +107,24 @@ void BatchDynamicConnectivity::checkRep() {
 
   // Basic checks
   // 1. `edges_` is a set of edges.
-  // 2. `spanning_forests_[i]->edges_` is a subset of `edges_`.
-  // 3. `(i, non_tree_adjacency_lists_[i][v])` is a subset of `edges_` for all i
-  // and v.
-  // 4. `Set( (i, non_tree_adjacency_lists_[i][v]), spanning_forests_[j]->edges_
-  // )` = `edges_`.
-  //      for all i, v, j.
-  // 5. `spanning_forests_[i]->edges_` is a subset of
-  // `spanning_forests_[j]->edges_`
+  // 2. `spanning_forests_[i].edges_` is a subset of `edges_`.
+  // 3. `(v, non_tree_adjacency_lists_[i][v])` is a subset of `edges_`
+  //    for all i and v.
+  // 4. `Set( ...E(v, non_tree_adjacency_lists_[i][v]),
+  //          ...spanning_forests_[j].edges_)`
+  //   = `edges_`.    for all i, v, j.
+  // 5. `spanning_forests_[i].edges_` is a subset of
+  //    `spanning_forests_[j].edges_`    for all i > j.
+  // 6. all edges in `edges_` are distinct.
+
+  // Component Size checks
+  // 1. All components of edges at level i are of size <= 2^i.
+  //    for all i in [0, max_level_].
+
+  // MST checks
+  // 1. M = {WeightedEdge( (e, w) | e in spanning_forests_[max_level_].edges_
+  //                                 and  w = edges_[e].level}.
+  //   is a minimum spanning forest of `edges_`.
 }
 
 BatchDynamicConnectivity::BatchDynamicConnectivity(V num_vertices)
