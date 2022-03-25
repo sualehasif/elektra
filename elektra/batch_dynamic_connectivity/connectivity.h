@@ -14,48 +14,17 @@ public:
   /** Initializes an empty graph with a fixed number of vertices.
    *
    *  @param[in] num_vertices Number of vertices in the graph.
-   *
-   *  TODO(sualeh): What if the number of vertices is larger than
-   *  INT_MAX? How about having a type (smt like uintV) which
-   *  we can set to either uint32_t or uint64_t, depending on the
-   *  need?
-   *  Maybe make the "int" type here whatever we call "V" in
-   *  graph.h?
    */
   explicit BatchDynamicConnectivity(V num_vertices);
 
   explicit BatchDynamicConnectivity(V num_vertices,
                                     const parlay::sequence<E> &se);
 
-  /** Deallocates the data structure.
-   * ~BatchDynamicConnectivity() = default;
-
-   * The default constructor is invalid because the number of vertices in the
-   *  graph must be known.
-  */
-  BatchDynamicConnectivity() = delete;
-
-  /** Copy constructor not implemented. */
-  BatchDynamicConnectivity(const BatchDynamicConnectivity &other) = delete;
-
-  /** Copy assignment not implemented. */
-  auto operator=(const BatchDynamicConnectivity &other)
-      -> BatchDynamicConnectivity & = delete;
-
-  /** Move constructor. */
-  BatchDynamicConnectivity(BatchDynamicConnectivity &&other) = delete;
-
-  /** Move assignment not implemented. */
-  auto operator=(BatchDynamicConnectivity &&other) noexcept
-      -> BatchDynamicConnectivity & = delete;
-
   /** Returns true if vertices \p u and \p v are connected in the graph.
    *
    *  Efficiency:
    *
    *  @param[in] suv A sequence of pair's of vertices
-   *
-   *  TODO(sualeh): minor, but why is return type is char and not bool?
    */
   [[nodiscard]] auto BatchConnected(parlay::sequence<std::pair<V, V>> suv) const
       -> parlay::sequence<char>;
@@ -78,6 +47,7 @@ public:
 
   //  parlay::sequence<V> BatchFindRepr(const parlay::sequence<V> &sv);
 
+  /** Printing utilities. */
   [[maybe_unused]] void PrintStructure();
   void PrintLevel(Level level);
 
@@ -113,6 +83,8 @@ private:
   NonTreeAdjacencyList non_tree_adjacency_lists_;
   EdgeSet edges_;
 
+  void checkRep();
+
   void ReplacementSearch(Level level, parlay::sequence<V> components,
                          parlay::sequence<pair<V, V>> &promoted_edges);
 
@@ -129,6 +101,21 @@ private:
                              const unique_ptr<BatchDynamicEtt> &ett)
       -> vector<vector<E>>;
 };
+
+void BatchDynamicConnectivity::checkRep() {
+  // Rep invariant:
+
+  // Basic checks
+  // 1. `edges_` is a set of edges.
+  // 2. `spanning_forests_[i]->edges_` is a subset of `edges_`.
+  // 3. `(i, non_tree_adjacency_lists_[i][v])` is a subset of `edges_` for all i
+  // and v.
+  // 4. `Set( (i, non_tree_adjacency_lists_[i][v]), spanning_forests_[j]->edges_
+  // )` = `edges_`.
+  //      for all i, v, j.
+  // 5. `spanning_forests_[i]->edges_` is a subset of
+  // `spanning_forests_[j]->edges_`
+}
 
 BatchDynamicConnectivity::BatchDynamicConnectivity(V num_vertices)
     : num_vertices_(num_vertices), max_level_(parlay::log2_up(num_vertices)) {
