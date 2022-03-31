@@ -10,54 +10,24 @@ namespace bdcty {
  *  a pair of vertices are not supported.
  */
 class BatchDynamicConnectivity {
- public:
+public:
   /** Initializes an empty graph with a fixed number of vertices.
    *
    *  @param[in] num_vertices Number of vertices in the graph.
-   *
-   *  TODO(sualeh): What if the number of vertices is larger than
-   *  INT_MAX? How about having a type (smt like uintV) which
-   *  we can set to either uint32_t or uint64_t, depending on the
-   *  need?
-   *  Maybe make the "int" type here whatever we call "V" in
-   *  graph.h?
    */
   explicit BatchDynamicConnectivity(V num_vertices);
 
   explicit BatchDynamicConnectivity(V num_vertices,
                                     const parlay::sequence<E> &se);
 
-  /** Deallocates the data structure. */
-  ~BatchDynamicConnectivity() = default;
-
-  /** The default constructor is invalid because the number of vertices in the
-   *  graph must be known. */
-  BatchDynamicConnectivity() = delete;
-
-  /** Copy constructor not implemented. */
-  BatchDynamicConnectivity(const BatchDynamicConnectivity &other) = delete;
-
-  /** Copy assignment not implemented. */
-  auto operator=(const BatchDynamicConnectivity &other)
-  -> BatchDynamicConnectivity & = delete;
-
-  /** Move constructor. */
-  BatchDynamicConnectivity(BatchDynamicConnectivity &&other) = delete;
-
-  /** Move assignment not implemented. */
-  auto operator=(BatchDynamicConnectivity &&other) noexcept
-  -> BatchDynamicConnectivity & = delete;
-
   /** Returns true if vertices \p u and \p v are connected in the graph.
    *
    *  Efficiency:
    *
    *  @param[in] suv A sequence of pair's of vertices
-   *
-   *  TODO(sualeh): minor, but why is return type is char and not bool?
    */
   [[nodiscard]] auto BatchConnected(parlay::sequence<std::pair<V, V>> suv) const
-  -> parlay::sequence<char>;
+      -> parlay::sequence<char>;
 
   /** Adds a batch of edges to the graph.
    *
@@ -77,6 +47,7 @@ class BatchDynamicConnectivity {
 
   //  parlay::sequence<V> BatchFindRepr(const parlay::sequence<V> &sv);
 
+  /** Printing utilities. */
   [[maybe_unused]] void PrintStructure();
   void PrintLevel(Level level);
 
@@ -84,7 +55,7 @@ class BatchDynamicConnectivity {
 
   void PrintNonTreeEdgesForLevel(Level level);
 
- private:
+private:
   const uintE num_vertices_;
 
   const Level max_level_;
@@ -92,6 +63,11 @@ class BatchDynamicConnectivity {
       std::make_tuple(std::make_pair(-1, -1), kEmptyInfo);
   const std::tuple<std::pair<V, V>, bdcty::EInfo> tombstone_edge_ =
       std::make_tuple(std::make_pair(-1, -1), kEmptyInfo);
+  const std::tuple<std::pair<V, V>, elektra::empty> edge_with_empty_struct_ =
+      std::make_tuple(std::make_pair(-1, -1), elektra::empty{});
+  const std::tuple<std::pair<V, V>, elektra::empty>
+      tombstone_with_empty_struct_ =
+          std::make_tuple(std::make_pair(-1, -1), elektra::empty{});
 
   // `spanning_forests_[i]` stores F_i, the spanning forest for the i-th
   // subgraph. In particular, `spanning_forests[0]` is a spanning forest for the
@@ -107,18 +83,159 @@ class BatchDynamicConnectivity {
   NonTreeAdjacencyList non_tree_adjacency_lists_;
   EdgeSet edges_;
 
+  void checkRep();
+
   void ReplacementSearch(Level level, parlay::sequence<V> components,
                          parlay::sequence<pair<V, V>> &promoted_edges);
 
+  void PushDownTreeEdgesFromComponents(Level l,
+                                       parlay::sequence<V> &components);
+  void PushDownNonTreeEdges(Level l, parlay::sequence<E> &non_tree_edges);
+
   static auto RemoveDuplicates(parlay::sequence<V> &seq) -> parlay::sequence<V>;
   static auto RemoveDuplicates(parlay::sequence<V> &&seq)
-  -> parlay::sequence<V>;
+      -> parlay::sequence<V>;
   inline void InsertIntoEdgeTable(const pair<V, V> &e, EType e_type,
                                   Level level);
   inline auto GetSearchEdges(Level level, sequence<V> &components,
                              const unique_ptr<BatchDynamicEtt> &ett)
-  -> vector<vector<E>>;
+      -> vector<vector<E>>;
 };
+
+void BatchDynamicConnectivity::checkRep() {
+  // Rep invariant:
+
+  // Basic checks
+  // 1. `edges_` is a set of edges.
+  // 2. `spanning_forests_[i].edges_` is a subset of `edges_`.
+  // 3. `(v, non_tree_adjacency_lists_[i][v])` is a subset of `edges_`
+  //    for all i and v.
+  // 4. `Set( ...E(v, non_tree_adjacency_lists_[i][v]),
+  //          ...spanning_forests_[j].edges_)`
+  //   = `edges_`.    for all i, v, j.
+  // 5. `spanning_forests_[i].edges_` is a subset of
+  //    `spanning_forests_[j].edges_`    for all i > j.
+  // 6. all edges in `edges_`, `spanning_forests_[i].edges_` are distinct.
+
+  // Component Size checks
+  // 1. All components of edges at level i are of size <= 2^i.
+  //    for all i in [0, max_level_].
+
+  // MST checks
+  // 1. M = {WeightedEdge( (e, w) | e in spanning_forests_[max_level_].edges_
+  //                                 and  w = edges_[e].level}.
+  //   is a minimum spanning forest of `edges_`.
+
+  auto edges_seq = edges_.entries();
+
+  for (Level level = 0; level <= max_level_; ++level) {
+    // Check that `spanning_forests_[i].edges_` is a subset of `edges_`.
+    auto spanning_forest_edges = parallel_spanning_forests_[level]->Edges_();
+    assert(spanning_forest_edges.size() <= edges_seq.size());
+    assert(
+        std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto &e) {
+          auto [edge, value] = e;
+          auto [edge_level, e_type] = value;
+          return edge_level == level && e_type == EType::K_TREE;
+        }) == spanning_forest_edges.size());
+
+    // Check that `(v, non_tree_adjacency_lists_[i][v])` is a subset of
+    // `edges_`.
+    auto non_tree_level_edges = non_tree_adjacency_lists_[level];
+    for (V v = 0; v < num_vertices_; ++v) {
+      auto opposite_vertices = non_tree_level_edges[v].entries();
+      // construct a set of edges from the opposite vertices.
+      auto opposite_edges = vector<pair<V, V>>(opposite_vertices.size());
+      for (size_t i = 0; i < opposite_vertices.size(); ++i) {
+        auto [opposite_vertex, _] = opposite_vertices[i];
+        opposite_edges[i] = std::make_pair(v, opposite_vertex);
+      }
+      assert(opposite_edges.size() <= edges_seq.size());
+      assert(
+          std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto &e) {
+            auto [edge, value] = e;
+            auto [edge_level, e_type] = value;
+            return edge_level == level && e_type == EType::K_NON_TREE;
+          }) == opposite_edges.size());
+    }
+
+    //    // Check that `Set( ...E(v, non_tree_adjacency_lists_[i][v]),
+    //    //          ...spanning_forests_[j].edges_)`
+    //    //   = `edges_`.
+    //    for (V v = 0; v < num_vertices_; ++v) {
+    //      for (const auto &e : non_tree_adjacency_lists_[level][v]) {
+    //        assert(spanning_forests_[level]->edges_.count(e));
+    //      }
+    //    }
+    //
+    //    // Check that `spanning_forests_[i].edges_` is a subset of
+    //    // `spanning_forests_[j].edges_`    for all i > j.
+    //    for (Level j = level + 1; j <= max_level_; ++j) {
+    //      assert(spanning_forests_[level]->edges_.size() <=
+    //             spanning_forests_[j]->edges_.size());
+    //      assert(spanning_forests_[level]->edges_.size() ==
+    //             std::count_if(spanning_forests_[j]->edges_.begin(),
+    //                           spanning_forests_[j]->edges_.end(),
+    //                           [&](const auto &e) {
+    //                             return
+    //                             spanning_forests_[level]->edges_.count(e);
+    //                           }));
+  }
+
+  // component size checks
+  for (Level level = 0; level <= max_level_; ++level) {
+    // construct the components from the tree edges
+    auto level_edges = parallel_spanning_forests_[level]->Edges_();
+
+    auto components = vector<set<V>>(num_vertices_);
+
+    for (const auto &e : level_edges) {
+      auto [u, v] = e;
+
+      for (const auto &component : components) {
+        if (component.count(u)) {
+          components[u].insert(v);
+        } else if (component.count(v)) {
+          components[v].insert(u);
+        } else {
+          auto new_component = set<V>();
+          new_component.insert(u);
+          new_component.insert(v);
+          components.push_back(new_component);
+        }
+      }
+    }
+
+    // now insert the non-tree edges
+    auto non_tree_edges = non_tree_adjacency_lists_[level];
+
+    for (V v = 0; v < num_vertices_; ++v) {
+      for (const auto &e : non_tree_edges[v].entries()) {
+        auto [u, _] = e;
+        for (const auto &component : components) {
+          if (component.count(u)) {
+            components[u].insert(v);
+          } else if (component.count(v)) {
+            components[v].insert(u);
+          } else {
+            auto new_component = set<V>();
+            new_component.insert(u);
+            new_component.insert(v);
+            components.push_back(new_component);
+          }
+        }
+      }
+    }
+
+    // assert that the size of each component is at most 2^(level)
+    for (const auto &component : components) {
+      assert(component.size() <= (1 << level));
+    }
+  }
+
+  // MST checks
+
+}
 
 BatchDynamicConnectivity::BatchDynamicConnectivity(V num_vertices)
     : num_vertices_(num_vertices), max_level_(parlay::log2_up(num_vertices)) {
@@ -166,7 +283,7 @@ BatchDynamicConnectivity::BatchDynamicConnectivity(
   BatchAddEdges(se);
 }
 
-template<typename E, typename N = E>
+template <typename E, typename N = E>
 auto RepresentativeSpanningTree(const parlay::sequence<E> &se,
                                 const unique_ptr<BatchDynamicEtt> &ett) {
   // Construct the auxiliary edges.
@@ -181,9 +298,9 @@ auto RepresentativeSpanningTree(const parlay::sequence<E> &se,
   return spanning_tree;
 }
 
-template<typename T, class VType>
+template <typename T, class VType>
 auto NewEdgeSequence(parlay::sequence<pair<VType, VType>> &se)
--> parlay::sequence<std::pair<T, T>> {
+    -> parlay::sequence<std::pair<T, T>> {
   // turns a sequence of edges to an array of pairs
   // useful for V with EulerTourTrees
   auto array = parlay::sequence<std::pair<T, T>>::uninitialized(se.size());
@@ -208,9 +325,10 @@ inline void BatchDynamicConnectivity::InsertIntoEdgeTable(const pair<V, V> &e,
 }
 
 // TODO(tom): This needs to be supported as an augmentation.
-inline auto BatchDynamicConnectivity::GetSearchEdges(
-    Level level, sequence<V> &components, const unique_ptr<BatchDynamicEtt> &ett)
--> vector<vector<E>> {
+inline auto
+BatchDynamicConnectivity::GetSearchEdges(Level level, sequence<V> &components,
+                                         const unique_ptr<BatchDynamicEtt> &ett)
+    -> vector<vector<E>> {
   vector<vector<E>> non_tree_edges;
   non_tree_edges.reserve(components.size());
   for (auto _ : components) {
@@ -232,17 +350,17 @@ inline auto BatchDynamicConnectivity::GetSearchEdges(
 }
 
 auto BatchDynamicConnectivity::RemoveDuplicates(sequence<V> &seq)
--> sequence<V> {
+    -> sequence<V> {
   // TODO: possibly change this to use a semisort and not inplace sort
   // sort the sequence
-  parlay::integer_sort_inplace(seq, [](V x) { return (unsigned) x; });
+  parlay::integer_sort_inplace(seq, [](V x) { return (unsigned)x; });
 
   return parlay::unique(seq);
 }
 
 auto BatchDynamicConnectivity::RemoveDuplicates(sequence<V> &&seq)
--> sequence<V> {
-  parlay::integer_sort_inplace(seq, [](V x) { return (unsigned) x; });
+    -> sequence<V> {
+  parlay::integer_sort_inplace(seq, [](V x) { return (unsigned)x; });
   return parlay::unique(seq);
 }
 
@@ -298,7 +416,7 @@ void BatchDynamicConnectivity::PrintNonTreeEdgesForLevel(Level level) {
   // scan through and build a set of all the edges
   std::unordered_set<E, EHash> edges;
 
-  for (int i = 0; i < (int) num_vertices_; i++) {
+  for (V i = 0; i < num_vertices_; i++) {
     auto vtx_set = vtx_layer[i];
     for (auto &kv : vtx_set.entries()) {
       // get the vertex by getting the first element of the tuple
@@ -317,4 +435,4 @@ void BatchDynamicConnectivity::PrintNonTreeEdgesForLevel(Level level) {
   std::cout << std::endl;
 }
 
-}  // namespace bdcty
+} // namespace bdcty
