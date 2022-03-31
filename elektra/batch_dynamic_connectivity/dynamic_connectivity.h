@@ -144,7 +144,6 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
 
   // split se into tree and non tree edges
   sequence<E> tree_edges;
-  tree_edges.reserve(se.size());
 
   //  V min_tree_edge_level = static_cast<V>(max_level_);
   std::atomic<V> min_tree_edge_level(max_level_);
@@ -183,6 +182,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
 #endif
     }
   });
+
   // delete edges from the tree at each level from the minimum tree edge level
   // to the maximum tree edge level
   for (int l = min_tree_edge_level; l < max_level_; l++) {
@@ -207,6 +207,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
   for (int l = min_tree_edge_level; l < max_level_; l++) {
     const auto &level_euler_tree = parallel_spanning_forests_[l];
 
+    // Is edges_to_replace correct? Should we also take into account
+    // edges at levels below that weren't "replaced" below?
     auto edges_to_replace = parlay::filter(tree_edges, [&](E e) {
       return edges_.find(pair<V, V>(e.first, e.second)).level == l;
     });
@@ -242,7 +244,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
 
     // Doing a replacement search for the disconnected edge at level l.
     sequence<E> promoted_edges;
-    promoted_edges.reserve(tree_edges.size());
+    promoted_edges.reserve(tree_edges.size()); // TODO: use ::uninitialized and don't use push_back.
     ReplacementSearch(l, components_to_consider, promoted_edges);
 
 #ifdef DEBUG
@@ -257,7 +259,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
       parlay::parallel_for(l + 1, max_level_, [&](int i) {
         auto &level_euler_tree = parallel_spanning_forests_[i];
         level_euler_tree->BatchLink(promoted_edges);
-      });
+      });  // TODO: can set a grain size of 1 here.
       // remove the promoted edges from the non-tree edge lists
       parlay::parallel_for(0, promoted_edges.size(), [&](auto i) {
         const auto kE = promoted_edges[i];
@@ -284,7 +286,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
 void BatchDynamicConnectivity::ReplacementSearch(Level level,
                                                  sequence<V> components,
                                                  sequence<E> &promoted_edges) {
-  // set up a course search size and an overall stride for the search.
+  // set up a coarse search size and an overall stride for the search.
   constexpr auto kInitialSearchSize = 256;
   uintE k_search_size = kInitialSearchSize;
   uintE total_search_stride = 0;
@@ -301,17 +303,17 @@ void BatchDynamicConnectivity::ReplacementSearch(Level level,
           2 * components.size(), edge_with_empty_struct_,
           tombstone_with_empty_struct_, HashIntPairStruct());
 
-  auto union_find = elektra::UnionFindCompress{components.size()};
+  auto union_find = elektra::UnionFindCompress{components.size()}; // TODO(laxman): read this :-)
 
   // an indicator of whether we are done with that component.
-  std::vector<char> component_indicator(components.size(), 0);
+  std::vector<char> component_indicator(components.size(), 0); // why not parlay::sequence?
   // a component -> idx map
   auto component_map = elektra::MakeIndexMap<V, V>(components);
 
   // set up non-tree edges to search through
   // The first sequence indexes by the component number
   // The second sequence indexes by the edges in the component
-  auto search_edges = GetSearchEdges(level, components, ett);
+  auto search_edges = GetSearchEdges(level, components, ett);  // TODO(laxman): read. Are we getting all of the non-tree edges at once now?
 
   while (parlay::count(component_indicator, 1) < components.size()) {
     parlay::parallel_for(0, components.size(), [&](int i) {
@@ -349,10 +351,18 @@ void BatchDynamicConnectivity::ReplacementSearch(Level level,
         if (u_parent != v_parent) {
           // link the two components together: we found an edge that connects
           // them
+          //
+          // TODO(laxman): What if both endpoints of an edge are
+          // "small"? Then, we'll search both of them, and here in
+          // parallel we might find replacement edge for both of them
+          // and call unite. And then both edges would be "promoted".
+          // I think you have to use the return value of unite here.
           union_find.unite(u_parent, v_parent, union_find.parents);
           promoted_edges.push_back(make_pair(kU, kV));
           promoted_edges_table.insert(
               make_tuple(make_pair(kU, kV), elektra::empty{}));
+          // vector of size = #searched_edge. 0 => push down, 1 =>
+          // tree edge
         } else {
           // this failed and will be pushed down a level.
           push_down_edges.insert(
@@ -362,6 +372,8 @@ void BatchDynamicConnectivity::ReplacementSearch(Level level,
 
       cout << "here" << endl;
 
+      // TODO(sualeh/laxman): this loop should probably happen outside
+      // of the parallel_for it's currently in.
       // ensure that the reverse edges of promoted edges are not pushed down
       // TODO(sualeh): this is very expensive. dont see an immediate fix.
       auto push_down_edges_v_1 = push_down_edges.entries();

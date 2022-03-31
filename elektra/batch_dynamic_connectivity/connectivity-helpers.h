@@ -241,7 +241,7 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
   V edge_positions[unique_starting_vertices.size() + 1];
 
   // find the position of each vertex in the unique vertices
-  parlay::parallel_for(0, unique_starting_vertices.size(), [&](auto i) {
+  parlay::parallel_for(0, unique_starting_vertices.size(), [&](size_t i) {
     auto *pos = parlay::find(edges, unique_starting_vertices[i]);
     edge_positions[i] = pos - edges.begin();
   });
@@ -258,7 +258,7 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
 #endif
 
   // then we add the edges to the graph
-  parlay::parallel_for(0, unique_starting_vertices.size(), [&](auto i) {
+  parlay::parallel_for(0, unique_starting_vertices.size(), [&](size_t i) {
     auto &vtx = unique_starting_vertices[i];
     auto &vertex_list = level_lists[vtx.first];
 
