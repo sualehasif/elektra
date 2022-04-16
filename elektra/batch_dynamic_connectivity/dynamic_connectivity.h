@@ -49,18 +49,20 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
       RepresentativeSpanningTree<E, uintE>(se, max_level_euler_tree);
   auto tree_set =
       elektra::MakeSet<sequence<pair<uintE, uintE>>, E, EHash>(spanning_tree);
+  // these are all the tree edges, so we insert them in to the top level.
   parlay::parallel_for(0, spanning_tree.size(), [&](size_t i) {
     pair<V, V> e = E(spanning_tree[i].first, spanning_tree[i].second);
     InsertIntoEdgeTable(e, EType::K_TREE, max_level_ - 1);
   });
-  // TODO(major: sualeh): get rid of this and just use the spanning tree_set
-  // vector.
-  auto tree_edges = NewEdgeSequence<uint32_t>(spanning_tree);
-  max_level_euler_tree->BatchLink(tree_edges);
+
+  //  auto tree_edges = NewEdgeSequence<uint32_t>(spanning_tree);
+  max_level_euler_tree->BatchLink(spanning_tree);
 
   auto non_tree_edges = sequence<E>(se.size(), E(kV_Max, kV_Max));
   // update the nonTree edges based on the ST computation
   parlay::parallel_for(0, se.size(), [&](size_t i) {
+    // we could get rid of this check by just checking the EdgeTable which
+    // labels edges as Tree Edges. So we could get rid of that table altogether.
     if (tree_set.count(se[i]) == 0) {
       non_tree_edges[i] = (make_pair(se[i].first, se[i].second));
       InsertIntoEdgeTable(se[i], EType::K_NON_TREE, max_level_ - 1);
@@ -80,7 +82,7 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
     for (const auto &e : tree_set) {
       std::cout << "Edge: " << e.first << " " << e.second << std::endl;
     }
-    PrintEdgeSequence(tree_edges, "Tree Edges from sequence");
+    PrintEdgeSequence(spanning_tree, "Tree Edges from sequence");
     std::cout << "Adding the non-tree_set edges to the hashtable" << std::endl;
     std::cout << "non_tree_edges.size() = " << non_tree_edges.size()
               << std::endl;
@@ -310,8 +312,7 @@ BatchDynamicConnectivity::ReplacementSearch(Level level,
       components.size()}; // TODO(laxman): read this :-)
 
   // an indicator of whether we are done with that component.
-  std::vector<char> component_indicator(components.size(),
-                                        0); // why not parlay::sequence?
+  sequence<char> component_indicator(components.size(), 0);
   // a component -> idx map
   auto component_map = elektra::MakeIndexMap<V, V>(components);
 
@@ -380,8 +381,6 @@ BatchDynamicConnectivity::ReplacementSearch(Level level,
       }); // end of parallel for over search_size
     });   // parallel loop over components end.
 
-    // TODO(sualeh/laxman): this loop should probably happen outside
-    // of the parallel_for it's currently in.
     // ensure that the reverse edges of promoted edges are not pushed down
     auto push_down_edges_v_1 = push_down_edges.entries();
     auto push_down_edges_v_2 =
