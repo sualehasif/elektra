@@ -335,7 +335,6 @@ BatchDynamicConnectivity::ReplacementSearch(Level level,
       if (kNumEdges > kCriticalComponentSize) {
         return;
       }
-      cout << "here" << endl;
 
       // doing a search over the components.
       parlay::parallel_for(0, min(kNumEdges, k_search_size) + 1, [&](int j) {
@@ -348,7 +347,11 @@ BatchDynamicConnectivity::ReplacementSearch(Level level,
 
         const auto &[kU, kV] = non_tree_edges_i[idx];
 
-        cout << "working on edge: " << kU << " " << kV << endl;
+        {
+#ifdef DEBUG
+          std::cout << "working on edge: " << kU << " " << kV << std::endl;
+#endif
+        }
 
         auto u_component_rep = component_map.at(ett->GetRepresentative(kU));
         auto v_component_rep = component_map.at(ett->GetRepresentative(kV));
@@ -374,49 +377,46 @@ BatchDynamicConnectivity::ReplacementSearch(Level level,
           push_down_edges.insert(
               make_tuple(make_pair(kU, kV), elektra::empty{}));
         }
-      });
+      }); // end of parallel for over search_size
+    });   // parallel loop over components end.
 
-      cout << "here" << endl;
+    // TODO(sualeh/laxman): this loop should probably happen outside
+    // of the parallel_for it's currently in.
+    // ensure that the reverse edges of promoted edges are not pushed down
+    auto push_down_edges_v_1 = push_down_edges.entries();
+    auto push_down_edges_v_2 =
+        sequence<E>::from_function(push_down_edges_v_1.size(), [&](int i) {
+          auto e = std::get<0>(push_down_edges_v_1[i]);
+          auto rev_e = make_pair(e.second, e.first);
+          if (promoted_edges_table.contains(rev_e)) {
+            return make_pair(kV_Max, kV_Max);
+          }
+          return e;
+        });
+    auto push_down_seq = parlay::filter(
+        push_down_edges_v_2, [](auto e) { return e.first != kV_Max; });
 
-      // TODO(sualeh/laxman): this loop should probably happen outside
-      // of the parallel_for it's currently in.
-      // ensure that the reverse edges of promoted edges are not pushed down
-      // TODO(sualeh): this is very expensive. dont see an immediate fix.
-      auto push_down_edges_v_1 = push_down_edges.entries();
-      auto push_down_edges_v_2 =
-          sequence<E>::from_function(push_down_edges_v_1.size(), [&](int i) {
-            auto e = std::get<0>(push_down_edges_v_1[i]);
-            auto rev_e = make_pair(e.second, e.first);
-            cout << "e: " << e.first << " " << e.second << endl;
-            if (promoted_edges_table.contains(rev_e)) {
-              return make_pair(kV_Max, kV_Max);
-            }
-            return e;
-          });
-      auto push_down_seq = parlay::filter(
-          push_down_edges_v_2, [](auto e) { return e.first != kV_Max; });
-
-      {
+    {
 #ifdef DEBUG
-        PrintEdgeSequence(push_down_seq,
-                          "\n\nPush down edges at level " + to_string(level));
+      PrintEdgeSequence(push_down_seq,
+                        "\n\nPush down edges at level " + to_string(level));
 
-        auto promoted_edges_v_1 = promoted_edges_table.entries();
-        PrintEdgeSequence(promoted_edges_v_1,
-                          "\n\nPromoted edges up till now." + to_string(level));
+      auto promoted_edges_v_1 = promoted_edges_table.entries();
+      PrintEdgeSequence(promoted_edges_v_1,
+                        "\n\nPromoted edges up till now." + to_string(level));
 #endif
-      }
+    }
 
-      // push down the edges and clear out the push_down_edges
-      PushDownNonTreeEdges(level, push_down_seq);
-      push_down_edges.clear();
-      // Note we will promote the edges later.
-    });
+    // Note we will promote the edges later.
+    // push down the edges and clear out the push_down_edges
+    PushDownNonTreeEdges(level, push_down_seq);
+    push_down_edges.clear();
 
     // update the total search stride and search size
     total_search_stride += k_search_size;
     k_search_size *= 2;
-  }
+
+  } // while loop over components end.
 
   // collect all the promoted edges into a big sequence and then return it
   sequence<std::tuple<E, elektra::empty>> promoted_edges_v =

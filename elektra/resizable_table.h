@@ -14,29 +14,25 @@ namespace elektra {
 
 constexpr size_t kResizableTableCacheLineSz = 128;
 
-inline size_t hashToRange(const size_t& h, const size_t& mask) {
+inline size_t hashToRange(const size_t &h, const size_t &mask) {
   return h & mask;
 }
-inline size_t incrementIndex(const size_t& h, const size_t& mask) {
+inline size_t incrementIndex(const size_t &h, const size_t &mask) {
   return hashToRange(h + 1, mask);
 }
 
-template <class K, class V>
-struct iter_kv {
+template <class K, class V> struct iter_kv {
   using T = std::tuple<K, V>;
   K k;
   size_t h;
   size_t mask;
   // size_t num_probes;  // For debugging.
-  T* table;
+  T *table;
   K empty_key;
-  iter_kv(K _k, size_t _h, size_t _mask, T* _table, K _empty_key)
-      : k(_k),
-        h(_h),
-        mask(_mask),
+  iter_kv(K _k, size_t _h, size_t _mask, T *_table, K _empty_key)
+      : k(_k), h(_h), mask(_mask),
         // num_probes(0),
-        table(_table),
-        empty_key(_empty_key) {}
+        table(_table), empty_key(_empty_key) {}
 
   // Finds the location of the first key
   bool init() {
@@ -70,9 +66,8 @@ struct iter_kv {
   T next() { return table[h]; }
 };
 
-template <class K, class V, class KeyHash>
-class resizable_table {
- public:
+template <class K, class V, class KeyHash> class resizable_table {
+public:
   using T = std::tuple<K, V>;
 
   size_t m;
@@ -86,7 +81,7 @@ class resizable_table {
   KeyHash key_hash;
   sequence<size_t> cts;
 
-  inline size_t firstIndex(K& k) { return hashToRange(key_hash(k), mask); }
+  inline size_t firstIndex(K &k) { return hashToRange(key_hash(k), mask); }
 
   void init_counts() {
     size_t workers = parlay::num_workers();
@@ -110,13 +105,9 @@ class resizable_table {
   }
 
   resizable_table(size_t _m, T _empty, T _tombstone, KeyHash _key_hash)
-      : m((size_t)1 << parlay::log2_up((size_t)(1.1 * _m))),
-        mask(m - 1),
-        ne(0),
-        empty(_empty),
-        empty_key(std::get<0>(empty)),
-        empty_value(std::get<1>(empty)),
-        tombstone(_tombstone),
+      : m((size_t)1 << parlay::log2_up((size_t)(1.1 * _m))), mask(m - 1), ne(0),
+        empty(_empty), empty_key(std::get<0>(empty)),
+        empty_value(std::get<1>(empty)), tombstone(_tombstone),
         key_hash(_key_hash) {
     table = sequence<T>::uninitialized(m);
     clear();
@@ -143,7 +134,8 @@ class resizable_table {
               << " num_probes = " << probe_lengths.size() << std::endl;
     for (long k = probe_lengths.size() - 1; k > 0; k--) {
       std::cout << probe_lengths[k] << " ";
-      if (probe_lengths.size() - k > 250) break;
+      if (probe_lengths.size() - k > 250)
+        break;
     }
     std::cout << std::endl << "End of table analysis" << std::endl;
   }
@@ -178,8 +170,8 @@ class resizable_table {
   }
 
   bool insert(std::tuple<K, V> kv) {
-    K& k = std::get<0>(kv);
-    V& v = std::get<1>(kv);
+    K &k = std::get<0>(kv);
+    V &v = std::get<1>(kv);
     size_t h = firstIndex(k);
     while (1) {
       if (std::get<0>(table[h]) == empty_key &&
@@ -199,8 +191,8 @@ class resizable_table {
   }
 
   bool insert_seq(std::tuple<K, V> kv) {
-    K& k = std::get<0>(kv);
-    V& v = std::get<1>(kv);
+    K &k = std::get<0>(kv);
+    V &v = std::get<1>(kv);
     size_t h = firstIndex(k);
     while (1) {
       if (std::get<0>(table[h]) == empty_key) {
@@ -279,8 +271,7 @@ class resizable_table {
     }
   }
 
-  template <class F>
-  void map(F& f) {
+  template <class F> void map(F &f) {
     parallel_for(0, m, [&](size_t i) {
       if (std::get<0>(table[i]) != empty_key &&
           std::get<0>(table[i]) != std::get<0>(tombstone)) {
@@ -290,7 +281,7 @@ class resizable_table {
   }
 
   sequence<T> entries() {
-    auto pred = [&](T& t) {
+    auto pred = [&](T &t) {
       return (std::get<0>(t) != empty_key &&
               std::get<0>(t) != std::get<0>(tombstone));
     };
@@ -301,12 +292,17 @@ class resizable_table {
   void clear() {
     parlay::parallel_for(0, m, [&](size_t i) { table[i] = empty; });
   }
+
+  size_t size() {
+    update_nelms();
+    return ne;
+  }
 };
 
 template <class K, class V, class KeyHash>
-inline resizable_table<K, V, KeyHash> make_resizable_table(
-    size_t m, std::tuple<K, V> empty, std::tuple<K, V> tombstone,
-    KeyHash key_hash) {
+inline resizable_table<K, V, KeyHash>
+make_resizable_table(size_t m, std::tuple<K, V> empty,
+                     std::tuple<K, V> tombstone, KeyHash key_hash) {
   return resizable_table<K, V, KeyHash>(m, empty, tombstone, key_hash);
 }
-}  // namespace elektra
+} // namespace elektra
