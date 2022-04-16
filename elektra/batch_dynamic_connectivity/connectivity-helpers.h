@@ -319,10 +319,11 @@ template <typename T> auto PrintSequence(T &seq, const std::string &&name) {
   std::cout << std::endl;
 }
 
-auto PrintEdgeSequence(const parlay::sequence<pair<V, V>> &edges,
+auto PrintEdgeSequence(sequence<std::tuple<E, elektra::empty>> &seq,
                        const std::string &&name) {
   std::cout << name << ": ";
-  for (const auto &e : edges) {
+  for (auto &i : seq) {
+    auto &e = std::get<0>(i);
     std::cout << "(" << e.first << ", " << e.second << "), ";
   }
   std::cout << std::endl;

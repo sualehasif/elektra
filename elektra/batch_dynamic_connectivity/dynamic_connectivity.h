@@ -243,23 +243,26 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
     PushDownTreeEdgesFromComponents(l, small_components);
 
     // Doing a replacement search for the disconnected edge at level l.
-    sequence<E> promoted_edges;
-    promoted_edges.reserve(tree_edges.size()); // TODO: use ::uninitialized and don't use push_back.
-    ReplacementSearch(l, components_to_consider, promoted_edges);
+    // TODO: use ::uninitialized and don't use push_back.
+    sequence<E> promoted_edges = ReplacementSearch(l, components_to_consider);
 
-#ifdef DEBUG
-    PrintEdgeSequence(promoted_edges, "Promoted Edges");
-    PrintStructure();
+    {
+#ifdef DEBUG PrintEdgeSequence(promoted_edges, "Promoted Edges");
+      PrintStructure();
 #endif
+    }
 
     if (!promoted_edges.empty()) {
       level_euler_tree->BatchLink(promoted_edges);
       // TODO: possibly coursen the loop
       // update all the higher levels with the promoted tree edges
-      parlay::parallel_for(l + 1, max_level_, [&](int i) {
-        auto &level_euler_tree = parallel_spanning_forests_[i];
-        level_euler_tree->BatchLink(promoted_edges);
-      });  // TODO: can set a grain size of 1 here.
+      parlay::parallel_for(
+          l + 1, max_level_,
+          [&](int i) {
+            auto &level_euler_tree = parallel_spanning_forests_[i];
+            level_euler_tree->BatchLink(promoted_edges);
+          },
+          1);
       // remove the promoted edges from the non-tree edge lists
       parlay::parallel_for(0, promoted_edges.size(), [&](auto i) {
         const auto kE = promoted_edges[i];
@@ -283,9 +286,9 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
   }
 }
 
-void BatchDynamicConnectivity::ReplacementSearch(Level level,
-                                                 sequence<V> components,
-                                                 sequence<E> &promoted_edges) {
+sequence<E>
+BatchDynamicConnectivity::ReplacementSearch(Level level,
+                                            sequence<V> components) {
   // set up a coarse search size and an overall stride for the search.
   constexpr auto kInitialSearchSize = 256;
   uintE k_search_size = kInitialSearchSize;
@@ -303,17 +306,21 @@ void BatchDynamicConnectivity::ReplacementSearch(Level level,
           2 * components.size(), edge_with_empty_struct_,
           tombstone_with_empty_struct_, HashIntPairStruct());
 
-  auto union_find = elektra::UnionFindCompress{components.size()}; // TODO(laxman): read this :-)
+  auto union_find = elektra::UnionFindCompress{
+      components.size()}; // TODO(laxman): read this :-)
 
   // an indicator of whether we are done with that component.
-  std::vector<char> component_indicator(components.size(), 0); // why not parlay::sequence?
+  std::vector<char> component_indicator(components.size(),
+                                        0); // why not parlay::sequence?
   // a component -> idx map
   auto component_map = elektra::MakeIndexMap<V, V>(components);
 
   // set up non-tree edges to search through
   // The first sequence indexes by the component number
   // The second sequence indexes by the edges in the component
-  auto search_edges = GetSearchEdges(level, components, ett);  // TODO(laxman): read. Are we getting all of the non-tree edges at once now?
+  auto search_edges = GetSearchEdges(
+      level, components, ett); // TODO(laxman): read. Are we getting all of
+                               // the non-tree edges at once now?
 
   while (parlay::count(component_indicator, 1) < components.size()) {
     parlay::parallel_for(0, components.size(), [&](int i) {
@@ -358,7 +365,6 @@ void BatchDynamicConnectivity::ReplacementSearch(Level level,
           // and call unite. And then both edges would be "promoted".
           // I think you have to use the return value of unite here.
           union_find.unite(u_parent, v_parent, union_find.parents);
-          promoted_edges.push_back(make_pair(kU, kV));
           promoted_edges_table.insert(
               make_tuple(make_pair(kU, kV), elektra::empty{}));
           // vector of size = #searched_edge. 0 => push down, 1 =>
@@ -390,8 +396,17 @@ void BatchDynamicConnectivity::ReplacementSearch(Level level,
       auto push_down_seq = parlay::filter(
           push_down_edges_v_2, [](auto e) { return e.first != kV_Max; });
 
-      cout << "Pushing down edges!!!!!!!!!!!!" << endl;
-      PrintEdgeSequence(promoted_edges, "promoted_edges: ");
+      {
+#ifdef DEBUG
+        PrintEdgeSequence(push_down_seq,
+                          "\n\nPush down edges at level " + to_string(level));
+
+        auto promoted_edges_v_1 = promoted_edges_table.entries();
+        PrintEdgeSequence(promoted_edges_v_1,
+                          "\n\nPromoted edges up till now." + to_string(level));
+#endif
+      }
+
       // push down the edges and clear out the push_down_edges
       PushDownNonTreeEdges(level, push_down_seq);
       push_down_edges.clear();
@@ -402,6 +417,15 @@ void BatchDynamicConnectivity::ReplacementSearch(Level level,
     total_search_stride += k_search_size;
     k_search_size *= 2;
   }
+
+  // collect all the promoted edges into a big sequence and then return it
+  sequence<std::tuple<E, elektra::empty>> promoted_edges_v =
+      promoted_edges_table.entries();
+  auto promoted_edges_seq =
+      sequence<E>::from_function(promoted_edges_v.size(), [&](int i) {
+        return std::get<0>(promoted_edges_v[i]);
+      });
+  return promoted_edges_seq;
 }
 
 } // namespace bdcty

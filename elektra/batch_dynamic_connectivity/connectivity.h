@@ -85,8 +85,8 @@ private:
 
   //  void checkRep();
 
-  void ReplacementSearch(Level level, parlay::sequence<V> components,
-                         parlay::sequence<pair<V, V>> &promoted_edges);
+  parlay::sequence<E> ReplacementSearch(Level level,
+                                        parlay::sequence<V> components);
 
   void PushDownTreeEdgesFromComponents(Level l,
                                        parlay::sequence<V> &components);
