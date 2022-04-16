@@ -20,6 +20,7 @@
 #include "parallel_euler_tour_tree/euler_tour_tree.h"
 #include "resizable_table.h"
 #include "spanning_tree.h"
+#include "union_find.h"
 
 #define VERTEX_LAYER_SIZE 50
 

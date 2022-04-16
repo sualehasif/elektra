@@ -17,8 +17,10 @@ namespace bdcty {
 // vertices are connected
 // @description: This method checks if the batch of vertices is connected in
 // the graph
-auto BatchDynamicConnectivity::BatchConnected(sequence<pair<V, V>> suv) const
+auto BatchDynamicConnectivity::BatchConnected(sequence<pair<V, V>> suv)
     -> sequence<char> {
+  CheckRep();
+
   sequence<char> s_connected(suv.size(), 0);
   // check if they are connected in the highest level forest
   const auto &p_max_level_euler_tree =
@@ -40,6 +42,8 @@ auto BatchDynamicConnectivity::BatchConnected(sequence<pair<V, V>> suv) const
 // BUG (Possible): we need to check if the edges are already
 // present in the graph.
 void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
+  CheckRep();
+
   // Look at the max level Euler Tour Tree in the parallel spanning forests.
   const auto &max_level_euler_tree = parallel_spanning_forests_[max_level_ - 1];
 
@@ -61,8 +65,9 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
   auto non_tree_edges = sequence<E>(se.size(), E(kV_Max, kV_Max));
   // update the nonTree edges based on the ST computation
   parlay::parallel_for(0, se.size(), [&](size_t i) {
-    // we could get rid of this check by just checking the EdgeTable which
-    // labels edges as Tree Edges. So we could get rid of that table altogether.
+    // TODO(sualeh): we could get rid of this check by just checking the
+    //   EdgeTable which labels edges as Tree Edges. So we could get rid of that
+    //   table altogether.
     if (tree_set.count(se[i]) == 0) {
       non_tree_edges[i] = (make_pair(se[i].first, se[i].second));
       InsertIntoEdgeTable(se[i], EType::K_NON_TREE, max_level_ - 1);
@@ -90,6 +95,7 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
     PrintEdgeSequence(filtered_non_tree_edges, "nonTreeEdgesFiltered");
 #endif
   }
+  CheckRep();
 }
 
 void BatchDynamicConnectivity::PushDownTreeEdgesFromComponents(
@@ -140,6 +146,7 @@ void BatchDynamicConnectivity::PushDownNonTreeEdges(
 }
 
 void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
+  CheckRep();
   // first make sure all the edges are correctly oriented and remove all the
   // edges that are not in the graph
   RemoveUnknownEdges(se, edges_, kEmptyInfo);
@@ -286,6 +293,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
       });
     }
   }
+
+  CheckRep();
 }
 
 sequence<E>

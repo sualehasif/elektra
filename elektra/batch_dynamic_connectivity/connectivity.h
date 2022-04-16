@@ -26,7 +26,7 @@ public:
    *
    *  @param[in] suv A sequence of pair's of vertices
    */
-  [[nodiscard]] auto BatchConnected(parlay::sequence<std::pair<V, V>> suv) const
+  [[nodiscard]] auto BatchConnected(parlay::sequence<std::pair<V, V>> suv)
       -> parlay::sequence<char>;
 
   /** Adds a batch of edges to the graph.
@@ -83,10 +83,10 @@ private:
   NonTreeAdjacencyList non_tree_adjacency_lists_;
   EdgeSet edges_;
 
-  //  void checkRep();
+  void CheckRep();
 
-  parlay::sequence<E> ReplacementSearch(Level level,
-                                        parlay::sequence<V> components);
+  auto ReplacementSearch(Level level, parlay::sequence<V> components)
+      -> parlay::sequence<E>;
 
   void PushDownTreeEdgesFromComponents(Level l,
                                        parlay::sequence<V> &components);
@@ -102,142 +102,215 @@ private:
       -> vector<vector<E>>;
 };
 
-// void BatchDynamicConnectivity::checkRep() {
-//   // Rep invariant:
-//
-//   // Basic checks
-//   // 1. `edges_` is a set of edges.
-//   // 2. `spanning_forests_[i].edges_` is a subset of `edges_`.
-//   // 3. `(v, non_tree_adjacency_lists_[i][v])` is a subset of `edges_`
-//   //    for all i and v.
-//   // 4. `Set( ...E(v, non_tree_adjacency_lists_[i][v]),
-//   //          ...spanning_forests_[j].edges_)`
-//   //   = `edges_`.    for all i, v, j.
-//   // 5. `spanning_forests_[i].edges_` is a subset of
-//   //    `spanning_forests_[j].edges_`    for all i > j.
-//   // 6. all edges in `edges_`, `spanning_forests_[i].edges_` are distinct.
-//
-//   // Component Size checks
-//   // 1. All components of edges at level i are of size <= 2^i.
-//   //    for all i in [0, max_level_].
-//
-//   // MST checks
-//   // 1. M = {WeightedEdge( (e, w) | e in spanning_forests_[max_level_].edges_
-//   //                                 and  w = edges_[e].level}.
-//   //   is a minimum spanning forest of `edges_`.
-//
-//   auto edges_seq = edges_.entries();
-//
-//   for (Level level = 0; level <= max_level_; ++level) {
-//     // Check that `spanning_forests_[i].edges_` is a subset of `edges_`.
-//     auto spanning_forest_edges = parallel_spanning_forests_[level]->Edges_();
-//     assert(spanning_forest_edges.size() <= edges_seq.size());
-//     assert(
-//         std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto &e)
-//         {
-//           auto [edge, value] = e;
-//           auto [edge_level, e_type] = value;
-//           return edge_level == level && e_type == EType::K_TREE;
-//         }) == spanning_forest_edges.size());
-//
-//     // Check that `(v, non_tree_adjacency_lists_[i][v])` is a subset of
-//     // `edges_`.
-//     auto non_tree_level_edges = non_tree_adjacency_lists_[level];
-//     for (V v = 0; v < num_vertices_; ++v) {
-//       auto opposite_vertices = non_tree_level_edges[v].entries();
-//       // construct a set of edges from the opposite vertices.
-//       auto opposite_edges = vector<pair<V, V>>(opposite_vertices.size());
-//       for (size_t i = 0; i < opposite_vertices.size(); ++i) {
-//         auto [opposite_vertex, _] = opposite_vertices[i];
-//         opposite_edges[i] = std::make_pair(v, opposite_vertex);
-//       }
-//       assert(opposite_edges.size() <= edges_seq.size());
-//       assert(
-//           std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto
-//           &e) {
-//             auto [edge, value] = e;
-//             auto [edge_level, e_type] = value;
-//             return edge_level == level && e_type == EType::K_NON_TREE;
-//           }) == opposite_edges.size());
-//     }
-//
-//     //    // Check that `Set( ...E(v, non_tree_adjacency_lists_[i][v]),
-//     //    //          ...spanning_forests_[j].edges_)`
-//     //    //   = `edges_`.
-//     //    for (V v = 0; v < num_vertices_; ++v) {
-//     //      for (const auto &e : non_tree_adjacency_lists_[level][v]) {
-//     //        assert(spanning_forests_[level]->edges_.count(e));
-//     //      }
-//     //    }
-//     //
-//     //    // Check that `spanning_forests_[i].edges_` is a subset of
-//     //    // `spanning_forests_[j].edges_`    for all i > j.
-//     //    for (Level j = level + 1; j <= max_level_; ++j) {
-//     //      assert(spanning_forests_[level]->edges_.size() <=
-//     //             spanning_forests_[j]->edges_.size());
-//     //      assert(spanning_forests_[level]->edges_.size() ==
-//     //             std::count_if(spanning_forests_[j]->edges_.begin(),
-//     //                           spanning_forests_[j]->edges_.end(),
-//     //                           [&](const auto &e) {
-//     //                             return
-//     //                             spanning_forests_[level]->edges_.count(e);
-//     //                           }));
-//   }
-//
-//   // component size checks
-//   for (Level level = 0; level <= max_level_; ++level) {
-//     // construct the components from the tree edges
-//     auto level_edges = parallel_spanning_forests_[level]->Edges_();
-//
-//     auto components = vector<set<V>>(num_vertices_);
-//
-//     for (const auto &e : level_edges) {
-//       auto [u, v] = e;
-//
-//       for (const auto &component : components) {
-//         if (component.count(u)) {
-//           components[u].insert(v);
-//         } else if (component.count(v)) {
-//           components[v].insert(u);
-//         } else {
-//           auto new_component = set<V>();
-//           new_component.insert(u);
-//           new_component.insert(v);
-//           components.push_back(new_component);
-//         }
-//       }
-//     }
-//
-//     // now insert the non-tree edges
-//     auto non_tree_edges = non_tree_adjacency_lists_[level];
-//
-//     for (V v = 0; v < num_vertices_; ++v) {
-//       for (const auto &e : non_tree_edges[v].entries()) {
-//         auto [u, _] = e;
-//         for (const auto &component : components) {
-//           if (component.count(u)) {
-//             components[u].insert(v);
-//           } else if (component.count(v)) {
-//             components[v].insert(u);
-//           } else {
-//             auto new_component = set<V>();
-//             new_component.insert(u);
-//             new_component.insert(v);
-//             components.push_back(new_component);
-//           }
-//         }
-//       }
-//     }
-//
-//     // assert that the size of each component is at most 2^(level)
-//     for (const auto &component : components) {
-//       assert(component.size() <= (1 << level));
-//     }
-//   }
-//
-//   // MST checks
-//
-// }
+void BatchDynamicConnectivity::CheckRep() {
+  // Rep invariant:
+
+  // Basic checks
+  // 1. `edges_` is a set of edges.
+  // 2. `spanning_forests_[i].edges_` is a subset of `edges_`.
+  // 3. `(v, non_tree_adjacency_lists_[i][v])` is a subset of `edges_`
+  //    for all i and v.
+  // 4. `Set( ...E(v, non_tree_adjacency_lists_[i][v]) for all i and v.
+  //          ...spanning_forests_[j].edges_ for all j.)`
+  //   = `edges_`.
+  // 5. `spanning_forests_[i].edges_` is a subset of
+  //    `spanning_forests_[j].edges_`    for all i > j.
+  // 6. all edges in `edges_`, `spanning_forests_[i].edges_` are distinct.
+
+  // Component Size checks
+  // 1. All components of edges at level i are of size <= 2^i.
+  //    for all i in [0, max_level_].
+
+  // MST checks
+  // 1. M = {WeightedEdge( (e, w) | e in spanning_forests_[max_level_].edges_
+  //                                 and  w = edges_[e].level}.
+  //   is a minimum spanning forest of `edges_`.
+
+  auto edges_seq = edges_.entries();
+
+  // ------------------------------------------------------
+
+  // Basic checks
+  for (Level level = 0; level <= max_level_; ++level) {
+    // Check that `spanning_forests_[i].edges_` is a subset of `edges_`.
+    auto spanning_forest_edges = parallel_spanning_forests_[level]->Edges_();
+    assert(spanning_forest_edges.size() <= edges_seq.size());
+    assert(
+        std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto &e) {
+          auto [edge, value] = e;
+          auto [edge_level, e_type] = value;
+          return edge_level == level && e_type == EType::K_TREE;
+        }) == spanning_forest_edges.size());
+
+    // Check that `(v, non_tree_adjacency_lists_[i][v])` is a subset of
+    // `edges_`.
+    auto non_tree_level_edges = non_tree_adjacency_lists_[level];
+    for (V v = 0; v < num_vertices_; ++v) {
+      auto opposite_vertices = non_tree_level_edges[v].entries();
+      // construct a set of edges from the opposite vertices.
+      auto opposite_edges = vector<pair<V, V>>(opposite_vertices.size());
+      for (size_t i = 0; i < opposite_vertices.size(); ++i) {
+        auto [opposite_vertex, _] = opposite_vertices[i];
+        opposite_edges[i] = std::make_pair(v, opposite_vertex);
+      }
+      assert(opposite_edges.size() <= edges_seq.size());
+      assert(
+          std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto &e) {
+            auto [edge, value] = e;
+            auto [edge_level, e_type] = value;
+            return edge_level == level && e_type == EType::K_NON_TREE;
+          }) == opposite_edges.size());
+    }
+
+    //    // Check that `Set( ...E(v, non_tree_adjacency_lists_[i][v]),
+    //    //          ...spanning_forests_[j].edges_)`
+    //    //   = `edges_`.
+    //    for (V v = 0; v < num_vertices_; ++v) {
+    //      for (const auto &e : non_tree_adjacency_lists_[level][v]) {
+    //        assert(spanning_forests_[level]->edges_.count(e));
+    //      }
+    //    }
+    //
+    //    // Check that `spanning_forests_[i].edges_` is a subset of
+    //    // `spanning_forests_[j].edges_`    for all i > j.
+    //    for (Level j = level + 1; j <= max_level_; ++j) {
+    //      assert(spanning_forests_[level]->edges_.size() <=
+    //             spanning_forests_[j]->edges_.size());
+    //      assert(spanning_forests_[level]->edges_.size() ==
+    //             std::count_if(spanning_forests_[j]->edges_.begin(),
+    //                           spanning_forests_[j]->edges_.end(),
+    //                           [&](const auto &e) {
+    //                             return
+    //                             spanning_forests_[level]->edges_.count(e);
+    //                           }));
+  }
+
+  // ------------------------------------------------------
+
+  // MST setup:
+  // we utilize a union find structure to keep track of the merges.
+  constexpr auto kFind{elektra::find_variants::find_compress};
+  auto unite{elektra::unite_variants::Unite{kFind}};
+
+  // initialize parents_ to the identity map
+  auto parents = parlay::sequence<uintE>::from_function(
+      num_vertices_, [](uintE i) { return i; });
+
+  // MST checks:
+
+  // The algorithm to ensure our invariant is as follows:
+  // - start the lowest level iterating to the top level.
+  // - union every tree edge. This should succeed!
+  // - we then try to union every non-tree edge but that should fail!
+  //    this is because of the MST invariant which expresses that there
+  //    shouldn't be non-tree edges connecting components. If they do, they
+  //    should have been in the MST.
+  for (Level level = 0; level <= max_level_; level++) {
+    sequence<tuple<E, EInfo>> level_tree_edges =
+        parlay::filter(edges_seq, [&](auto &edge) {
+          auto [e, info] = edge;
+          return info.level == level && info.type == EType::K_TREE;
+        });
+
+    for (const auto &edge : level_tree_edges) {
+      auto [e, info] = edge;
+      auto [u, v] = e;
+      auto did_unite = unite(u, v, parents);
+      assert(did_unite != UINT_E_MAX && "union of tree edges failed");
+    }
+
+    sequence<tuple<E, EInfo>> level_non_tree_edges =
+        parlay::filter(edges_seq, [&](auto &edge) {
+          auto [e, info] = edge;
+          return info.level == level && info.type == EType::K_NON_TREE;
+        });
+
+    for (const auto &edge : level_non_tree_edges) {
+      auto [e, info] = edge;
+      auto [u, v] = e;
+      auto did_unite = unite(u, v, parents);
+      assert(did_unite == UINT_E_MAX && "union of non-tree edges succeeded. "
+                                        "This should not happen!");
+    }
+  }
+
+  // ------------------------------------------------------
+
+  // component size checks
+  for (Level level = 0; level <= max_level_; ++level) {
+    // construct the components from the tree edges
+    auto level_edges = parallel_spanning_forests_[level]->Edges_();
+
+    auto components = vector<set<V>>(num_vertices_);
+
+    for (const auto &e : level_edges) {
+      auto [u, v] = e;
+
+      for (const auto &component : components) {
+        if (component.count(u) != 0U) {
+          components[u].insert(v);
+        } else if (component.count(v) != 0U) {
+          components[v].insert(u);
+        } else {
+          auto new_component = set<V>();
+          new_component.insert(u);
+          new_component.insert(v);
+          components.push_back(new_component);
+        }
+      }
+    }
+
+    // now insert the non-tree edges
+    auto non_tree_edges = non_tree_adjacency_lists_[level];
+
+    for (V v = 0; v < num_vertices_; ++v) {
+      for (const auto &e : non_tree_edges[v].entries()) {
+        auto [u, _] = e;
+        for (const auto &component : components) {
+          if (component.count(u) != 0U) {
+            components[u].insert(v);
+          } else if (component.count(v) != 0U) {
+            components[v].insert(u);
+          } else {
+            auto new_component = set<V>();
+            new_component.insert(u);
+            new_component.insert(v);
+            components.push_back(new_component);
+          }
+        }
+      }
+    }
+
+    // assert that all components are disjoint
+    for (size_t i = 0; i < components.size(); ++i) {
+      for (size_t j = i + 1; j < components.size(); ++j) {
+        set<V> intersection;
+        std::set_intersection(
+            components[i].begin(), components[i].end(), components[j].begin(),
+            components[j].end(),
+            std::inserter(intersection, intersection.begin()));
+        assert(intersection.empty() && "components are not disjoint");
+      }
+    }
+
+    // assert that the size of each component is at most 2^(level)
+    for (const auto &component : components) {
+      auto error = "component size error: component size = " +
+                   std::to_string(component.size()) +
+                   " for level = " + std::to_string(level) + "\n" +
+                   " max component size = " + std::to_string(1U << level) +
+                   "\n";
+      assert(component.size() <= (1U << level) && error.c_str());
+    }
+
+    // sum up the size of each component
+    auto size_sum = 0U;
+    for (const auto &component : components) {
+      size_sum += component.size();
+    }
+    assert(size_sum == num_vertices_ && "component size sum error");
+  }
+}
 
 BatchDynamicConnectivity::BatchDynamicConnectivity(V num_vertices)
     : num_vertices_(num_vertices), max_level_(parlay::log2_up(num_vertices)) {
