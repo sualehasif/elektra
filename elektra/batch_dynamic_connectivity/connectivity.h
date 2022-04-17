@@ -114,7 +114,9 @@ void BatchDynamicConnectivity::CheckRep() {
   //          ...spanning_forests_[j].edges_ for all j.)`
   //   = `edges_`.
   // 5. `spanning_forests_[i].edges_` is a subset of
-  //    `spanning_forests_[j].edges_`    for all i > j.
+  //    `spanning_forests_[j].edges_`    for all i < j.
+  //     i.e. as we go down the levels. edges are pushed down from the
+  //     higher levels to the lower levels. They are inserted into the top.
   // 6. all edges in `edges_`, `spanning_forests_[i].edges_` are distinct.
 
   // Component Size checks
@@ -131,6 +133,8 @@ void BatchDynamicConnectivity::CheckRep() {
   // ------------------------------------------------------
 
   // Basic checks
+  set<E> edges_set;
+
   for (Level level = 0; level <= max_level_; ++level) {
     // Check that `spanning_forests_[i].edges_` is a subset of `edges_`.
     auto spanning_forest_edges = parallel_spanning_forests_[level]->Edges_();
@@ -140,7 +144,12 @@ void BatchDynamicConnectivity::CheckRep() {
           auto [edge, value] = e;
           auto [edge_level, e_type] = value;
           return edge_level == level && e_type == EType::K_TREE;
-        }) == spanning_forest_edges.size());
+        }) == static_cast<uint32_t>(spanning_forest_edges.size()));
+
+    // insert all edges into `edges_set`.
+    for (const auto &e : spanning_forest_edges) {
+      edges_set.insert(e);
+    }
 
     // Check that `(v, non_tree_adjacency_lists_[i][v])` is a subset of
     // `edges_`.
@@ -152,6 +161,7 @@ void BatchDynamicConnectivity::CheckRep() {
       for (size_t i = 0; i < opposite_vertices.size(); ++i) {
         auto [opposite_vertex, _] = opposite_vertices[i];
         opposite_edges[i] = std::make_pair(v, opposite_vertex);
+        edges_set.insert(opposite_edges[i]);
       }
       assert(opposite_edges.size() <= edges_seq.size());
       assert(
@@ -159,31 +169,24 @@ void BatchDynamicConnectivity::CheckRep() {
             auto [edge, value] = e;
             auto [edge_level, e_type] = value;
             return edge_level == level && e_type == EType::K_NON_TREE;
-          }) == opposite_edges.size());
+          }) == static_cast<uint32_t>(opposite_edges.size()));
     }
-
-    //    // Check that `Set( ...E(v, non_tree_adjacency_lists_[i][v]),
-    //    //          ...spanning_forests_[j].edges_)`
-    //    //   = `edges_`.
-    //    for (V v = 0; v < num_vertices_; ++v) {
-    //      for (const auto &e : non_tree_adjacency_lists_[level][v]) {
-    //        assert(spanning_forests_[level]->edges_.count(e));
-    //      }
-    //    }
-    //
-    //    // Check that `spanning_forests_[i].edges_` is a subset of
-    //    // `spanning_forests_[j].edges_`    for all i > j.
-    //    for (Level j = level + 1; j <= max_level_; ++j) {
-    //      assert(spanning_forests_[level]->edges_.size() <=
-    //             spanning_forests_[j]->edges_.size());
-    //      assert(spanning_forests_[level]->edges_.size() ==
-    //             std::count_if(spanning_forests_[j]->edges_.begin(),
-    //                           spanning_forests_[j]->edges_.end(),
-    //                           [&](const auto &e) {
-    //                             return
-    //                             spanning_forests_[level]->edges_.count(e);
-    //                           }));
   }
+
+  //   Check that `Set( ...E(v, non_tree_adjacency_lists_[i][v]),
+  //            ...spanning_forests_[j].edges_)`
+  //     = `edges_`.
+  assert(edges_set.size() == edges_seq.size());
+  set<E> edges_set_from_table;
+  for (const auto &e : edges_seq) {
+    auto [edge, _] = e;
+    edges_set_from_table.insert(edge);
+  }
+  assert(edges_set == edges_set_from_table);
+
+  // all edges in `edges_`, `spanning_forests_[i].edges_` are distinct.
+  assert(edges_set.size() == edges_seq.size());
+  assert(edges_set_from_table.size() == edges_seq.size());
 
   // ------------------------------------------------------
 
