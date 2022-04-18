@@ -397,7 +397,7 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
   // nontree_edges_to_push = []
   //
   // while components > 1:
-  //   filter out components s.t. M[...] > 2^i
+  //   filter out components s.t. M[...] > 2^(i-1)
   //
   //   for each component C:
   //     parent[C] = uf.find(C)
@@ -413,7 +413,7 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
   //       M[current_parent] += M[parent[C]]
   //
   //   for each component C:
-  //     if M[uf.find(C)] > 2^i: // component grew too large this round
+  //     if M[uf.find(C)] > 2^(i-1): // component grew too large this round
   //       continue
   //     for the first `search_size`-th level-i non-tree edges (u, v) of C:
   //       if (u, v) in edges_to_promote:
