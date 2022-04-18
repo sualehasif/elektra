@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <ostream>
 #include <tuple>
@@ -49,7 +50,7 @@ using BatchDynamicEtt = parallel_euler_tour_tree::HdtEulerTourTree;
 using TreeSet = std::unordered_set<E, EHash>;
 
 using Level = int;
-constexpr Level kLevel_Max = 65;
+constexpr Level kLevelMax = std::numeric_limits<V>::digits;  // log2(max V)
 
 enum class EType {
   // Edge is in the spanning forest of the graph.

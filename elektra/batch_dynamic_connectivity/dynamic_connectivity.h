@@ -194,7 +194,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
       ul.deleteVal(kV);
       vl.deleteVal(kU);
     } else {
-      levels[i] = make_pair(E(kV_Max, kV_Max), kLevel_Max);
+      levels[i] = make_pair(E(kV_Max, kV_Max), kLevelMax);
       tree_edges.push_back(se[i]);
       //      URGENT(sualeh): fix this.
       parlay::write_min(&min_tree_edge_level, kLevel, std::less<>());
@@ -213,7 +213,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
   // Update non-tree edge counts in the ETTs. This requires grouping the
   // non-tree edges by level.
   levels = parlay::filter(levels, [&](auto& elem) {
-      return elem.second != kLevel_Max;
+      return elem.second != kLevelMax;
   });
   parlay::integer_sort_inplace(
       levels,
