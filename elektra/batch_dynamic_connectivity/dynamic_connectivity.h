@@ -160,11 +160,11 @@ void BatchDynamicConnectivity::PushDownNonTreeEdges(
   );
 }
 
-void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
+void BatchDynamicConnectivity::BatchDeleteEdges(const sequence<E> &se_unfiltered) {
   CheckRep();
   // first make sure all the edges are correctly oriented and remove all the
   // edges that are not in the graph
-  RemoveUnknownEdges(se, edges_, kEmptyInfo);
+  const sequence<E> se = RemoveUnknownEdges(se_unfiltered, edges_);
 
   // split se into tree and non tree edges
   sequence<E> tree_edges;
@@ -369,6 +369,9 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
       });
     }
   }
+  parlay::parallel_for(0, se.size(), [&](const size_t i) {
+    DeleteFromEdgeTable(se[i]);
+  });
 
   CheckRep();
 }

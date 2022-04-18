@@ -43,7 +43,7 @@ public:
    *
    *  @param[in] se A sequence of edges
    */
-  void BatchDeleteEdges(parlay::sequence<E> &se);
+  void BatchDeleteEdges(const parlay::sequence<E> &se);
 
   //  parlay::sequence<V> BatchFindRepr(const parlay::sequence<V> &sv);
 
@@ -104,6 +104,7 @@ private:
       -> parlay::sequence<V>;
   inline void InsertIntoEdgeTable(const pair<V, V> &e, EType e_type,
                                   Level level);
+  inline void DeleteFromEdgeTable(const pair<V, V> &e);
 };
 
 void BatchDynamicConnectivity::CheckRep() {
@@ -406,6 +407,11 @@ inline void BatchDynamicConnectivity::InsertIntoEdgeTable(const pair<V, V> &e,
   // always makes the edge have e.first < e.second
   EInfo ei_rev = {level, e_type};
   edges_.insert(make_tuple(pair<V, V>(e.second, e.first), ei_rev));
+}
+
+inline void BatchDynamicConnectivity::DeleteFromEdgeTable(const pair<V, V> &e) {
+  edges_.deleteVal(e);
+  edges_.deleteVal(pair<V, V>(e.second, e.first));
 }
 
 auto BatchDynamicConnectivity::RemoveDuplicates(sequence<V> &seq)

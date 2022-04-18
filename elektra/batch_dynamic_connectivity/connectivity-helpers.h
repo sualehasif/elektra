@@ -276,24 +276,9 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
   });
 }
 
-template <class Edge, class EdgeSet, typename EdgeInfo>
-void RemoveUnknownEdges(sequence<Edge> &se, EdgeSet edges, EdgeInfo e_info) {
-  parlay::parallel_for(0, se.size(), [&](size_t i) {
-    auto e = se[i];
-    auto u = e.first;
-    auto v = e.second;
-
-    if (edges.find(Edge(v, u)) != e_info) {
-      // swap the edges
-      se[i] = E(v, u);
-    } else if (edges.find(Edge(u, v)) == e_info) {
-      // if the edge is not in the graph, skip it
-      se[i] = E(kV_Max, kV_Max);
-    }
-  });
-
-  // filter out the (-1, -1) edges
-  parlay::filter(se, [&](E e) { return e.first != kV_Max; });
+template <class Edge, class EdgeSet>
+sequence<Edge> RemoveUnknownEdges(const sequence<Edge> &se, const EdgeSet& edges) {
+  return parlay::filter(se, [&](E e) { return edges.contains(e); });
 }
 
 template <typename T> auto PrintSequence(T &seq, const std::string &&name) {
