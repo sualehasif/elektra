@@ -375,7 +375,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
         assert(!(ul.contains(kV) || vl.contains(kU)));
 #ifdef DEBUG
         std::cout << "Removing edge " << kU << " " << kV
-                  << " at level: " << kLevel << std::endl;
+                  << " at level: " << l << std::endl;
 #endif
       });
     }
