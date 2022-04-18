@@ -139,7 +139,7 @@ void BatchDynamicConnectivity::CheckRep() {
   // Basic checks
   set<E> edges_set;
 
-  for (Level level = 0; level <= max_level_; ++level) {
+  for (Level level = 0; level < max_level_; ++level) {
     // Check that `spanning_forests_[i].edges_` is a subset of `edges_`.
     auto spanning_forest_edges = parallel_spanning_forests_[level]->Edges_();
     assert(spanning_forest_edges.size() <= edges_seq.size());
@@ -212,7 +212,7 @@ void BatchDynamicConnectivity::CheckRep() {
   //    this is because of the MST invariant which expresses that there
   //    shouldn't be non-tree edges connecting components. If they do, they
   //    should have been in the MST.
-  for (Level level = 0; level <= max_level_; level++) {
+  for (Level level = 0; level < max_level_; level++) {
     sequence<tuple<E, EInfo>> level_tree_edges =
         parlay::filter(edges_seq, [&](auto &edge) {
           auto [e, info] = edge;
@@ -244,7 +244,7 @@ void BatchDynamicConnectivity::CheckRep() {
   // ------------------------------------------------------
 
   // component size checks
-  for (Level level = 0; level <= max_level_; ++level) {
+  for (Level level = 0; level < max_level_; ++level) {
     // construct the components from the tree edges
     auto level_edges = parallel_spanning_forests_[level]->Edges_();
 
