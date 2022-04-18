@@ -81,7 +81,7 @@ public:
   KeyHash key_hash;
   sequence<size_t> cts;
 
-  inline size_t firstIndex(K &k) { return hashToRange(key_hash(k), mask); }
+  inline size_t firstIndex(K &k) const { return hashToRange(key_hash(k), mask); }
 
   void init_counts() {
     size_t workers = parlay::num_workers();
@@ -281,7 +281,7 @@ public:
   }
 
   sequence<T> entries() const {
-    auto pred = [&](T &t) {
+    auto pred = [&](const T &t) {
       return (std::get<0>(t) != empty_key &&
               std::get<0>(t) != std::get<0>(tombstone));
     };
@@ -290,7 +290,7 @@ public:
   }
 
   sequence<K> keys() const {
-    auto pred = [&](K &k) {
+    auto pred = [&](const K &k) {
       return k != empty_key && k != std::get<0>(tombstone);
     };
     auto table_seq = parlay::make_slice(table);

@@ -79,7 +79,7 @@ const bdcty::EInfo kEmptyInfo = {-1, bdcty::EType::K_NON_TREE};
 // make a hashtable with an empty value type
 // hash32 is sufficient
 struct hash_kv {
-  auto operator()(const V &k) -> uint64_t { return parlay::hash64(k); }
+  auto operator()(const V &k) const -> uint64_t { return parlay::hash64(k); }
 };
 
 using VertexConcurrentSet =

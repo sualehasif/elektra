@@ -73,7 +73,7 @@ public:
   // Prints the tree to stdout.
   void Print();
   // Returns all the edges in the tree.
-  std::vector<std::pair<v_int, v_int>> Edges_() const;
+  parlay::sequence<std::pair<v_int, v_int>> Edges_() const;
   // Returns an estimate of the amount of system memory in bytes this data
   // structure occupies.
   auto MemorySize() const -> size_t;
@@ -186,14 +186,7 @@ v_int EulerTourTreeBase<E>::GetRepresentative(v_int u) const {
 
 // Prints the tree to stdout.
 template <typename E> void EulerTourTreeBase<E>::Print() {
-  // make a set of all edges
-  std::unordered_set<std::pair<v_int, v_int>, HashIntPairStruct> edges;
-
-  for (v_int i = 0; i < num_vertices_; i++) {
-    for (const auto &edge : vertices_[i].GetEdges()) {
-      edges.insert(edge);
-    }
-  }
+  const auto edges = Edges_();
 
   // print all the edges
   for (const auto &edge : edges) {
@@ -203,24 +196,8 @@ template <typename E> void EulerTourTreeBase<E>::Print() {
 }
 
 template <typename E>
-std::vector<std::pair<v_int, v_int>> EulerTourTreeBase<E>::Edges_() const {
-  // make a set of all edges
-  std::unordered_set<std::pair<v_int, v_int>, HashIntPairStruct> edges;
-
-  for (v_int i = 0; i < num_vertices_; i++) {
-    for (const auto &edge : vertices_[i].GetEdges()) {
-      edges.insert(edge);
-    }
-  }
-
-  // copy the edges into a vector
-  std::vector<std::pair<v_int, v_int>> edges_vec;
-  edges_vec.reserve(edges.size());
-  for (const auto &edge : edges) {
-    edges_vec.push_back(edge);
-  }
-
-  return edges_vec;
+parlay::sequence<std::pair<v_int, v_int>> EulerTourTreeBase<E>::Edges_() const {
+  return edges_.Keys();
 }
 
 template <typename E> size_t EulerTourTreeBase<E>::MemorySize() const {

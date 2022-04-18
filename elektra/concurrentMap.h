@@ -175,6 +175,17 @@ class concurrentHT {
       return k != empty_key && k != tombstone;
     });
   }
+
+  // Return keys in the map.
+  parlay::sequence<K> keys() const {
+    const auto slice = parlay::delayed_seq<K>(
+        capacity,
+        [&](const size_t i) { return std::get<0>(table[i]); }
+    );
+    return parlay::filter(slice, [&](const K& k) {
+      return k != empty_key && k != tombstone;
+    });
+  }
 };
 
 };  // namespace concurrent_map

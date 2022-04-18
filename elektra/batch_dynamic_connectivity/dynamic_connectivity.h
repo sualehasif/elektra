@@ -222,7 +222,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
   levels = parlay::filter(levels, [&](auto& elem) {
       return elem.second != kLevel_Max;
   });
-  parlay::integer_sort_inplace(levels, [&](auto & elem) { return elem.second; });
+  parlay::integer_sort_inplace(levels, [&](auto &elem) { return (uint8_t)elem.second; });
   const auto unique_level_flags = parlay::delayed_seq<bool>(
       levels.size(),
       [&](const size_t i) {

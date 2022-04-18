@@ -32,6 +32,9 @@ class EdgeMap {
 
   bool IsEmpty() const;
 
+  // Returns all edges in the map.
+  parlay::sequence<std::pair<v_int, v_int>> Keys() const;
+
   // Deallocate all elements held in the map. This assumes that all elements
   // in the map were allocated through `allocator`.
   void FreeElements();
@@ -87,6 +90,11 @@ Elem* EdgeMap<Elem>::Find(v_int u, v_int v) {
   } else {
     return *map_.find(make_pair(u, v));
   }
+}
+
+template <typename Elem>
+parlay::sequence<std::pair<v_int, v_int>> EdgeMap<Elem>::Keys() const {
+  return map_.keys();
 }
 
 template <typename Elem>
