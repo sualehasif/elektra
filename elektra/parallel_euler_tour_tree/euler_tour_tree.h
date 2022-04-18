@@ -206,10 +206,13 @@ parlay::sequence<std::pair<v_int, v_int>> EulerTourTreeBase<E>::Edges_() const {
 template <typename E>
 parlay::sequence<std::pair<v_int, v_int>> EulerTourTreeBase<E>::EdgesBothDirs_() const {
   const auto edges = edges_.Keys();
+  const size_t size = edges.size();
   return parlay::sequence<std::pair<v_int, v_int>>::from_function(
-      2 * edges.size(),
+      2 * size,
       [&](const size_t i) {
-        return i < edges.size() ? edges[i] : make_pair(edges[i].second, edges[i].first);
+        return i < size
+          ? edges[i]
+          : make_pair(edges[i - size].second, edges[i - size].first);
       }
   );
 }
