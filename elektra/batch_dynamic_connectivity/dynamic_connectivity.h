@@ -113,11 +113,9 @@ void BatchDynamicConnectivity::PushDownTreeEdgesFromComponents(
 
   parlay::parallel_for(0, components.size(), [&](size_t i) {
     auto c = components[i];
-    // auto tree_edges = euler_tree->ComponentEdges(c);
     auto tree_edges = euler_tree->GetAndClearLevelIEdges(c);
 
     // move all these edges to the euler_tree of level l-1
-    // euler_tree->BatchCut(tree_edges);
     lower_level_euler_tree->BatchLink(
         tree_edges,
         parlay::delayed_seq<bool>(tree_edges.size(), [](size_t) { return true; })
@@ -204,7 +202,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
     } else {
       levels[i] = make_pair(E(kV_Max, kV_Max), kLevel_Max);
       tree_edges.push_back(se[i]);
-      // TODO URGENT(sualeh): fix this.
+      //      URGENT(sualeh): fix this.
       parlay::write_min(&min_tree_edge_level, kLevel, std::less<>());
     }
 
@@ -480,7 +478,7 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
 
       edge_finders[i].ForEachIncidentVertex(search_offset, search_offset + search_size,
           [&](V u, V adj_begin, V adj_end) {
-            // TODO(tom/sualeh): entries() here is inefficient. What we "should"
+            // TODO(sualeh) TODO(tom): entries() here is inefficient. What we "should"
             // do is only look at the `adj_begin`-th to `adj_end`-th edges in
             // level_non_tree_adjacency_lists[u]. But we don't have a nice way
             // of fetching such a range of edges out of level_non_tree_adjacency_lists[u].
