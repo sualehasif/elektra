@@ -220,7 +220,13 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
   levels = parlay::filter(levels, [&](auto& elem) {
       return elem.second != kLevel_Max;
   });
-  parlay::integer_sort_inplace(levels, [&](auto &elem) { return (uint8_t)elem.second; });
+  parlay::integer_sort_inplace(
+      levels,
+      [&](auto &elem) {
+        // we must cast because integer_sort asserts on the type being unsigned
+        return static_cast<uint8_t>(elem.second);
+      }
+  );
   const auto unique_level_flags = parlay::delayed_seq<bool>(
       levels.size(),
       [&](const size_t i) {
@@ -229,11 +235,11 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
   );
   const auto unique_level_indices = parlay::pack_index(unique_level_flags);
   parlay::parallel_for(0, unique_level_indices.size(), [&](const size_t i) {
+    const size_t start = unique_level_indices[i];
     const size_t end =
       i == unique_level_indices.size() - 1
       ? levels.size()
       : unique_level_indices[i + 1];
-    const size_t start = unique_level_indices[i];
     const Level level = levels[start].second;
 
     parallel_euler_tour_tree::UpdateNontreeEdges(
@@ -312,6 +318,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
       ReplacementSearch(l, components_to_consider);
     const auto& promoted_edges = replacement_search_output.first;
     const auto& promoted_edges_to_push = replacement_search_output.second;
+    const auto promoted_edges_to_push_seq = promoted_edges_to_push.keys();
 
     {
 #ifdef DEBUG
@@ -328,8 +335,11 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
           })
       );
       lower_level_euler_tree->BatchLink(
-          promoted_edges_to_push.keys(),
-          parlay::delayed_seq<bool>(promoted_edges.size(), [](size_t) { return true; })
+          promoted_edges_to_push_seq,
+          parlay::delayed_seq<bool>(
+            promoted_edges_to_push_seq.size(),
+            [](size_t) { return true; }
+          )
       );
       parallel_euler_tour_tree::UpdateNontreeEdges(
           level_euler_tree.get(),
@@ -433,7 +443,7 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
       elektra::resizable_table<E, elektra::empty, HashIntPairStruct>(
           2 * components.size(), edge_with_empty_struct_,
           tombstone_with_empty_struct_, HashIntPairStruct());
-  // successful replacement edges (appearing in promoted_edges) that should be
+  // successful replacement edges (appearing in edges_to_promote) that should be
   // pushed to the next level
   auto tree_edges_to_push =
       elektra::resizable_table<E, elektra::empty, HashIntPairStruct>(
@@ -449,9 +459,9 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
       components.size()}; // TODO(laxman): read this :-)
   // an indicator of whether we are done with that component.
   sequence<char> component_indicator(components.size(), 0);
-  // A super component is a root inside `union_find`, and
-  // super_component_sizes[i] is the size of that super component.
-  auto super_component_sizes = sequence<std::atomic<V>>::from_function(
+  // A supercomponent is a root inside `union_find`, and
+  // supercomponent_sizes[i] is the size of that supercomponent.
+  auto supercomponent_sizes = sequence<std::atomic<V>>::from_function(
       components.size(),
       [&](size_t i) { return ett->ComponentSize(components[i]); }
   );
@@ -461,11 +471,12 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
       components.size(),
       [&](size_t i) {
         return ett->CreateNontreeEdgeFinder(components[i]);
-      });
+      }
+  );
 
   while (parlay::count(component_indicator, 1) < components.size()) {
 
-    // save super component IDs of the start of this while-loop iteration
+    // save supercomponent IDs of the start of this while-loop iteration
     parlay::parallel_for(0, components.size(), [&](const size_t i) {
       component_parents[i] = union_find.find(i, union_find.parents);
     });
@@ -485,15 +496,14 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
             // Possible fixes:
             //   - Implement a doubling/block search on the hash table
             //   - Make level_non_tree_adjacency_lists into a parallel BST
-            //     - seems annoying to do, and would be harder to use since it
-            //     would no longer be concurrent
-            //
-            // The bad case that could happen here is if we hit a high degree
-            // vertex v early on in the search, and .entries() costs O(deg(v))
+            //     - seems annoying to port a parallelBST, and would be harder
+            //       to use since it would no longer be concurrent
             //
             // The hacky thing we're doing here is just searching over all the
             // incident edges of a vertex the first time that edge_finder finds
-            // it (i.e., when adj_begin == 0).
+            // it (i.e., when adj_begin == 0). The bad case that could still
+            // happen here is if we hit a high degree vertex v early on in the
+            // search, and .entries() costs Omega(deg(v)).
             if (adj_begin != 0) {
               return;
             }
@@ -520,14 +530,14 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
       );
     });
 
-    // note(sualeh/tom): are the atomics slow here? if so we can semisort by super_component
-    // and reduce over each super_component. or we can implement the
-    // non-interleaved replacement search algorithm
+    // note(sualeh/tom): are the atomics slow here? if so we can semisort by
+    // supercomponent and reduce over each supercomponent. or we can implement
+    // the non-interleaved replacement search algorithm
     parlay::parallel_for(0, components.size(), [&](const size_t i) {
-      const V super_component = union_find.find(i, union_find.parents);
+      const V supercomponent = union_find.find(i, union_find.parents);
       const V old_component = component_parents[i];
-      if (super_component != old_component) {
-        super_component_sizes[super_component] += super_component_sizes[old_component];
+      if (supercomponent != old_component) {
+        supercomponent_sizes[supercomponent] += supercomponent_sizes[old_component];
       }
     });
 
@@ -537,10 +547,10 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
       if (component_indicator[i] == 1) {
         return;
       }
-      const V super_component = union_find.find(i, union_find.parents);
-      if (super_component_sizes[super_component] > kCriticalComponentSize) {
-        // The super component grew too large this round. (We should not push
-        // edges in this case.
+      const V supercomponent = union_find.find(i, union_find.parents);
+      if (supercomponent_sizes[supercomponent] > kCriticalComponentSize) {
+        // The supercomponent grew too large this round. (We should not push
+        // edges in this case.)
         component_indicator[i] = 1;
       } else {
         const size_t search_end = search_offset + search_size;
