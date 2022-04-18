@@ -73,7 +73,7 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
     return tree_set.count(e) == 0;
   });
   parlay::parallel_for(0, non_tree_edges.size(), [&](size_t i) {
-    InsertIntoEdgeTable(se[i], EType::K_NON_TREE, max_level_ - 1);
+    InsertIntoEdgeTable(non_tree_edges[i], EType::K_NON_TREE, max_level_ - 1);
   });
 
   non_tree_adjacency_lists_.BatchAddEdgesToLevel(non_tree_edges, max_level_ - 1);
