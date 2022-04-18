@@ -61,8 +61,8 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
 
   //  auto tree_edges = NewEdgeSequence<uint32_t>(spanning_tree);
   max_level_euler_tree->BatchLink(
-      spanning_tree,
-      parlay::delayed_seq<bool>(spanning_tree.size(), [](size_t) { return true; }));
+      spanning_tree, parlay::delayed_seq<bool>(spanning_tree.size(),
+                                               [](size_t) { return true; }));
 
   auto non_tree_edges = sequence<E>(se.size(), E(kV_Max, kV_Max));
   // update the nonTree edges based on the ST computation
@@ -82,11 +82,9 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
 
   non_tree_adjacency_lists_.BatchAddEdgesToLevel(filtered_non_tree_edges,
                                                  max_level_ - 1);
-  parallel_euler_tour_tree::UpdateNontreeEdges(
-      max_level_euler_tree.get(),
-      true, // is_insertion
-      filtered_non_tree_edges
-  );
+  parallel_euler_tour_tree::UpdateNontreeEdges(max_level_euler_tree.get(),
+                                               true, // is_insertion
+                                               filtered_non_tree_edges);
 
   // add to adjacency list
   {
@@ -117,9 +115,8 @@ void BatchDynamicConnectivity::PushDownTreeEdgesFromComponents(
 
     // move all these edges to the euler_tree of level l-1
     lower_level_euler_tree->BatchLink(
-        tree_edges,
-        parlay::delayed_seq<bool>(tree_edges.size(), [](size_t) { return true; })
-    );
+        tree_edges, parlay::delayed_seq<bool>(tree_edges.size(),
+                                              [](size_t) { return true; }));
 
     parlay::parallel_for(0, tree_edges.size(), [&](size_t j) {
       auto e = tree_edges[j];
@@ -129,7 +126,7 @@ void BatchDynamicConnectivity::PushDownTreeEdgesFromComponents(
 }
 
 void BatchDynamicConnectivity::PushDownNonTreeEdges(
-    Level l, const parlay::sequence<E>& non_tree_edges) {
+    Level l, const parlay::sequence<E> &non_tree_edges) {
 #if DEBUG
   std::cout << "--- Pushing down non-tree edges ---" << std::endl;
   PrintEdgeSequence(non_tree_edges,
@@ -157,13 +154,11 @@ void BatchDynamicConnectivity::PushDownNonTreeEdges(
   parallel_euler_tour_tree::UpdateNontreeEdges(
       parallel_spanning_forests_[l].get(),
       false, // is_insertion
-      non_tree_edges
-  );
+      non_tree_edges);
   parallel_euler_tour_tree::UpdateNontreeEdges(
       parallel_spanning_forests_[l - 1].get(),
       true, // is_insertion
-      non_tree_edges
-  );
+      non_tree_edges);
 }
 
 void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
@@ -217,29 +212,22 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
   });
 
   // Update non-tree edge counts in the ETTs
-  levels = parlay::filter(levels, [&](auto& elem) {
-      return elem.second != kLevel_Max;
+  levels = parlay::filter(
+      levels, [&](auto &elem) { return elem.second != kLevel_Max; });
+  parlay::integer_sort_inplace(levels, [&](auto &elem) {
+    // we must cast because integer_sort asserts on the type being unsigned
+    return static_cast<uint8_t>(elem.second);
   });
-  parlay::integer_sort_inplace(
-      levels,
-      [&](auto &elem) {
-        // we must cast because integer_sort asserts on the type being unsigned
-        return static_cast<uint8_t>(elem.second);
-      }
-  );
-  const auto unique_level_flags = parlay::delayed_seq<bool>(
-      levels.size(),
-      [&](const size_t i) {
+  const auto unique_level_flags =
+      parlay::delayed_seq<bool>(levels.size(), [&](const size_t i) {
         return i == 0 || levels[i].second != levels[i - 1].second;
-      }
-  );
+      });
   const auto unique_level_indices = parlay::pack_index(unique_level_flags);
   parlay::parallel_for(0, unique_level_indices.size(), [&](const size_t i) {
     const size_t start = unique_level_indices[i];
-    const size_t end =
-      i == unique_level_indices.size() - 1
-      ? levels.size()
-      : unique_level_indices[i + 1];
+    const size_t end = i == unique_level_indices.size() - 1
+                           ? levels.size()
+                           : unique_level_indices[i + 1];
     const Level level = levels[start].second;
 
     parallel_euler_tour_tree::UpdateNontreeEdges(
@@ -247,10 +235,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
         false, // is_insertion
         parlay::delayed_seq<E>(end - start, [&](const size_t j) {
           return levels[start + j].first;
-        })
-    );
+        }));
   });
-
 
   // delete edges from the tree at each level from the minimum tree edge level
   // to the maximum tree edge level
@@ -274,8 +260,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
 
   // We now try to find replacement edges starting from the min level.
   for (int l = min_tree_edge_level; l < max_level_; l++) {
-    auto& level_euler_tree = parallel_spanning_forests_[l];
-    auto& lower_level_euler_tree = parallel_spanning_forests_[l - 1];
+    auto &level_euler_tree = parallel_spanning_forests_[l];
+    auto &lower_level_euler_tree = parallel_spanning_forests_[l - 1];
 
     // Is edges_to_replace correct? Should we also take into account
     // edges at levels below that weren't "replaced" below?
@@ -315,9 +301,9 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
     // Doing a replacement search for the disconnected edge at level l.
     // TODO: use ::uninitialized and don't use push_back.
     const auto replacement_search_output =
-      ReplacementSearch(l, components_to_consider);
-    const auto& promoted_edges = replacement_search_output.first;
-    const auto& promoted_edges_to_push = replacement_search_output.second;
+        ReplacementSearch(l, components_to_consider);
+    const auto &promoted_edges = replacement_search_output.first;
+    const auto &promoted_edges_to_push = replacement_search_output.second;
     const auto promoted_edges_to_push_seq = promoted_edges_to_push.keys();
 
     {
@@ -329,23 +315,16 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
 
     if (!promoted_edges.empty()) {
       level_euler_tree->BatchLink(
-          promoted_edges,
-          parlay::map(promoted_edges, [&](const E e) -> bool {
+          promoted_edges, parlay::map(promoted_edges, [&](const E e) -> bool {
             return !promoted_edges_to_push.contains(e);
-          })
-      );
+          }));
       lower_level_euler_tree->BatchLink(
           promoted_edges_to_push_seq,
-          parlay::delayed_seq<bool>(
-            promoted_edges_to_push_seq.size(),
-            [](size_t) { return true; }
-          )
-      );
-      parallel_euler_tour_tree::UpdateNontreeEdges(
-          level_euler_tree.get(),
-          false, // is_insertion
-          promoted_edges
-      );
+          parlay::delayed_seq<bool>(promoted_edges_to_push_seq.size(),
+                                    [](size_t) { return true; }));
+      parallel_euler_tour_tree::UpdateNontreeEdges(level_euler_tree.get(),
+                                                   false, // is_insertion
+                                                   promoted_edges);
 
       // TODO: possibly coursen the loop
       // update all the higher levels with the promoted tree edges
@@ -355,8 +334,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
             auto &level_euler_tree = parallel_spanning_forests_[i];
             level_euler_tree->BatchLink(
                 promoted_edges,
-                parlay::delayed_seq<bool>(promoted_edges.size(), [](size_t) { return false; })
-                );
+                parlay::delayed_seq<bool>(promoted_edges.size(),
+                                          [](size_t) { return false; }));
           },
           1);
       // remove the promoted edges from the non-tree edge lists
@@ -375,7 +354,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
         assert(!(ul.contains(kV) || vl.contains(kU)));
 #ifdef DEBUG
         std::cout << "Removing edge " << kU << " " << kV
-                  << " at level: " << kLevel << std::endl;
+                  << " at level: " << new_level << std::endl;
 #endif
       });
     }
@@ -384,8 +363,10 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
   CheckRep();
 }
 
-std::pair<sequence<E>, elektra::resizable_table<E, elektra::empty, HashIntPairStruct>>
-BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components) {
+std::pair<sequence<E>,
+          elektra::resizable_table<E, elektra::empty, HashIntPairStruct>>
+BatchDynamicConnectivity::ReplacementSearch(Level level,
+                                            sequence<V> components) {
   // pseudocode:
   //
   // M: map from component to super-component size
@@ -428,7 +409,6 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
   //   push non_tree_edges_to_push to level - 1 as non-tree edges
   //   etts[level].link(edges_to_promote)
 
-
   // set up a coarse search size and an overall stride for the search.
   constexpr auto kInitialSearchSize = 256;
   uintE search_size = kInitialSearchSize;
@@ -461,18 +441,17 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
   sequence<char> component_indicator(components.size(), 0);
   // A supercomponent is a root inside `union_find`, and
   // supercomponent_sizes[i] is the size of that supercomponent.
-  auto supercomponent_sizes = sequence<std::atomic<V>>::from_function(
-      components.size(),
-      [&](size_t i) { return ett->ComponentSize(components[i]); }
-  );
+  auto supercomponent_sizes =
+      sequence<std::atomic<V>>::from_function(components.size(), [&](size_t i) {
+        return ett->ComponentSize(components[i]);
+      });
   // component_parents[i] == cached value of union_find.find(i)
   auto component_parents = sequence<V>::uninitialized(components.size());
-  auto edge_finders = sequence<parallel_euler_tour_tree::NontreeEdgeFinder>::from_function(
-      components.size(),
-      [&](size_t i) {
-        return ett->CreateNontreeEdgeFinder(components[i]);
-      }
-  );
+  auto edge_finders =
+      sequence<parallel_euler_tour_tree::NontreeEdgeFinder>::from_function(
+          components.size(), [&](size_t i) {
+            return ett->CreateNontreeEdgeFinder(components[i]);
+          });
 
   while (parlay::count(component_indicator, 1) < components.size()) {
 
@@ -487,13 +466,14 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
         return;
       }
 
-      edge_finders[i].ForEachIncidentVertex(search_offset, search_offset + search_size,
+      edge_finders[i].ForEachIncidentVertex(
+          search_offset, search_offset + search_size,
           [&](V u, V adj_begin, V adj_end) {
-            // TODO(sualeh) TODO(tom): entries() here is inefficient. What we "should"
-            // do is only look at the `adj_begin`-th to `adj_end`-th edges in
-            // level_non_tree_adjacency_lists[u]. But we don't have a nice way
-            // of fetching such a range of edges out of level_non_tree_adjacency_lists[u].
-            // Possible fixes:
+            // TODO(sualeh) TODO(tom): entries() here is inefficient. What we
+            // "should" do is only look at the `adj_begin`-th to `adj_end`-th
+            // edges in level_non_tree_adjacency_lists[u]. But we don't have a
+            // nice way of fetching such a range of edges out of
+            // level_non_tree_adjacency_lists[u]. Possible fixes:
             //   - Implement a doubling/block search on the hash table
             //   - Make level_non_tree_adjacency_lists into a parallel BST
             //     - seems annoying to port a parallelBST, and would be harder
@@ -509,7 +489,7 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
             }
 
             const auto incident_edges =
-              level_non_tree_adjacency_lists[u].entries();
+                level_non_tree_adjacency_lists[u].entries();
 
             parlay::parallel_for(0, incident_edges.size(), [&](const size_t j) {
               const V v = std::get<0>(incident_edges[j]);
@@ -526,8 +506,7 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
                 edges_to_promote.insert(make_tuple(edge, elektra::empty{}));
               }
             });
-          }
-      );
+          });
     });
 
     // note(sualeh/tom): are the atomics slow here? if so we can semisort by
@@ -537,7 +516,8 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
       const V supercomponent = union_find.find(i, union_find.parents);
       const V old_component = component_parents[i];
       if (supercomponent != old_component) {
-        supercomponent_sizes[supercomponent] += supercomponent_sizes[old_component];
+        supercomponent_sizes[supercomponent] +=
+            supercomponent_sizes[old_component];
       }
     });
 
@@ -554,24 +534,26 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
         component_indicator[i] = 1;
       } else {
         const size_t search_end = search_offset + search_size;
-        edge_finders[i].ForEachIncidentVertex(search_offset, search_end,
-              [&](V u, V adj_begin, V adj_end) {
-          if (adj_begin != 0) {
-            return;
-          }
-          const auto incident_edges =
-            level_non_tree_adjacency_lists[u].entries();
-          parlay::parallel_for(0, incident_edges.size(), [&](size_t j) {
-            const V v = std::get<0>(incident_edges[j]);
-            const auto edge = make_pair(std::min(u, v), std::max(u, v));
-            if (edges_to_promote.contains(edge)) {
-              tree_edges_to_push.insert(make_tuple(edge, elektra::empty{}));
-            } else {
-              nontree_edges_to_push.insert(make_tuple(edge, elektra::empty{}));
-            }
-          });
-        });
-        if (edge_finders[i].NumEdges() <= search_end) { // no more edges to search
+        edge_finders[i].ForEachIncidentVertex(
+            search_offset, search_end, [&](V u, V adj_begin, V adj_end) {
+              if (adj_begin != 0) {
+                return;
+              }
+              const auto incident_edges =
+                  level_non_tree_adjacency_lists[u].entries();
+              parlay::parallel_for(0, incident_edges.size(), [&](size_t j) {
+                const V v = std::get<0>(incident_edges[j]);
+                const auto edge = make_pair(std::min(u, v), std::max(u, v));
+                if (edges_to_promote.contains(edge)) {
+                  tree_edges_to_push.insert(make_tuple(edge, elektra::empty{}));
+                } else {
+                  nontree_edges_to_push.insert(
+                      make_tuple(edge, elektra::empty{}));
+                }
+              });
+            });
+        if (edge_finders[i].NumEdges() <=
+            search_end) { // no more edges to search
           component_indicator[i] = 1;
         }
       }
