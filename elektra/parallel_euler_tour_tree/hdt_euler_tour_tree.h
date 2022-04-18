@@ -5,6 +5,7 @@
 #include "euler_tour_tree.h"
 #include "hdt_element.h"
 #include "utilities.h"
+#include "utilities/sequence_utils.h"
 
 namespace parallel_euler_tour_tree {
 
@@ -108,21 +109,16 @@ void UpdateNontreeEdges(
     bool is_insertion,
     const ElemSeq& edges
 ) {
+  const size_t num_edges = edges.size();
   auto vertices = parlay::sequence<v_int>::from_function(
-      2 * edges.size(),
+      2 * num_edges,
       [&](const size_t i) {
-        return i < edges.size() ? edges[i].first : edges[i - edges.size()].second;
+        return i < num_edges ? edges[i].first : edges[i - num_edges].second;
       }
   );
   parlay::sort_inplace(vertices);
 
-  const auto unique_vert_flags = parlay::delayed_seq<bool>(
-      vertices.size(),
-      [&](const size_t i) {
-        return i == 0 || vertices[i] != vertices[i - 1];
-      }
-  );
-  const auto unique_vert_indices = parlay::pack_index(unique_vert_flags);
+  const auto unique_vert_indices = elektra::get_offsets(vertices);
 
   const auto vertices_to_increment = parlay::delayed_seq<v_int>(
       unique_vert_indices.size(),
@@ -134,11 +130,11 @@ void UpdateNontreeEdges(
   const auto increments = parlay::delayed_seq<int32_t>(
       unique_vert_indices.size(),
       [&](const size_t i) {
+        const size_t start = unique_vert_indices[i];
         const size_t end =
           i == unique_vert_indices.size() - 1
           ? vertices.size()
           : unique_vert_indices[i + 1];
-        const size_t start = unique_vert_indices[i];
         return multiplier * (end - start);
       }
   );

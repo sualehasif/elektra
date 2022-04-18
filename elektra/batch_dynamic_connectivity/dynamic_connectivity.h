@@ -5,6 +5,8 @@
 #include <set>
 
 #include "connectivity.h"
+#include "utilities/sequence_utils.h"
+
 namespace bdcty {
 // -------------
 // PUBLIC METHODS
@@ -208,7 +210,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
     }
   });
 
-  // Update non-tree edge counts in the ETTs
+  // Update non-tree edge counts in the ETTs. This requires grouping the
+  // non-tree edges by level.
   levels = parlay::filter(levels, [&](auto& elem) {
       return elem.second != kLevel_Max;
   });
@@ -219,13 +222,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
         return static_cast<uint8_t>(elem.second);
       }
   );
-  const auto unique_level_flags = parlay::delayed_seq<bool>(
-      levels.size(),
-      [&](const size_t i) {
-        return i == 0 || levels[i].second != levels[i - 1].second;
-      }
-  );
-  const auto unique_level_indices = parlay::pack_index(unique_level_flags);
+  const auto unique_level_indices = elektra::get_offsets(levels);
   parlay::parallel_for(0, unique_level_indices.size(), [&](const size_t i) {
     const size_t start = unique_level_indices[i];
     const size_t end =
