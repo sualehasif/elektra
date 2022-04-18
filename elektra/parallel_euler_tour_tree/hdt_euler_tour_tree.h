@@ -109,11 +109,10 @@ void UpdateNontreeEdges(
     bool is_insertion,
     const ElemSeq& edges
 ) {
-  const size_t num_edges = edges.size();
   auto vertices = parlay::sequence<v_int>::from_function(
-      2 * num_edges,
+      2 * edges.size(),
       [&](const size_t i) {
-        return i < num_edges ? edges[i].first : edges[i - num_edges].second;
+        return i % 2 ? edges[i / 2].first : edges[i / 2].second;
       }
   );
   parlay::sort_inplace(vertices);
