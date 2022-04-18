@@ -74,11 +74,11 @@ class HdtElement : public ElementBase<HdtElement, _internal::HdtAugmentation> {
   // to be pushed down to the next level).
   parlay::sequence<std::pair<v_int, v_int>> GetAndClearLevelIEdges();
 
-  // For each HdtElement elements[i] (which should represent a vertex), updates
+  // For each HdtElement elements[i] (which should represent a vertex), increments
   // its count of "number of level-i non-tree edges incident to this element" to
   // be new_values[i].
   template <typename ElemSeq, typename IntSeq>
-  static void UpdateNontreeEdgeCounts(const ElemSeq& elements, const IntSeq& new_values);
+  static void IncrementNontreeEdgeCounts(const ElemSeq& elements, const IntSeq& increment);
 
  private:
   friend Base::Base::Base;  // make parallel_skip_list::ElementBase a friend
@@ -186,8 +186,8 @@ parlay::sequence<std::pair<v_int, v_int>> HdtElement::GetAndClearLevelIEdges() {
 }
 
 template <typename ElemSeq, typename IntSeq>
-void HdtElement::UpdateNontreeEdgeCounts(const ElemSeq& elements, const IntSeq& new_values) {
-  BatchUpdate<_internal::NontreeEdgeCountGetter>(elements, new_values);
+void HdtElement::IncrementNontreeEdgeCounts(const ElemSeq& elements, const IntSeq& increments) {
+  BatchIncrement<_internal::NontreeEdgeCountGetter>(elements, increments);
 }
 
 }  // namespace parallel_euler_tour_tree

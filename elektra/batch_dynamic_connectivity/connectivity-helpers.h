@@ -17,7 +17,7 @@
 #include "hash_pair.h"
 #include "hash_table_utils.h"
 #include "macros.h"
-#include "parallel_euler_tour_tree/euler_tour_tree.h"
+#include "parallel_euler_tour_tree/hdt_euler_tour_tree.h"
 #include "resizable_table.h"
 #include "spanning_tree.h"
 #include "union_find.h"
@@ -44,11 +44,12 @@ using uintE = unsigned int;
 
 using E = pair<V, V>;
 using EHash = HashIntPairStruct;
-using BatchDynamicEtt = parallel_euler_tour_tree::EulerTourTree;
+using BatchDynamicEtt = parallel_euler_tour_tree::HdtEulerTourTree;
 
 using TreeSet = std::unordered_set<E, EHash>;
 
 using Level = int;
+constexpr Level kLevel_Max = 65;
 
 enum class EType {
   // Edge is in the spanning forest of the graph.
@@ -78,7 +79,7 @@ const bdcty::EInfo kEmptyInfo = {-1, bdcty::EType::K_NON_TREE};
 // make a hashtable with an empty value type
 // hash32 is sufficient
 struct hash_kv {
-  auto operator()(const V &k) -> uint64_t { return parlay::hash64(k); }
+  auto operator()(const V &k) const -> uint64_t { return parlay::hash64(k); }
 };
 
 using VertexConcurrentSet =

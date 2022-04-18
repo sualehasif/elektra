@@ -81,7 +81,7 @@ public:
   KeyHash key_hash;
   sequence<size_t> cts;
 
-  inline size_t firstIndex(K &k) { return hashToRange(key_hash(k), mask); }
+  inline size_t firstIndex(K &k) const { return hashToRange(key_hash(k), mask); }
 
   void init_counts() {
     size_t workers = parlay::num_workers();
@@ -232,7 +232,7 @@ public:
     return empty_value;
   }
 
-  bool contains(K k) {
+  bool contains(K k) const {
     size_t h = firstIndex(k);
     while (1) {
       if (std::get<0>(table[h]) == k) {
@@ -245,7 +245,7 @@ public:
     return 0;
   }
 
-  bool contains(K k, V v) {
+  bool contains(K k, V v) const {
     size_t h = firstIndex(k);
     while (1) {
       if (std::get<0>(table[h]) == k && std::get<1>(table[h]) == v) {
@@ -280,13 +280,24 @@ public:
     });
   }
 
-  sequence<T> entries() {
-    auto pred = [&](T &t) {
+  sequence<T> entries() const {
+    auto pred = [&](const T &t) {
       return (std::get<0>(t) != empty_key &&
               std::get<0>(t) != std::get<0>(tombstone));
     };
     auto table_seq = parlay::make_slice(table);
     return parlay::filter(table_seq, pred);
+  }
+
+  sequence<K> keys() const {
+    auto pred = [&](const K &k) {
+      return k != empty_key && k != std::get<0>(tombstone);
+    };
+    auto table_seq = parlay::make_slice(table);
+    auto keys_seq = parlay::delayed_seq<K>(table_seq.size(), [&](const size_t i) {
+        return std::get<0>(table_seq[i]);
+    });
+    return parlay::filter(keys_seq, pred);
   }
 
   void clear() {

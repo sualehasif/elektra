@@ -102,6 +102,10 @@ class AugmentedElementBase : public ElementBase<Derived> {
   template <typename Getter = DefaultGetter<Func>, typename Seq>
   static void BatchUpdate(const Seq& elements);
 
+  // Same as BatchUpdate but increments values instead of setting new values
+  template <typename Getter = DefaultGetter<Func>, typename ElemSeq, typename IntSeq>
+  static void BatchIncrement(const ElemSeq& elements, const IntSeq& increments);
+
   // Get the result of applying the augmentation function over the subsequence
   // between `left` and `right` inclusive.
   //
@@ -356,14 +360,24 @@ void AugmentedElementBase<D, F>::BatchUpdate(const Seq& elements) {
 }
 
 template <typename D, typename F>
+template <typename Getter, typename ElemSeq, typename IntSeq>
+void AugmentedElementBase<D, F>::BatchIncrement(const ElemSeq& elements, const IntSeq& increments) {
+  parlay::parallel_for(0, elements.size(), [&](size_t i) {
+    if (elements[i] != nullptr) {
+      Getter::Get(elements[i]->values_[0]) += increments[i];
+    }
+  });
+  AugmentedElementBase<D, F>::BatchUpdate<Getter>(elements);
+}
+
+template <typename D, typename F>
 void AugmentedElementBase<D, F>::BatchJoin(const parlay::sequence<std::pair<D*, D*>>& joins)
 {
   const size_t len{joins.size()};
-  auto join_lefts{parlay::sequence<D*>::uninitialized(len)};
   parlay::parallel_for(0, len, [&](const size_t i) {
     Join(joins[i].first, joins[i].second);
-    join_lefts[i] = joins[i].first;
   });
+  const auto join_lefts = parlay::delayed_seq<D*>(len, [&](const size_t i) { return joins[i].first; });
   BatchUpdate(join_lefts);
 }
 
