@@ -85,12 +85,19 @@ private:
 
   void CheckRep();
 
+  // Returns
+  //   - a sequence E[] of level-i non-tree edges that should be promoted to be tree edges
+  //   - a subset of E[] representing all elements of E[] that should simultaneously be
+  //     pushed to level i - 1
+  //
+  // It is the caller's job to do the promotion of E[] and to push the subset,
+  // though this function takes care of pushing down non-promoted edges.
   auto ReplacementSearch(Level level, parlay::sequence<V> components)
-      -> parlay::sequence<E>;
+      -> std::pair<sequence<E>, elektra::resizable_table<E, elektra::empty, HashIntPairStruct>>;
 
   void PushDownTreeEdgesFromComponents(Level l,
                                        parlay::sequence<V> &components);
-  void PushDownNonTreeEdges(Level l, parlay::sequence<E> &non_tree_edges);
+  void PushDownNonTreeEdges(Level l, const parlay::sequence<E> &non_tree_edges);
 
   static auto RemoveDuplicates(parlay::sequence<V> &seq) -> parlay::sequence<V>;
   static auto RemoveDuplicates(parlay::sequence<V> &&seq)

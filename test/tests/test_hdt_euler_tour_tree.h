@@ -94,7 +94,7 @@ TEST(HdtEulerTourTree, FindNonTreeEdges_SingletonWithEdges) {
   // Check FindNonTreeEdges() works on a singleton vertex with incident non-tree
   // edges.
   EulerTourTree ett = EulerTourTree{1};
-  ett.UpdateNontreeEdgeCounts({0}, parlay::sequence<uint32_t>(1, 50));
+  ett.IncrementNontreeEdgeCounts(parlay::sequence<uint32_t>(1, 0), parlay::sequence<uint32_t>(1, 50));
   const auto finder = ett.CreateNontreeEdgeFinder(0);
 
   InSequence s;
@@ -137,8 +137,9 @@ TEST(HdtEulerTourTree, FindNonTreeEdges) {
   parlay::sequence<std::pair<uint32_t, uint32_t>> links{{{0, 1}, {0, 2}, {0, 3}}};
   ett.BatchLink(links, false);
 
-  parlay::sequence<uint32_t> edge_counts = {0, 3, 1, 4, 5};
-  ett.UpdateNontreeEdgeCounts({0, 1, 2, 3, 4}, edge_counts);
+  const parlay::sequence<uint32_t> vertices = {0, 1, 2, 3, 4};
+  const parlay::sequence<uint32_t> edge_counts = {0, 3, 1, 4, 5};
+  ett.IncrementNontreeEdgeCounts(vertices, edge_counts);
 
   // We don't know how the NontreeEdgeFinder will order the non-tree edges, so
   // we'll explicitly track how many times each of the edges has been visited.

@@ -232,7 +232,7 @@ public:
     return empty_value;
   }
 
-  bool contains(K k) {
+  bool contains(K k) const {
     size_t h = firstIndex(k);
     while (1) {
       if (std::get<0>(table[h]) == k) {
@@ -245,7 +245,7 @@ public:
     return 0;
   }
 
-  bool contains(K k, V v) {
+  bool contains(K k, V v) const {
     size_t h = firstIndex(k);
     while (1) {
       if (std::get<0>(table[h]) == k && std::get<1>(table[h]) == v) {
@@ -280,7 +280,7 @@ public:
     });
   }
 
-  sequence<T> entries() {
+  sequence<T> entries() const {
     auto pred = [&](T &t) {
       return (std::get<0>(t) != empty_key &&
               std::get<0>(t) != std::get<0>(tombstone));
@@ -289,7 +289,7 @@ public:
     return parlay::filter(table_seq, pred);
   }
 
-  sequence<K> keys() {
+  sequence<K> keys() const {
     auto pred = [&](K &k) {
       return k != empty_key && k != std::get<0>(tombstone);
     };
@@ -298,7 +298,6 @@ public:
         return std::get<0>(table_seq[i]);
     });
     return parlay::filter(keys_seq, pred);
-  }
   }
 
   void clear() {

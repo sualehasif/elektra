@@ -39,10 +39,8 @@ class HdtEulerTourTree : public EulerTourTreeBase<HdtElement> {
 
   // Increments vertices[i]'s count of "number of level-i non-tree edges incident to this
   // vertex" to be new_values[i].
-  template <typename IntSeq>
-  void IncrementNontreeEdgeCounts(
-      const parlay::sequence<v_int>& vertices,
-      const IntSeq& increments);
+  template <typename ElemSeq, typename IntSeq>
+  void IncrementNontreeEdgeCounts(const ElemSeq& vertices, const IntSeq& increments);
 
   // Creates a NontreeEdgeFinder for v's connected component. The
   // NontreeEdgeFinder can be used to find level-i non-tree edges incident to
@@ -104,22 +102,23 @@ class NontreeEdgeFinder {
 // incrementing the non-tree edge counts for each edge for insertions
 // (`is_insertion == true`) or decrementing the counts for each edge for
 // deletions (`is_insertion == false`)).
+template <typename ElemSeq>
 void UpdateNontreeEdges(
     HdtEulerTourTree* ett,
     bool is_insertion,
-    const parlay::sequence<std::pair<v_int, v_int>>& edges,
+    const ElemSeq& edges
 ) {
   auto vertices = parlay::sequence<v_int>::from_function(
       2 * edges.size(),
       [&](const size_t i) {
-        return i < edges.size() ? edges[i].first : edges[i - edges.size()].second
+        return i < edges.size() ? edges[i].first : edges[i - edges.size()].second;
       }
   );
   parlay::sort_inplace(vertices);
 
   const auto unique_vert_flags = parlay::delayed_seq<bool>(
-      vertices.size() 
-      [&](const size_t i) { 
+      vertices.size(),
+      [&](const size_t i) {
         return i == 0 || vertices[i] != vertices[i - 1];
       }
   );
@@ -135,17 +134,15 @@ void UpdateNontreeEdges(
   const auto increments = parlay::delayed_seq<int32_t>(
       unique_vert_indices.size(),
       [&](const size_t i) {
-        const size_t end = 
-          i == unique_vert_indices.size() - 1 
-          ? vertices.size() 
+        const size_t end =
+          i == unique_vert_indices.size() - 1
+          ? vertices.size()
           : unique_vert_indices[i + 1];
         const size_t start = unique_vert_indices[i];
         return multiplier * (end - start);
       }
   );
   ett->IncrementNontreeEdgeCounts(vertices_to_increment, increments);
-}
-
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -225,9 +222,9 @@ parlay::sequence<std::pair<v_int, v_int>> HdtEulerTourTree::GetAndClearLevelIEdg
   return vertices_[v].GetAndClearLevelIEdges();
 }
 
-template <typename IntSeq>
+template <typename ElemSeq, typename IntSeq>
 void HdtEulerTourTree::IncrementNontreeEdgeCounts(
-    const parlay::sequence<v_int>& vertices,
+    const ElemSeq& vertices,
     const IntSeq& increments) {
   const auto elements{parlay::delayed_seq<Elem*>(
       vertices.size(),
@@ -239,7 +236,8 @@ NontreeEdgeFinder HdtEulerTourTree::CreateNontreeEdgeFinder(v_int v) const {
   return NontreeEdgeFinder{vertices_[v].FindRepresentative()};
 }
 
-/////////////////////////////////////////////////////////////////////////////// //                  NontreeEdgeFinder implementation below.                  //
+///////////////////////////////////////////////////////////////////////////////
+//                  NontreeEdgeFinder implementation below.                  //
 ///////////////////////////////////////////////////////////////////////////////
 
 // Implementation notes:

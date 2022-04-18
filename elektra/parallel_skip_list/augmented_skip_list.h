@@ -374,11 +374,10 @@ template <typename D, typename F>
 void AugmentedElementBase<D, F>::BatchJoin(const parlay::sequence<std::pair<D*, D*>>& joins)
 {
   const size_t len{joins.size()};
-  auto join_lefts{parlay::sequence<D*>::uninitialized(len)};
   parlay::parallel_for(0, len, [&](const size_t i) {
     Join(joins[i].first, joins[i].second);
-    join_lefts[i] = joins[i].first;
   });
+  const auto join_lefts = parlay::delayed_seq<D*>(len, [&](const size_t i) { return joins[i].first; });
   BatchUpdate(join_lefts);
 }
 
