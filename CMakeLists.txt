@@ -99,9 +99,9 @@ link_directories(${Boost_LIBRARY_DIRS})
 
 enable_testing()
 
-#add_executable(elektra elektra.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)
+add_executable(elektra elektra.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)
 
-#target_link_libraries(elektra ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(elektra ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
 # Testing
 add_executable(elektra_test test/elektra_test.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)

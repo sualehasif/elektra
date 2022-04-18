@@ -10,7 +10,7 @@
 namespace elektra {
 namespace benchmark {
 
-typedef int V;
+using V = uint32_t;
 typedef std::pair<uintE, uintE> intPair;
 using std::vector;
 typedef parlay::sequence<intPair> edgeList;
