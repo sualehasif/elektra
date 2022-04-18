@@ -74,6 +74,9 @@ public:
   void Print();
   // Returns all the edges in the tree.
   parlay::sequence<std::pair<v_int, v_int>> Edges_() const;
+  // Returns all the edges in the tree, placing both (u, v) and (v, u) in the
+  // output for each edge {u, v}.
+  parlay::sequence<std::pair<v_int, v_int>> EdgesBothDirs_() const;
   // Returns an estimate of the amount of system memory in bytes this data
   // structure occupies.
   auto MemorySize() const -> size_t;
@@ -198,6 +201,17 @@ template <typename E> void EulerTourTreeBase<E>::Print() {
 template <typename E>
 parlay::sequence<std::pair<v_int, v_int>> EulerTourTreeBase<E>::Edges_() const {
   return edges_.Keys();
+}
+
+template <typename E>
+parlay::sequence<std::pair<v_int, v_int>> EulerTourTreeBase<E>::EdgesBothDirs_() const {
+  const auto edges = edges_.Keys();
+  return parlay::sequence<std::pair<v_int, v_int>>::from_function(
+      2 * edges.size(),
+      [&](const size_t i) {
+        return i < edges.size() ? edges[i] : make_pair(edges[i].second, edges[i].first);
+      }
+  );
 }
 
 template <typename E> size_t EulerTourTreeBase<E>::MemorySize() const {
