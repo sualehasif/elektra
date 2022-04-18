@@ -256,7 +256,8 @@ void BatchDynamicConnectivity::BatchDeleteEdges(sequence<E> &se) {
     sequence<E> promoted_edges = ReplacementSearch(l, components_to_consider);
 
     {
-#ifdef DEBUG PrintEdgeSequence(promoted_edges, "Promoted Edges");
+#ifdef DEBUG
+      PrintEdgeSequence(promoted_edges, "Promoted Edges");
       PrintStructure();
 #endif
     }
