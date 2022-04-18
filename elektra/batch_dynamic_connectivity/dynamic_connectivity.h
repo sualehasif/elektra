@@ -495,6 +495,9 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
             // of fetching such a range of edges out of level_non_tree_adjacency_lists[u].
             // Possible fixes:
             //   - Implement a doubling/block search on the hash table
+            //   - Maintain an implicit augmented tree (with high fanout so the
+            //     overhead is small) over the hash table that counts elements
+            //     over ranges of the hash table
             //   - Make level_non_tree_adjacency_lists into a parallel BST
             //     - seems annoying to port a parallelBST, and would be harder
             //       to use since it would no longer be concurrent
