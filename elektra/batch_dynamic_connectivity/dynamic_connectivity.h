@@ -64,28 +64,21 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
       spanning_tree,
       parlay::delayed_seq<bool>(spanning_tree.size(), [](size_t) { return true; }));
 
-  auto non_tree_edges = sequence<E>(se.size(), E(kV_Max, kV_Max));
-  // update the nonTree edges based on the ST computation
-  parlay::parallel_for(0, se.size(), [&](size_t i) {
+  const auto non_tree_edges = parlay::filter(se, [&](auto e) {
     // TODO(sualeh): we could get rid of this check by just checking the
     //   EdgeTable which labels edges as Tree Edges. So we could get rid of that
     //   table altogether.
-    if (tree_set.count(se[i]) == 0) {
-      non_tree_edges[i] = (make_pair(se[i].first, se[i].second));
-      InsertIntoEdgeTable(se[i], EType::K_NON_TREE, max_level_ - 1);
-    }
+    return tree_set.count(e) == 0;
   });
-  // filter and add non-tree_set edges
-  auto filtered_non_tree_edges = parlay::filter(non_tree_edges, [&](auto e) {
-    return e.first != kV_Max && e.second != kV_Max;
+  parlay::parallel_for(0, non_tree_edges.size(), [&](size_t i) {
+    InsertIntoEdgeTable(se[i], EType::K_NON_TREE, max_level_ - 1);
   });
 
-  non_tree_adjacency_lists_.BatchAddEdgesToLevel(filtered_non_tree_edges,
-                                                 max_level_ - 1);
+  non_tree_adjacency_lists_.BatchAddEdgesToLevel(non_tree_edges, max_level_ - 1);
   parallel_euler_tour_tree::UpdateNontreeEdges(
       max_level_euler_tree.get(),
       true, // is_insertion
-      filtered_non_tree_edges
+      non_tree_edges
   );
 
   // add to adjacency list
@@ -99,8 +92,7 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
     std::cout << "Adding the non-tree_set edges to the hashtable" << std::endl;
     std::cout << "non_tree_edges.size() = " << non_tree_edges.size()
               << std::endl;
-    PrintEdgeSequence(non_tree_edges, "nonTreeEdgesUnfiltered");
-    PrintEdgeSequence(filtered_non_tree_edges, "nonTreeEdgesFiltered");
+    PrintEdgeSequence(non_tree_edges, "nonTreeEdges");
 #endif
   }
   CheckRep();
