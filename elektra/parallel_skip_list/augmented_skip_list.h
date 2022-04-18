@@ -102,6 +102,10 @@ class AugmentedElementBase : public ElementBase<Derived> {
   template <typename Getter = DefaultGetter<Func>, typename Seq>
   static void BatchUpdate(const Seq& elements);
 
+  // Same as BatchUpdate but increments values instead of setting new values
+  template <typename Getter = DefaultGetter<Func>, typename ElemSeq, typename IntSeq>
+  static void BatchIncrement(const ElemSeq& elements, const IntSeq& increments);
+
   // Get the result of applying the augmentation function over the subsequence
   // between `left` and `right` inclusive.
   //
@@ -353,6 +357,17 @@ void AugmentedElementBase<D, F>::BatchUpdate(const Seq& elements) {
       top_nodes[i]->template UpdateTopDown<Getter>(top_nodes[i]->height_ - 1);
     }
   });
+}
+
+template <typename D, typename F>
+template <typename Getter, typename ElemSeq, typename IntSeq>
+void AugmentedElementBase<D, F>::BatchIncrement(const ElemSeq& elements, const IntSeq& increments) {
+  parlay::parallel_for(0, elements.size(), [&](size_t i) {
+    if (elements[i] != nullptr) {
+      Getter::Get(elements[i]->values_[0]) += increments[i];
+    }
+  });
+  AugmentedElementBase<D, F>::BatchUpdate<Getter>(elements);
 }
 
 template <typename D, typename F>

@@ -97,9 +97,6 @@ private:
       -> parlay::sequence<V>;
   inline void InsertIntoEdgeTable(const pair<V, V> &e, EType e_type,
                                   Level level);
-  inline auto GetSearchEdges(Level level, sequence<V> &components,
-                             const unique_ptr<BatchDynamicEtt> &ett)
-      -> vector<vector<E>>;
 };
 
 void BatchDynamicConnectivity::CheckRep() {
@@ -400,31 +397,6 @@ inline void BatchDynamicConnectivity::InsertIntoEdgeTable(const pair<V, V> &e,
   // inserting the reverse edge add the reverse edge to the edges_ map
   EInfo ei_rev = {level, e_type};
   edges_.insert(make_tuple(pair<V, V>(e.second, e.first), ei_rev));
-}
-
-// TODO(tom): This needs to be supported as an augmentation.
-inline auto
-BatchDynamicConnectivity::GetSearchEdges(Level level, sequence<V> &components,
-                                         const unique_ptr<BatchDynamicEtt> &ett)
-    -> vector<vector<E>> {
-  vector<vector<E>> non_tree_edges;
-  non_tree_edges.reserve(components.size());
-  for (auto _ : components) {
-    non_tree_edges.emplace_back();
-  }
-  for (uintE i = 0; i < components.size(); i++) {
-    auto comp_id = components[i];
-    auto cc = ett->ComponentVertices(comp_id);
-    // for each vertex in the component
-    for (V u : cc) {
-      // for each edge in the component
-      for (auto &kw : non_tree_adjacency_lists_[level][u].entries()) {
-        auto w = std::get<0>(kw);
-        non_tree_edges[i].push_back(E(u, w));
-      }
-    }
-  }
-  return non_tree_edges;
 }
 
 auto BatchDynamicConnectivity::RemoveDuplicates(sequence<V> &seq)

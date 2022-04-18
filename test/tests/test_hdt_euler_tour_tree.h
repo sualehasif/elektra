@@ -86,8 +86,8 @@ TEST(HdtEulerTourTree, FindNonTreeEdges_SingletonWithoutEdges) {
   EXPECT_CALL(mock_callback, Call(_, _, _)).Times(0);
 
   EXPECT_EQ(finder.NumEdges(), 0);
-  finder.ForEachIncidentVertex(mock_callback.AsStdFunction(), 0, 100);
-  finder.ForEachIncidentVertex(mock_callback.AsStdFunction(), 20, 40);
+  finder.ForEachIncidentVertex(0, 100, mock_callback.AsStdFunction());
+  finder.ForEachIncidentVertex(20, 40, mock_callback.AsStdFunction());
 }
 
 TEST(HdtEulerTourTree, FindNonTreeEdges_SingletonWithEdges) {
@@ -104,10 +104,10 @@ TEST(HdtEulerTourTree, FindNonTreeEdges_SingletonWithEdges) {
   EXPECT_CALL(mock_callback, Call(0, 1, 2));
 
   EXPECT_EQ(finder.NumEdges(), 50);
-  finder.ForEachIncidentVertex(mock_callback.AsStdFunction(), 0, 100);
-  finder.ForEachIncidentVertex(mock_callback.AsStdFunction(), 20, 40);
-  finder.ForEachIncidentVertex(mock_callback.AsStdFunction(), 1, 1);
-  finder.ForEachIncidentVertex(mock_callback.AsStdFunction(), 1, 2);
+  finder.ForEachIncidentVertex(0, 100, mock_callback.AsStdFunction());
+  finder.ForEachIncidentVertex(20, 40, mock_callback.AsStdFunction());
+  finder.ForEachIncidentVertex(1, 1, mock_callback.AsStdFunction());
+  finder.ForEachIncidentVertex(1, 2, mock_callback.AsStdFunction());
 }
 
 TEST(HdtEulerTourTree, FindNonTreeEdges_NoEdges) {
@@ -123,8 +123,8 @@ TEST(HdtEulerTourTree, FindNonTreeEdges_NoEdges) {
   MockForEachIncidentVertexCallback mock_callback;
   EXPECT_CALL(mock_callback, Call(_, _, _)).Times(0);
 
-  finder.ForEachIncidentVertex(mock_callback.AsStdFunction(), 0, 100);
-  finder.ForEachIncidentVertex(mock_callback.AsStdFunction(), 20, 40);
+  finder.ForEachIncidentVertex(0, 100, mock_callback.AsStdFunction());
+  finder.ForEachIncidentVertex(20, 40, mock_callback.AsStdFunction());
 }
 
 TEST(HdtEulerTourTree, FindNonTreeEdges) {
@@ -181,19 +181,19 @@ TEST(HdtEulerTourTree, FindNonTreeEdges) {
   // Check that querying disjoint intervals gives unique edges and gives the
   // correct number of edges.
   reset_counts();
-  finder.ForEachIncidentVertex(visit, 0, 2);
+  finder.ForEachIncidentVertex(0, 2, visit);
   EXPECT_EQ(sum_counts(), 2);
-  finder.ForEachIncidentVertex(visit, 2, 6);
+  finder.ForEachIncidentVertex(2, 6, visit);
   EXPECT_EQ(sum_counts(), 6);
-  finder.ForEachIncidentVertex(visit, 6, 7);
+  finder.ForEachIncidentVertex(6, 7, visit);
   EXPECT_EQ(sum_counts(), 7);
   EXPECT_EQ(unique_visits(), 7);
 
   // Check that querying the same interval gives a deterministic answer
   reset_counts();
-  finder.ForEachIncidentVertex(visit, 1, 4);
+  finder.ForEachIncidentVertex(1, 4, visit);
   EXPECT_EQ(sum_counts(), 3);
-  finder.ForEachIncidentVertex(visit, 1, 4);
+  finder.ForEachIncidentVertex(1, 4, visit);
   EXPECT_EQ(sum_counts(), 6);
   EXPECT_EQ(unique_visits(), 3);
 }

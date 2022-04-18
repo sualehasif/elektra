@@ -289,6 +289,18 @@ public:
     return parlay::filter(table_seq, pred);
   }
 
+  sequence<K> keys() {
+    auto pred = [&](K &k) {
+      return k != empty_key && k != std::get<0>(tombstone);
+    };
+    auto table_seq = parlay::make_slice(table);
+    auto keys_seq = parlay::delayed_seq<K>(table_seq.size(), [&](const size_t i) {
+        return std::get<0>(table_seq[i]);
+    });
+    return parlay::filter(keys_seq, pred);
+  }
+  }
+
   void clear() {
     parlay::parallel_for(0, m, [&](size_t i) { table[i] = empty; });
   }
