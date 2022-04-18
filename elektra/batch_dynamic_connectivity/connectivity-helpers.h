@@ -22,6 +22,7 @@
 #include "resizable_table.h"
 #include "spanning_tree.h"
 #include "union_find.h"
+#include "utilities/sequence_utils.h"
 
 #define VERTEX_LAYER_SIZE 50
 
@@ -227,49 +228,31 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
   auto &level_lists = non_tree_adjacency_lists_[level];
 
   // find all the unique vertices
-  auto unique_starting_vertices =
-      parlay::unique(edges, [](const pair<V, V> &a, const pair<V, V> &b) {
+  auto unique_starting_vertex_indices =
+      elektra::get_offsets(edges, [](const pair<V, V> &a, const pair<V, V> &b) {
         return a.first == b.first;
       });
 
 #ifdef DEBUG
   std::cout << "Unique starting vertices:" << std::endl;
-  for (auto i = 0; i < (int)unique_starting_vertices.size(); i++) {
-    std::cout << "(" << unique_starting_vertices[i].first << ", "
-              << unique_starting_vertices[i].second << "), ";
-  }
-  std::cout << std::endl;
-#endif
-
-  V edge_positions[unique_starting_vertices.size() + 1];
-
-  // find the position of each vertex in the unique vertices
-  parlay::parallel_for(0, unique_starting_vertices.size(), [&](size_t i) {
-    auto *pos = parlay::find(edges, unique_starting_vertices[i]);
-    edge_positions[i] = pos - edges.begin();
-  });
-
-  edge_positions[unique_starting_vertices.size()] = ne * 2;
-
-  // print the positions of the vertices in DEBUG
-#ifdef DEBUG
-  std::cout << "Positions of unique starting vertices:" << std::endl;
-  for (auto i = 0; i < (int)unique_starting_vertices.size(); i++) {
-    std::cout << edge_positions[i] << ", ";
+  for (const auto pos : unique_starting_vertex_indices) {
+    auto &vtx = edges[pos];
+    std::cout << "(" << vtx.first << ", " << vtx.second << ")@" << pos << ", ";
   }
   std::cout << std::endl;
 #endif
 
   // then we add the edges to the graph
-  parlay::parallel_for(0, unique_starting_vertices.size(), [&](size_t i) {
-    auto &vtx = unique_starting_vertices[i];
+  parlay::parallel_for(0, unique_starting_vertex_indices.size(), [&](size_t i) {
+    auto start_pos = unique_starting_vertex_indices[i];
+    auto end_pos =
+      i == unique_starting_vertex_indices.size() - 1
+      ? ne * 2
+      : unique_starting_vertex_indices[i + 1];
+    auto &vtx = edges[start_pos];
     auto &vertex_list = level_lists[vtx.first];
-
     // get the starting and ending positions of the edges for this vertex
-    auto start_pos = edge_positions[i];
-    auto end_pos = edge_positions[i + 1];
     auto num_edges_for_vertex = (end_pos - start_pos);
-
     // make sure the vertex list has enough space for the extra edges
     vertex_list.maybe_resize(num_edges_for_vertex);
 
