@@ -20,6 +20,7 @@
 #include "macros.h"
 #include "parallel_euler_tour_tree/hdt_euler_tour_tree.h"
 #include "resizable_table.h"
+#include "sparse_table.h"
 #include "spanning_tree.h"
 #include "union_find.h"
 #include "utilities/sequence_utils.h"
@@ -85,7 +86,7 @@ struct hash_kv {
 };
 
 using VertexConcurrentSet =
-    elektra::resizable_table<V, elektra::empty, hash_kv>;
+    elektra::sparse_table<V, elektra::empty, elektra::HashUint32Empty>;
 
 using EdgeSet =
     elektra::resizable_table<std::pair<V, V>, bdcty::EInfo, HashIntPairStruct>;
@@ -171,9 +172,7 @@ private:
 auto NonTreeAdjacencyList::GenerateVertexLayer(V num_vertices) {
   auto vtx_layer = parlay::sequence<VertexConcurrentSet>::from_function(
       num_vertices, [&](auto n) {
-        return VertexConcurrentSet(
-            VERTEX_LAYER_SIZE, std::make_tuple(INT_E_MAX, elektra::empty{}),
-            std::make_tuple(INT_E_MAX - 1, elektra::empty{}), hash_kv());
+        return VertexConcurrentSet(VERTEX_LAYER_SIZE);
       });
 
   return vtx_layer;
