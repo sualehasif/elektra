@@ -6,6 +6,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <ostream>
 #include <tuple>
@@ -21,6 +22,7 @@
 #include "resizable_table.h"
 #include "spanning_tree.h"
 #include "union_find.h"
+#include "utilities/sequence_utils.h"
 
 #define VERTEX_LAYER_SIZE 50
 
@@ -49,7 +51,7 @@ using BatchDynamicEtt = parallel_euler_tour_tree::HdtEulerTourTree;
 using TreeSet = std::unordered_set<E, EHash>;
 
 using Level = int;
-constexpr Level kLevel_Max = 65;
+constexpr Level kLevelMax = std::numeric_limits<V>::digits;  // log2(max V)
 
 enum class EType {
   // Edge is in the spanning forest of the graph.
@@ -226,49 +228,31 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
   auto &level_lists = non_tree_adjacency_lists_[level];
 
   // find all the unique vertices
-  auto unique_starting_vertices =
-      parlay::unique(edges, [](const pair<V, V> &a, const pair<V, V> &b) {
+  auto unique_starting_vertex_indices =
+      elektra::get_offsets(edges, [](const pair<V, V> &a, const pair<V, V> &b) {
         return a.first == b.first;
       });
 
 #ifdef DEBUG
   std::cout << "Unique starting vertices:" << std::endl;
-  for (auto i = 0; i < (int)unique_starting_vertices.size(); i++) {
-    std::cout << "(" << unique_starting_vertices[i].first << ", "
-              << unique_starting_vertices[i].second << "), ";
-  }
-  std::cout << std::endl;
-#endif
-
-  V edge_positions[unique_starting_vertices.size() + 1];
-
-  // find the position of each vertex in the unique vertices
-  parlay::parallel_for(0, unique_starting_vertices.size(), [&](size_t i) {
-    auto *pos = parlay::find(edges, unique_starting_vertices[i]);
-    edge_positions[i] = pos - edges.begin();
-  });
-
-  edge_positions[unique_starting_vertices.size()] = ne * 2;
-
-  // print the positions of the vertices in DEBUG
-#ifdef DEBUG
-  std::cout << "Positions of unique starting vertices:" << std::endl;
-  for (auto i = 0; i < (int)unique_starting_vertices.size(); i++) {
-    std::cout << edge_positions[i] << ", ";
+  for (const auto pos : unique_starting_vertex_indices) {
+    auto &vtx = edges[pos];
+    std::cout << "(" << vtx.first << ", " << vtx.second << ")@" << pos << ", ";
   }
   std::cout << std::endl;
 #endif
 
   // then we add the edges to the graph
-  parlay::parallel_for(0, unique_starting_vertices.size(), [&](size_t i) {
-    auto &vtx = unique_starting_vertices[i];
+  parlay::parallel_for(0, unique_starting_vertex_indices.size(), [&](size_t i) {
+    auto start_pos = unique_starting_vertex_indices[i];
+    auto end_pos =
+      i == unique_starting_vertex_indices.size() - 1
+      ? ne * 2
+      : unique_starting_vertex_indices[i + 1];
+    auto &vtx = edges[start_pos];
     auto &vertex_list = level_lists[vtx.first];
-
     // get the starting and ending positions of the edges for this vertex
-    auto start_pos = edge_positions[i];
-    auto end_pos = edge_positions[i + 1];
     auto num_edges_for_vertex = (end_pos - start_pos);
-
     // make sure the vertex list has enough space for the extra edges
     vertex_list.maybe_resize(num_edges_for_vertex);
 
@@ -292,24 +276,9 @@ void NonTreeAdjacencyList::BatchAddEdgesToLevel(
   });
 }
 
-template <class Edge, class EdgeSet, typename EdgeInfo>
-void RemoveUnknownEdges(sequence<Edge> &se, EdgeSet edges, EdgeInfo e_info) {
-  parlay::parallel_for(0, se.size(), [&](size_t i) {
-    auto e = se[i];
-    auto u = e.first;
-    auto v = e.second;
-
-    if (edges.find(Edge(v, u)) != e_info) {
-      // swap the edges
-      se[i] = E(v, u);
-    } else if (edges.find(Edge(u, v)) == e_info) {
-      // if the edge is not in the graph, skip it
-      se[i] = E(kV_Max, kV_Max);
-    }
-  });
-
-  // filter out the (-1, -1) edges
-  parlay::filter(se, [&](E e) { return e.first != kV_Max; });
+template <class Edge, class EdgeSet>
+sequence<Edge> RemoveUnknownEdges(const sequence<Edge> &se, const EdgeSet& edges) {
+  return parlay::filter(se, [&](E e) { return edges.contains(e); });
 }
 
 template <typename T> auto PrintSequence(T &seq, const std::string &&name) {

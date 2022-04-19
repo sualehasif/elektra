@@ -169,6 +169,7 @@ public:
     return iter_kv<K, V>(k, h, mask, table.begin(), empty_key);
   }
 
+  // TODO URGENT what about tombstones?
   bool insert(std::tuple<K, V> kv) {
     K &k = std::get<0>(kv);
     V &v = std::get<1>(kv);
@@ -177,13 +178,14 @@ public:
       if (std::get<0>(table[h]) == empty_key &&
           elektra::atomic_compare_and_swap(&std::get<0>(table[h]), empty_key,
                                            std::get<0>(kv))) {
-        std::get<1>(table[h]) = std::get<1>(kv);
+        std::get<1>(table[h]) = v;
         size_t wn = parlay::worker_id();
         cts[wn * kResizableTableCacheLineSz]++;
         return 1;
       }
-      if (std::get<0>(table[h]) == k && (V)std::get<1>(table[h]) == v) {
-        return false;
+      if (std::get<0>(table[h]) == k) {
+        std::get<1>(table[h]) = v;
+        return 1;
       }
       h = incrementIndex(h, mask);
     }
@@ -248,8 +250,8 @@ public:
   bool contains(K k, V v) const {
     size_t h = firstIndex(k);
     while (1) {
-      if (std::get<0>(table[h]) == k && std::get<1>(table[h]) == v) {
-        return 1;
+      if (std::get<0>(table[h]) == k) {
+        return std::get<1>(table[h]) == v;
       } else if (std::get<0>(table[h]) == empty_key) {
         return 0;
       }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <parlay/internal/group_by.h>
 #include <parlay/primitives.h>
 
 #include "euler_tour_tree.h"
@@ -108,38 +109,24 @@ void UpdateNontreeEdges(
     bool is_insertion,
     const ElemSeq& edges
 ) {
-  auto vertices = parlay::sequence<v_int>::from_function(
+  auto vertices = parlay::delayed_seq<v_int>(
       2 * edges.size(),
       [&](const size_t i) {
-        return i < edges.size() ? edges[i].first : edges[i - edges.size()].second;
+        return i % 2 ? edges[i / 2].first : edges[i / 2].second;
       }
   );
-  parlay::sort_inplace(vertices);
-
-  const auto unique_vert_flags = parlay::delayed_seq<bool>(
-      vertices.size(),
-      [&](const size_t i) {
-        return i == 0 || vertices[i] != vertices[i - 1];
-      }
-  );
-  const auto unique_vert_indices = parlay::pack_index(unique_vert_flags);
-
+  const auto vertex_counts = parlay::histogram_by_key(vertices);
   const auto vertices_to_increment = parlay::delayed_seq<v_int>(
-      unique_vert_indices.size(),
+      vertex_counts.size(),
       [&](const size_t i) {
-        return vertices[unique_vert_indices[i]];
+        return vertex_counts[i].first;
       }
   );
   const int multiplier = is_insertion ? 1 : -1;
   const auto increments = parlay::delayed_seq<int32_t>(
-      unique_vert_indices.size(),
+      vertex_counts.size(),
       [&](const size_t i) {
-        const size_t end =
-          i == unique_vert_indices.size() - 1
-          ? vertices.size()
-          : unique_vert_indices[i + 1];
-        const size_t start = unique_vert_indices[i];
-        return multiplier * (end - start);
+        return multiplier * vertex_counts[i].second;
       }
   );
   ett->IncrementNontreeEdgeCounts(vertices_to_increment, increments);

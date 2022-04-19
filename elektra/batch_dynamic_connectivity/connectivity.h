@@ -43,7 +43,7 @@ public:
    *
    *  @param[in] se A sequence of edges
    */
-  void BatchDeleteEdges(parlay::sequence<E> &se);
+  void BatchDeleteEdges(const parlay::sequence<E> &se);
 
   //  parlay::sequence<V> BatchFindRepr(const parlay::sequence<V> &sv);
 
@@ -62,12 +62,12 @@ private:
   const std::tuple<std::pair<V, V>, bdcty::EInfo> empty_edge_ =
       std::make_tuple(std::make_pair(-1, -1), kEmptyInfo);
   const std::tuple<std::pair<V, V>, bdcty::EInfo> tombstone_edge_ =
-      std::make_tuple(std::make_pair(-1, -1), kEmptyInfo);
+      std::make_tuple(std::make_pair(-2, -2), kEmptyInfo);
   const std::tuple<std::pair<V, V>, elektra::empty> edge_with_empty_struct_ =
       std::make_tuple(std::make_pair(-1, -1), elektra::empty{});
   const std::tuple<std::pair<V, V>, elektra::empty>
       tombstone_with_empty_struct_ =
-          std::make_tuple(std::make_pair(-1, -1), elektra::empty{});
+          std::make_tuple(std::make_pair(-2, -2), elektra::empty{});
 
   // `spanning_forests_[i]` stores F_i, the spanning forest for the i-th
   // subgraph. In particular, `spanning_forests[0]` is a spanning forest for the
@@ -104,6 +104,7 @@ private:
       -> parlay::sequence<V>;
   inline void InsertIntoEdgeTable(const pair<V, V> &e, EType e_type,
                                   Level level);
+  inline void DeleteFromEdgeTable(const pair<V, V> &e);
 };
 
 void BatchDynamicConnectivity::CheckRep() {
@@ -141,13 +142,13 @@ void BatchDynamicConnectivity::CheckRep() {
 
   for (Level level = 0; level < max_level_; ++level) {
     // Check that `spanning_forests_[i].edges_` is a subset of `edges_`.
-    auto spanning_forest_edges = parallel_spanning_forests_[level]->Edges_();
+    auto spanning_forest_edges = parallel_spanning_forests_[level]->EdgesBothDirs_();
     assert(spanning_forest_edges.size() <= edges_seq.size());
     assert(
         std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto &e) {
           auto [edge, value] = e;
           auto [edge_level, e_type] = value;
-          return edge_level == level && e_type == EType::K_TREE;
+          return edge_level <= level && e_type == EType::K_TREE;
         }) == static_cast<uint32_t>(spanning_forest_edges.size()));
 
     // insert all edges into `edges_set`.
@@ -172,7 +173,7 @@ void BatchDynamicConnectivity::CheckRep() {
           std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto &e) {
             auto [edge, value] = e;
             auto [edge_level, e_type] = value;
-            return edge_level == level && e_type == EType::K_NON_TREE;
+            return edge_level == level && e_type == EType::K_NON_TREE && edge.first == v;
           }) == static_cast<uint32_t>(opposite_edges.size()));
     }
   }
@@ -222,8 +223,10 @@ void BatchDynamicConnectivity::CheckRep() {
     for (const auto &edge : level_tree_edges) {
       auto [e, info] = edge;
       auto [u, v] = e;
-      auto did_unite = unite(u, v, parents);
-      assert(did_unite != UINT_E_MAX && "union of tree edges failed");
+      if (u < v) {
+        auto did_unite = unite(u, v, parents);
+        assert(did_unite != UINT_E_MAX && "union of tree edges failed");
+      }
     }
 
     sequence<tuple<E, EInfo>> level_non_tree_edges =
@@ -246,7 +249,7 @@ void BatchDynamicConnectivity::CheckRep() {
   // component size checks
   for (Level level = 0; level < max_level_; ++level) {
     // construct the components from the tree edges
-    auto level_edges = parallel_spanning_forests_[level]->Edges_();
+    auto level_edges = parallel_spanning_forests_[level]->EdgesBothDirs_();
 
     auto components = vector<set<V>>(num_vertices_);
 
@@ -402,8 +405,15 @@ inline void BatchDynamicConnectivity::InsertIntoEdgeTable(const pair<V, V> &e,
 
   // TODO(sualeh): Think about whether you can get away without
   // inserting the reverse edge add the reverse edge to the edges_ map
+  // note(tom): probably? make EdgeSet into a class where insert/find/delete
+  // always makes the edge have e.first < e.second
   EInfo ei_rev = {level, e_type};
   edges_.insert(make_tuple(pair<V, V>(e.second, e.first), ei_rev));
+}
+
+inline void BatchDynamicConnectivity::DeleteFromEdgeTable(const pair<V, V> &e) {
+  edges_.deleteVal(e);
+  edges_.deleteVal(pair<V, V>(e.second, e.first));
 }
 
 auto BatchDynamicConnectivity::RemoveDuplicates(sequence<V> &seq)
