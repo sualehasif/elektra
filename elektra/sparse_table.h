@@ -10,16 +10,15 @@
 
 #include "macros.h"
 
-
 namespace elektra {
 
 struct HashUint32Empty {
-  static inline size_t hash(uint32_t key) {
-    return parlay::hash32_3(key);
-  }
+  static inline size_t hash(uint32_t key) { return parlay::hash32_3(key); }
   static constexpr uint32_t empty_key = std::numeric_limits<uint32_t>::max();
-  static constexpr std::pair<uint32_t, elektra::empty> empty = {empty_key, elektra::empty()};
-  static constexpr uint32_t tombstone = std::numeric_limits<uint32_t>::max() - 1;
+  static constexpr std::pair<uint32_t, elektra::empty> empty = {
+      empty_key, elektra::empty()};
+  static constexpr uint32_t tombstone =
+      std::numeric_limits<uint32_t>::max() - 1;
   static constexpr double space_mult = 1.1;
 };
 
@@ -33,7 +32,11 @@ class sparse_table {
 
   size_t capacity() const { return table.size(); }
   size_t size() const {
-    return parlay::reduce(parlay::delayed_seq<size_t>(capacity(), [&] (size_t i) { return std::get<0>(table[i]) != KVInfo::empty_key && std::get<0>(table[i]) != KVInfo::tombstone; }));
+    return parlay::reduce(
+        parlay::delayed_seq<size_t>(capacity(), [&](size_t i) {
+          return std::get<0>(table[i]) != KVInfo::empty_key &&
+                 std::get<0>(table[i]) != KVInfo::tombstone;
+        }));
   }
 
   inline size_t hashToRange(size_t h) const { return h & (table.size() - 1); }
@@ -43,7 +46,8 @@ class sparse_table {
   sparse_table() {}
 
   sparse_table(size_t _m) {
-    size_t m = (size_t)1 << parlay::log2_up((size_t)(KVInfo::space_mult * _m) + 1);
+    size_t m =
+        (size_t)1 << parlay::log2_up((size_t)(KVInfo::space_mult * _m) + 1);
     table = sequence<T>::uninitialized(m);
     clear_table();
   }
@@ -53,24 +57,24 @@ class sparse_table {
     size_t h = firstIndex(k);
     while (true) {
       if (std::get<0>(table[h]) == KVInfo::empty_key) {
-        if (elektra::atomic_compare_and_swap(&std::get<0>(table[h]), KVInfo::empty_key,
-                                          k)) {
-          if constexpr (sizeof(V) > 0) {
-            std::get<1>(table[h]) = std::get<1>(kv);
-          }
+        if (elektra::atomic_compare_and_swap(&std::get<0>(table[h]),
+                                             KVInfo::empty_key, k)) {
+          if
+            constexpr(sizeof(V) > 0) {
+              std::get<1>(table[h]) = std::get<1>(kv);
+            }
           return true;
         }
-      }
-      else if (std::get<0>(table[h]) == KVInfo::tombstone) {
-        if (elektra::atomic_compare_and_swap(&std::get<0>(table[h]), KVInfo::tombstone,
-                                          k)) {
-          if constexpr (sizeof(V) > 0) {
-            std::get<1>(table[h]) = std::get<1>(kv);
-          }
+      } else if (std::get<0>(table[h]) == KVInfo::tombstone) {
+        if (elektra::atomic_compare_and_swap(&std::get<0>(table[h]),
+                                             KVInfo::tombstone, k)) {
+          if
+            constexpr(sizeof(V) > 0) {
+              std::get<1>(table[h]) = std::get<1>(kv);
+            }
           return true;
         }
-      }
-      if (std::get<0>(table[h]) == k) {
+      } else if (std::get<0>(table[h]) == k) {
         return false;
       }
       h = incrementIndex(h);
@@ -83,9 +87,9 @@ class sparse_table {
     while (true) {
       if (std::get<0>(table[h]) == KVInfo::empty_key) {
         return false;
-      }
-      else if (std::get<0>(table[h]) == k) {
-        return elektra::atomic_compare_and_swap(&std::get<0>(table[h]), k, KVInfo::tombstone);
+      } else if (std::get<0>(table[h]) == k) {
+        return elektra::atomic_compare_and_swap(&std::get<0>(table[h]), k,
+                                                KVInfo::tombstone);
       }
       h = incrementIndex(h);
     }
@@ -118,8 +122,18 @@ class sparse_table {
   }
 
   sequence<T> entries() const {
-    auto pred = [&](const T& t) { return std::get<0>(t) != KVInfo::empty_key && std::get<0>(t) != KVInfo::tombstone; };
+    auto pred = [&](const T& t) {
+      return std::get<0>(t) != KVInfo::empty_key &&
+             std::get<0>(t) != KVInfo::tombstone;
+    };
     return parlay::filter(table, pred);
+  }
+
+  // Not sure if there are any users of this function, currently.
+  parlay::slice<T, T> get_slice(size_t start, size_t length) {
+    return parlay::make_slice(
+        table.begin() + start,
+        table.begin() + std::min(start + length, capacity()));
   }
 
   // Incoming must be a power of two
@@ -127,13 +141,15 @@ class sparse_table {
     // TODO: use random sampling for large arrays
     size_t num_full = size();
     if ((num_full + incoming) * KVInfo::space_mult > capacity()) {
-      size_t new_size = 1 << parlay::log2_up((size_t)(KVInfo::space_mult * (num_full + incoming)));
+      size_t new_size = 1 << parlay::log2_up((size_t)(KVInfo::space_mult *
+                                                      (num_full + incoming)));
 
       auto old_backing = std::move(table);
       table = sequence<T>(new_size, KVInfo::empty);
 
       parlay::parallel_for(0, old_backing.size(), [&](size_t i) {
-        if (std::get<0>(old_backing[i]) != KVInfo::empty_key && std::get<0>(old_backing[i]) != KVInfo::tombstone) {
+        if (std::get<0>(old_backing[i]) != KVInfo::empty_key &&
+            std::get<0>(old_backing[i]) != KVInfo::tombstone) {
           insert(old_backing[i]);
         }
       });
@@ -141,9 +157,9 @@ class sparse_table {
   }
 
   void clear_table() {
-    parlay::parallel_for(0, table.size(), [&](size_t i) { table[i] = KVInfo::empty; });
+    parlay::parallel_for(0, table.size(),
+                         [&](size_t i) { table[i] = KVInfo::empty; });
   }
 };
-
 
 }  // namespace elektra
