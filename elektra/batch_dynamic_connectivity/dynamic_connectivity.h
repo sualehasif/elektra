@@ -362,10 +362,6 @@ void BatchDynamicConnectivity::BatchDeleteEdges(const sequence<E> &se_unfiltered
         ul.deleteVal(kV);
         vl.deleteVal(kU);
         assert(!(ul.contains(kV) || vl.contains(kU)));
-#ifdef DEBUG
-        std::cout << "Removing edge " << kU << " " << kV
-                  << " at level: " << l << std::endl;
-#endif
       });
     }
   }
@@ -451,6 +447,8 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
       components.size()}; // TODO(laxman): read this :-)
   // an indicator of whether we are done with that component.
   sequence<char> component_indicator(components.size(), 0);
+  // a component -> idx map
+  auto component_map = elektra::MakeIndexMap<V, V>(components);
   // A supercomponent is a root inside `union_find`, and
   // supercomponent_sizes[i] is the size of that supercomponent.
   auto supercomponent_sizes = sequence<std::atomic<V>>::from_function(
@@ -506,6 +504,7 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
             const auto incident_edges =
               level_non_tree_adjacency_lists[u].entries();
 
+            const auto u_component = component_map.at(ett->GetRepresentative(u));
             parlay::parallel_for(0, incident_edges.size(), [&](const size_t j) {
               const V v = std::get<0>(incident_edges[j]);
 
@@ -515,7 +514,8 @@ BatchDynamicConnectivity::ReplacementSearch(Level level, sequence<V> components)
 #endif
               }
 
-              if (union_find.unite(u, v, union_find.parents) != UINT_E_MAX) {
+              const auto v_component = component_map.at(ett->GetRepresentative(v));
+              if (union_find.unite(u_component, v_component, union_find.parents) != UINT_E_MAX) {
                 // found a valid replacement edge
                 const auto edge = make_pair(std::min(u, v), std::max(u, v));
                 edges_to_promote.insert(make_tuple(edge, elektra::empty{}));
