@@ -148,7 +148,7 @@ void BatchDynamicConnectivity::CheckRep() {
         std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto &e) {
           auto [edge, value] = e;
           auto [edge_level, e_type] = value;
-          return edge_level == level && e_type == EType::K_TREE;
+          return edge_level <= level && e_type == EType::K_TREE;
         }) == static_cast<uint32_t>(spanning_forest_edges.size()));
 
     // insert all edges into `edges_set`.
@@ -173,7 +173,7 @@ void BatchDynamicConnectivity::CheckRep() {
           std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto &e) {
             auto [edge, value] = e;
             auto [edge_level, e_type] = value;
-            return edge_level == level && e_type == EType::K_NON_TREE;
+            return edge_level == level && e_type == EType::K_NON_TREE && edge.first == v;
           }) == static_cast<uint32_t>(opposite_edges.size()));
     }
   }
@@ -223,8 +223,10 @@ void BatchDynamicConnectivity::CheckRep() {
     for (const auto &edge : level_tree_edges) {
       auto [e, info] = edge;
       auto [u, v] = e;
-      auto did_unite = unite(u, v, parents);
-      assert(did_unite != UINT_E_MAX && "union of tree edges failed");
+      if (u < v) {
+        auto did_unite = unite(u, v, parents);
+        assert(did_unite != UINT_E_MAX && "union of tree edges failed");
+      }
     }
 
     sequence<tuple<E, EInfo>> level_non_tree_edges =
