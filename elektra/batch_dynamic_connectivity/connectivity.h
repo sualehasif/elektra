@@ -62,12 +62,12 @@ private:
   const std::tuple<std::pair<V, V>, bdcty::EInfo> empty_edge_ =
       std::make_tuple(std::make_pair(-1, -1), kEmptyInfo);
   const std::tuple<std::pair<V, V>, bdcty::EInfo> tombstone_edge_ =
-      std::make_tuple(std::make_pair(-1, -1), kEmptyInfo);
+      std::make_tuple(std::make_pair(-2, -2), kEmptyInfo);
   const std::tuple<std::pair<V, V>, elektra::empty> edge_with_empty_struct_ =
       std::make_tuple(std::make_pair(-1, -1), elektra::empty{});
   const std::tuple<std::pair<V, V>, elektra::empty>
       tombstone_with_empty_struct_ =
-          std::make_tuple(std::make_pair(-1, -1), elektra::empty{});
+          std::make_tuple(std::make_pair(-2, -2), elektra::empty{});
 
   // `spanning_forests_[i]` stores F_i, the spanning forest for the i-th
   // subgraph. In particular, `spanning_forests[0]` is a spanning forest for the

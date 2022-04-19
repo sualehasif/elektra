@@ -169,7 +169,7 @@ public:
     return iter_kv<K, V>(k, h, mask, table.begin(), empty_key);
   }
 
-  // TODO what about tombstones?
+  // TODO URGENT what about tombstones?
   bool insert(std::tuple<K, V> kv) {
     K &k = std::get<0>(kv);
     V &v = std::get<1>(kv);
