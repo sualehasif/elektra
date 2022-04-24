@@ -15,7 +15,7 @@ typedef std::pair<uintE, uintE> intPair;
 using std::vector;
 typedef parlay::sequence<intPair> edgeList;
 using timer = elektra::timer;
-using UndirectedEdge = std::pair<V, V>;
+using E = std::pair<V, V>;
 
 // TODO: move this to a utility file
 template <typename T>
@@ -33,14 +33,13 @@ T median(std::vector<T> v) {
   }
 }
 
-parlay::sequence<UndirectedEdge> intPairBatchToEdgeArray(
-    parlay::sequence<intPair>& se) {
+parlay::sequence<E> intPairBatchToEdgeArray(parlay::sequence<intPair> &se) {
   // turns a sequence of edges to an array of pairs
   // useful for interfacing with EulerTourTrees
-  parlay::sequence<UndirectedEdge> array;
+  parlay::sequence<E> array;
 
   for (size_t i = 0; i < se.size(); i++) {
-    array.push_back(UndirectedEdge(se[i].first, se[i].second));
+    array.push_back({se[i].first, se[i].second});
   }
   return array;
 }
@@ -89,10 +88,62 @@ void incrementallUpdateConnectivity(edgeList edges, int batch_size,
   timer::report_time("  link-" + batch_str, median(link_times));
 }
 
+// [Experiment: Overhead in an Insertion-Only Scenario]
+// Take an input graph
+// Construct the graph
+// Insert p% of the edges in the start
+// Then incrementally add batches.
+// (^ batch size varied, measurements done)
+// Measure the throughput=edges/second as a function of batch size. Can plot
+// incremental-only algorithm (UF) against our dynamic connectivity
+// implementations
 template <typename Connectivity>
-inline void RunBenchmark(int argc, char** argv, std::string name) {
+void insertionOnly(edgeList edges, int batch_size, int n, int m) {
+  // construct a forest from the edges
+  Connectivity connect = Connectivity(n);
+
+  // insert p% of the edges in the start
+  const int p = 40;
+  const int p_edges = m * p / 100;
+  auto start_slice = edges.cut(0, p_edges - 1);
+  edgeList el{start_slice.begin(), start_slice.end()};
+  connect.BatchAddEdges(intPairBatchToEdgeArray(el));
+
+  // then incrementally add batches
+
+  auto start_slice_idx = p_edges;
+
+  const int num_iters = (m - p_edges) / batch_size - 2;
+
+  vector<double> link_times(num_iters);
+
+  for (int i = 0; i < num_iters; i++) {
+    timer link_t;
+
+    auto el =
+        parlay::make_slice(edges.begin() + start_slice_idx,
+                           edges.begin() + start_slice_idx + batch_size - 1);
+
+    auto edges_to_link = parlay::sequence<E>::from_function(
+        batch_size, [&](size_t i) { return E(el[i].first, el[i].second); });
+
+    // batch link and time
+    link_t.start();
+    connect.BatchAddEdges(edges_to_link);
+
+    link_times[i] = link_t.stop();
+
+    start_slice_idx += batch_size;
+  }
+  const std::string batch_str{"  link-insertion-only" +
+                              std::to_string(batch_size)};
+  timer::report_time(batch_str, median(link_times));
+}
+
+template <typename Connectivity>
+inline void RunBenchmark(int argc, char **argv, std::string name) {
   commandLine P{argc, argv, "[-iters] [-workers] graph_filename"};
-  char* graph_filename{P.getArgument(0)};
+  char *graph_filename{P.getArgument(0)};
 
   int num_iters{P.getOptionIntValue("-iters", 5)};
   int nworkers{P.getOptionIntValue("-workers", 1)};
@@ -123,12 +174,13 @@ inline void RunBenchmark(int argc, char** argv, std::string name) {
 
   //   Connectivity* connect = new Connectivity(n);
 
-  for (int batch_size = 2; batch_size < m; batch_size *= 10) {
-    std::cout << "batch_size: " << batch_size << std::endl;
-    incrementallUpdateConnectivity<Connectivity>(edges, batch_size, num_iters,
-                                                 n, m);
-  }
-  //   UpdateForest(&forest, edges, m, num_iters, m);
+  // for (int batch_size = 2; batch_size < m; batch_size *= 10) {
+  //   std::cout << "batch_size: " << batch_size << std::endl;
+  //   incrementallUpdateConnectivity<Connectivity>(edges, batch_size,
+  //   num_iters,
+  //                                                n, m);
+  // }
+  insertionOnly<Connectivity>(edges, 100, n, m);
 }
 
 }  // namespace benchmark

@@ -34,6 +34,7 @@ public:
    *  @param[in] se A sequence of edges
    */
   void BatchAddEdges(const parlay::sequence<E> &se);
+  // void BatchAddEdges(const parlay::slice<E, E> &se);
 
   /** Deletes a batch of edges from the graph.
    *

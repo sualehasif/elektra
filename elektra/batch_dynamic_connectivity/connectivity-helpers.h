@@ -1,5 +1,6 @@
 #pragma once
 
+#include <parlay/delayed_sequence.h>
 #include <parlay/hash_table.h>
 #include <parlay/primitives.h>
 #include <parlay/sequence.h>
@@ -20,8 +21,8 @@
 #include "macros.h"
 #include "parallel_euler_tour_tree/hdt_euler_tour_tree.h"
 #include "resizable_table.h"
-#include "sparse_table.h"
 #include "spanning_tree.h"
+#include "sparse_table.h"
 #include "union_find.h"
 #include "utilities/sequence_utils.h"
 
