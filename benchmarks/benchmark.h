@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdlib>
 #include <vector>
 
 #include "../elektra/batch_dynamic_connectivity/connectivity-helpers.h"
@@ -7,39 +8,38 @@
 #include "io.h"
 #include "parse_command_line.h"
 
-namespace elektra {
-namespace benchmark {
+namespace elektra::benchmark {
 
 using V = uint32_t;
-typedef std::pair<uintE, uintE> intPair;
+using IntPair = std::pair<uintE, uintE>;
 using std::vector;
-typedef parlay::sequence<intPair> edgeList;
-using timer = elektra::timer;
+using EdgeList = parlay::sequence<IntPair>;
+using Timer = elektra::timer;
 using E = std::pair<V, V>;
 
 // TODO: move this to a utility file
-template <typename T>
-T median(std::vector<T> v) {
+template <typename T> auto median(std::vector<T> v) -> T {
   const size_t len = v.size();
   if (len == 0) {
     std::cerr << "median(): empty vector" << std::endl;
-    abort();
+    return 0;
   }
   std::sort(v.begin(), v.end());
   if (len % 2) {
     return v[len / 2];
-  } else {
-    return v[len / 2 - 1] + (v[len / 2] - v[len / 2 - 1]) / 2;
   }
+
+  return v[len / 2 - 1] + (v[len / 2] - v[len / 2 - 1]) / 2;
 }
 
-parlay::sequence<E> intPairBatchToEdgeArray(parlay::sequence<intPair> &se) {
+auto IntPairBatchToEdgeArray(parlay::sequence<IntPair> &se)
+    -> parlay::sequence<E> {
   // turns a sequence of edges to an array of pairs
   // useful for interfacing with EulerTourTrees
   parlay::sequence<E> array;
 
-  for (size_t i = 0; i < se.size(); i++) {
-    array.push_back({se[i].first, se[i].second});
+  for (auto &i : se) {
+    array.push_back({i.first, i.second});
   }
   return array;
 }
@@ -48,27 +48,27 @@ parlay::sequence<E> intPairBatchToEdgeArray(parlay::sequence<intPair> &se) {
 // then batch cut and batch link the first `batch_size` edges in `edges`.
 // Report the median batch cut and batch link time.
 template <typename Connectivity>
-void incrementallUpdateConnectivity(edgeList edges, int batch_size,
+void incrementallUpdateConnectivity(EdgeList edges, int batch_size,
                                     int num_iters, int n, int m) {
   vector<double> link_times(num_iters);
 
   Connectivity connect = Connectivity(n);
 
   std::random_device rd;
-  std::mt19937 gen(rd());  // Standard mersenne_twister_engine seeded with rd()
+  std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
   std::uniform_int_distribution<> distrib(1, m - batch_size);
 
   for (int j = 0; j < num_iters; j++) {
     // print the iteration number
     // std::cout << "iteration " << j << std::endl;
 
-    timer link_t;
+    Timer link_t;
 
     // construct a slice of edges to insert (because Connectivity doesnt support
     // slices yet.)
     auto start_slice = distrib(gen);
     auto slice = edges.cut(start_slice, start_slice + batch_size - 1);
-    edgeList el{slice.begin(), slice.end()};
+    EdgeList el{slice.begin(), slice.end()};
 
     // print the edges to be inserted
     // std::cout << "inserting edges: " << std::endl;
@@ -76,7 +76,7 @@ void incrementallUpdateConnectivity(edgeList edges, int batch_size,
     //   std::cout << e.first << " " << e.second << std::endl;
     // }
 
-    auto edges_to_link = intPairBatchToEdgeArray(el);
+    auto edges_to_link = IntPairBatchToEdgeArray(el);
 
     // batch link and time
     link_t.start();
@@ -85,7 +85,7 @@ void incrementallUpdateConnectivity(edgeList edges, int batch_size,
     link_times[j] = link_t.stop();
   }
   const std::string batch_str{std::to_string(batch_size)};
-  timer::report_time("  link-" + batch_str, median(link_times));
+  Timer::report_time("  link-" + batch_str, median(link_times));
 }
 
 // [Experiment: Overhead in an Insertion-Only Scenario]
@@ -98,7 +98,7 @@ void incrementallUpdateConnectivity(edgeList edges, int batch_size,
 // incremental-only algorithm (UF) against our dynamic connectivity
 // implementations
 template <typename Connectivity>
-void insertionOnly(edgeList edges, int batch_size, int n, int m) {
+void insertionOnly(EdgeList edges, int batch_size, int n, int m) {
   // construct a forest from the edges
   Connectivity connect = Connectivity(n);
 
@@ -106,8 +106,8 @@ void insertionOnly(edgeList edges, int batch_size, int n, int m) {
   const int p = 40;
   const int p_edges = m * p / 100;
   auto start_slice = edges.cut(0, p_edges - 1);
-  edgeList el{start_slice.begin(), start_slice.end()};
-  connect.BatchAddEdges(intPairBatchToEdgeArray(el));
+  EdgeList el{start_slice.begin(), start_slice.end()};
+  connect.BatchAddEdges(IntPairBatchToEdgeArray(el));
 
   // then incrementally add batches
 
@@ -118,14 +118,16 @@ void insertionOnly(edgeList edges, int batch_size, int n, int m) {
   vector<double> link_times(num_iters);
 
   for (int i = 0; i < num_iters; i++) {
-    timer link_t;
+    Timer link_t;
 
-    auto el =
+    auto el_batch =
         parlay::make_slice(edges.begin() + start_slice_idx,
                            edges.begin() + start_slice_idx + batch_size - 1);
 
-    auto edges_to_link = parlay::sequence<E>::from_function(
-        batch_size, [&](size_t i) { return E(el[i].first, el[i].second); });
+    auto edges_to_link =
+        parlay::sequence<E>::from_function(batch_size, [&](size_t i) {
+          return E(el_batch[i].first, el_batch[i].second);
+        });
 
     // batch link and time
     link_t.start();
@@ -135,13 +137,13 @@ void insertionOnly(edgeList edges, int batch_size, int n, int m) {
 
     start_slice_idx += batch_size;
   }
-  const std::string batch_str{"  link-insertion-only" +
+  const std::string kBatchStr{"  link-insertion-only" +
                               std::to_string(batch_size)};
-  timer::report_time(batch_str, median(link_times));
+  Timer::report_time(kBatchStr, median(link_times));
 }
 
 template <typename Connectivity>
-inline void RunBenchmark(int argc, char **argv, std::string name) {
+inline void RunBenchmark(int argc, char **argv, const std::string &name) {
   commandLine P{argc, argv, "[-iters] [-workers] graph_filename"};
   char *graph_filename{P.getArgument(0)};
 
@@ -159,7 +161,7 @@ inline void RunBenchmark(int argc, char **argv, std::string name) {
 
   const int n = vertex_and_edge_list.first;
 
-  sequence<intPair> edges = vertex_and_edge_list.second;
+  sequence<IntPair> edges = vertex_and_edge_list.second;
   const int m = edges.size();
 
   // print the number of vertices and edges
@@ -167,7 +169,7 @@ inline void RunBenchmark(int argc, char **argv, std::string name) {
   std::cout << "  m: " << m << std::endl;
 
   std::random_device rd;
-  std::mt19937 gen(rd());  // Standard mersenne_twister_engine seeded with rd()
+  std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
 
   // shuffle the edges
   std::shuffle(edges.begin(), edges.end(), gen);
@@ -183,5 +185,4 @@ inline void RunBenchmark(int argc, char **argv, std::string name) {
   insertionOnly<Connectivity>(edges, 100, n, m);
 }
 
-}  // namespace benchmark
-}  // namespace elektra
+} // namespace elektra::benchmark

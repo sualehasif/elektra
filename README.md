@@ -1,7 +1,9 @@
 # elektra
+
 A suite of parallel dynamic graph algorithms
 
 ### To Build
+
 Make sure to recursively clone the submodules.
 
 ```
@@ -11,6 +13,7 @@ make
 ```
 
 ### To run the tests
+
 ```
 mkdir build; cd build
 cmake ..
