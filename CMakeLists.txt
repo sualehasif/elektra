@@ -97,6 +97,9 @@ FetchContent_Declare(
 
 link_directories(${Boost_LIBRARY_DIRS})
 
+# Reference Testing
+add_subdirectory(reference-impl/connectivity-reference/src)
+
 enable_testing()
 
 add_executable(elektra elektra.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)
@@ -106,9 +109,10 @@ target_link_libraries(elektra ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 # Testing
 add_executable(elektra_test test/elektra_test.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)
 target_link_libraries(elektra_test gmock_main gtest_main)
-#include(GoogleTest)
-#gtest_discover_tests(elektra_test)
 
+# Reference Testing
+add_executable(reference_test test/reference_test.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)
+target_link_libraries(reference_test gmock_main gtest_main)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
