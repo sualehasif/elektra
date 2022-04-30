@@ -111,8 +111,8 @@ add_executable(elektra_test test/elektra_test.cpp elektra/hash_table_utils.h ele
 target_link_libraries(elektra_test gmock_main gtest_main)
 
 # Reference Testing
-# add_executable(reference_test test/reference_test.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)
-# target_link_libraries(reference_test gmock_main gtest_main lib_dynamic_connectivity)
+add_executable(reference_test test/reference_test.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)
+target_link_libraries(reference_test gmock_main gtest_main lib_dynamic_connectivity)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
