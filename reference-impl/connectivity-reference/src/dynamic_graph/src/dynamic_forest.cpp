@@ -11,10 +11,9 @@
 // Tarjan's variant adds self-loop edges to each vertex and includes them in the
 // Euler tour to make it convenient to look up where a vertex is in the tours.
 #include <dynamic_forest.hpp>
-
 #include <stdexcept>
 
-#include <utilities/assert.hpp>
+#include "utils_assert.hpp"
 
 using Element = sequence::Element;
 using UndirectedEdgeElements = detail::UndirectedEdgeElements;

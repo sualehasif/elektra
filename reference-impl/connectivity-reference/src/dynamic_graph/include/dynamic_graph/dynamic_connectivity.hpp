@@ -7,13 +7,11 @@
 #pragma once
 
 #include <cstdint>
+#include <dynamic_forest.hpp>
+#include <dynamic_graph/graph.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#include <dynamic_forest.hpp>
-#include <dynamic_graph/graph.hpp>
-#include <utilities/hash.hpp>
 
 namespace detail {
 

@@ -37,7 +37,7 @@
 // point -- brute force search instead.
 #include <dynamic_graph/dynamic_connectivity.hpp>
 
-#include <utilities/assert.hpp>
+#include "utils_assert.hpp"
 
 namespace {
 

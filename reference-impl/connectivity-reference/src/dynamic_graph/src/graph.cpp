@@ -1,8 +1,7 @@
+#include <algorithm>
 #include <dynamic_graph/graph.hpp>
 
-#include <algorithm>
-
-#include <utilities/hash.hpp>
+#include "utils_hash.hpp"
 
 UndirectedEdge::UndirectedEdge(Vertex u, Vertex v)
   : first{std::min(u, v)}
