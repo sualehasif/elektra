@@ -15,7 +15,7 @@
 
 #include "utils_assert.hpp"
 
-using Element = sequence::Element;
+using Element = sequenceReference::Element;
 using UndirectedEdgeElements = detail::UndirectedEdgeElements;
 using std::pair;
 
@@ -24,7 +24,7 @@ namespace {
 constexpr int32_t kEdgeMark{0};
 constexpr int32_t kVertexMark{1};
 
-inline void ValidateEdge(const UndirectedEdge& edge, int64_t num_vertices) {
+inline void ValidateEdge(const UndirectedEdgeR& edge, int64_t num_vertices) {
   ASSERT_MSG(
       0 <= edge.first && edge.first < num_vertices
         && 0 <= edge.second && edge.second < num_vertices,
@@ -40,8 +40,8 @@ inline void ValidateVertex(Vertex v, int64_t num_vertices) {
 namespace detail {
 
 UndirectedEdgeElements::UndirectedEdgeElements(
-      sequence::Element* _forward_edge,
-      sequence::Element* _backward_edge)
+      sequenceReference::Element* _forward_edge,
+      sequenceReference::Element* _backward_edge)
   : forward_edge(_forward_edge), backward_edge(_backward_edge) {}
 
 }  // namespace detail
@@ -84,7 +84,7 @@ DynamicForest::DynamicForest(DynamicForest&& other) noexcept
 
 // Allocates Euler tour sequence elements for an edge in the forest.
 UndirectedEdgeElements DynamicForest::AllocateEdgeElements(
-    const UndirectedEdge& edge) {
+    const UndirectedEdgeR& edge) {
   UndirectedEdgeElements edge_elements{
     free_edge_elements_[free_edge_elements_.size() - 1],
     free_edge_elements_[free_edge_elements_.size() - 2]
@@ -112,12 +112,12 @@ bool DynamicForest::IsConnected(Vertex u, Vertex v) const {
   return vertices_[u].GetRepresentative() == vertices_[v].GetRepresentative();
 }
 
-bool DynamicForest::HasEdge(const UndirectedEdge& edge) const {
+bool DynamicForest::HasEdge(const UndirectedEdgeR& edge) const {
   ValidateEdge(edge, num_vertices_);
   return edges_.find(edge) != edges_.end();
 }
 
-void DynamicForest::AddEdge(const UndirectedEdge& edge) {
+void DynamicForest::AddEdge(const UndirectedEdgeR& edge) {
   ValidateEdge(edge, num_vertices_);
 
   UndirectedEdgeElements edge_elements{AllocateEdgeElements(edge)};
@@ -138,7 +138,7 @@ void DynamicForest::AddEdge(const UndirectedEdge& edge) {
   Element::Join(&u_element, u_successor);
 }
 
-void DynamicForest::DeleteEdge(const UndirectedEdge& edge) {
+void DynamicForest::DeleteEdge(const UndirectedEdgeR& edge) {
   const auto& edge_it{edges_.find(edge)};
   ASSERT_MSG(
       edge_it != edges_.end(),
@@ -183,7 +183,7 @@ int64_t DynamicForest::GetSizeOfTree(Vertex v) const {
 }
 
 
-void DynamicForest::MarkEdge(const UndirectedEdge& edge, bool mark) {
+void DynamicForest::MarkEdge(const UndirectedEdgeR& edge, bool mark) {
   ValidateEdge(edge, num_vertices_);
   const auto& edge_it{edges_.find(edge)};
   ASSERT_MSG(
@@ -198,13 +198,13 @@ void DynamicForest::MarkVertex(Vertex v, bool mark) {
   vertices_[v].Mark(kVertexMark, mark);
 }
 
-std::optional<UndirectedEdge>
+std::optional<UndirectedEdgeR>
 DynamicForest::GetMarkedEdgeInTree(Vertex v) const {
   ValidateVertex(v, num_vertices_);
   std::optional<Element*> edge{vertices_[v].FindMarkedElement(kEdgeMark)};
   if (edge.has_value()) {
     const auto [edge_endpoint, edge_endpoint2]{(*edge)->id_};
-    return UndirectedEdge{edge_endpoint, edge_endpoint2};
+    return UndirectedEdgeR{edge_endpoint, edge_endpoint2};
   } else {
     return {};
   }

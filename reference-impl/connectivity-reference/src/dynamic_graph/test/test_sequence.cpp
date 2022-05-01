@@ -3,7 +3,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
-namespace seq = sequence;
+namespace seq = sequenceReference;
 
 using ::testing::Optional;
 

@@ -79,7 +79,7 @@ class DynamicConnectivity {
    *  @param[in] edge Edge.
    *  @returns True if \p edge is in the graph, false if it is not.
    */
-  bool HasEdge(const UndirectedEdge& edge) const;
+  bool HasEdge(const UndirectedEdgeR& edge) const;
 
   /** Returns the number of vertices in `v`'s connected component.
    *
@@ -99,7 +99,7 @@ class DynamicConnectivity {
    *
    *  @param[in] edge Edge to be added.
    */
-  void AddEdge(const UndirectedEdge& edge);
+  void AddEdge(const UndirectedEdgeR& edge);
 
   /** Deletes an edge from the graph.
    *
@@ -110,15 +110,15 @@ class DynamicConnectivity {
    *
    *  @param[in] edge Edge to be deleted.
    */
-  void DeleteEdge(const UndirectedEdge& edge);
+  void DeleteEdge(const UndirectedEdgeR& edge);
 
  private:
-  void AddNonTreeEdge(const UndirectedEdge& edge);
-  void AddTreeEdge(const UndirectedEdge& edge);
-  void AddEdgeToAdjacencyList(const UndirectedEdge& edge, detail::Level level);
+  void AddNonTreeEdge(const UndirectedEdgeR& edge);
+  void AddTreeEdge(const UndirectedEdgeR& edge);
+  void AddEdgeToAdjacencyList(const UndirectedEdgeR& edge, detail::Level level);
   void DeleteEdgeFromAdjacencyList(
-      const UndirectedEdge& edge, detail::Level level);
-  void ReplaceTreeEdge(const UndirectedEdge& edge, detail::Level level);
+      const UndirectedEdgeR& edge, detail::Level level);
+  void ReplaceTreeEdge(const UndirectedEdgeR& edge, detail::Level level);
 
   const int64_t num_vertices_;
   // `spanning_forests_[i]` stores F_i, the spanning forest for the i-th
@@ -130,6 +130,6 @@ class DynamicConnectivity {
   std::vector<std::vector<std::unordered_set<Vertex>>>
     non_tree_adjacency_lists_;
   // All edges in the graph.
-  std::unordered_map<UndirectedEdge, detail::EdgeInfo, UndirectedEdgeHash>
+  std::unordered_map<UndirectedEdgeR, detail::EdgeInfo, UndirectedEdgeHash>
     edges_;
 };

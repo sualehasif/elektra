@@ -16,13 +16,13 @@ typedef int64_t Vertex;
 typedef std::pair<Vertex, Vertex> DirectedEdge;
 
 /** Represents an edge in an undirected graph. */
-struct UndirectedEdge {
+struct UndirectedEdgeR {
   /** Constructor.
    *  @param[in] u One endpoint of the edge.
    *  @param[in] v The other endpoint of the edge.
    */
-  UndirectedEdge(Vertex u, Vertex v);
-  UndirectedEdge() = delete;
+  UndirectedEdgeR(Vertex u, Vertex v);
+  UndirectedEdgeR() = delete;
 
   /** One endpoint of the edge. */
   const Vertex first;
@@ -30,9 +30,9 @@ struct UndirectedEdge {
   const Vertex second;
 };
 /** Defines how to print UndirectedEdge in an output stream. */
-std::ostream& operator<<(std::ostream& out, const UndirectedEdge& edge);
+std::ostream& operator<<(std::ostream& out, const UndirectedEdgeR& edge);
 /** Equality operator for UndirectedEdge. */
-bool operator==(const UndirectedEdge& e1, const UndirectedEdge& e2);
+bool operator==(const UndirectedEdgeR& e1, const UndirectedEdgeR& e2);
 
 /** For storing undirected edges in hash containers. For instance:
  *  \code
@@ -45,5 +45,5 @@ struct UndirectedEdgeHash {
    *  @param[in] edge Edge to be hashed.
    *  @returns Hash value of the edge.
    */
-  std::size_t operator()(const UndirectedEdge& edge) const;
+  std::size_t operator()(const UndirectedEdgeR& edge) const;
 };

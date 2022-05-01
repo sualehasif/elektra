@@ -12,7 +12,7 @@
 #include <utility>
 #include <vector>
 
-namespace sequence {
+namespace sequenceReference {
 
 namespace detail {
 

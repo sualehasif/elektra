@@ -34,11 +34,11 @@ int main() {
   std::uniform_real_distribution<double> unit_distribution(0, 1);
   DynamicConnectivity graph(kNumVertices);
 
-  std::unordered_set<UndirectedEdge, UndirectedEdgeHash> edges;
+  std::unordered_set<UndirectedEdgeR, UndirectedEdgeHash> edges;
   edges.reserve(kOperationsPerIteration);
-  std::unordered_set<UndirectedEdge, UndirectedEdgeHash> edges_to_add;
+  std::unordered_set<UndirectedEdgeR, UndirectedEdgeHash> edges_to_add;
   edges_to_add.reserve(kOperationsPerIteration);
-  std::vector<UndirectedEdge> edges_to_delete;
+  std::vector<UndirectedEdgeR> edges_to_delete;
   edges_to_delete.reserve(kOperationsPerIteration);
   int64_t num_edges_added{0};
   int64_t num_edges_deleted{0};
@@ -51,7 +51,7 @@ int main() {
     {
       edges_to_add.clear();
       for (int64_t i = 0; i < kOperationsPerIteration; i++) {
-        const UndirectedEdge e{
+        const UndirectedEdgeR e{
           vertex_distribution(rng), vertex_distribution(rng)};
         if (e.first != e.second && edges.find(e) == edges.end()) {
           edges_to_add.emplace(std::move(e));

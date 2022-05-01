@@ -92,7 +92,8 @@
     "forward_list": "cpp",
     "stack": "cpp",
     "__bits": "cpp",
-    "format": "cpp"
+    "format": "cpp",
+    "*.ipp": "cpp"
   },
   "C_Cpp.errorSquiggles": "Enabled",
   "C_Cpp.intelliSenseEngineFallback": "Enabled",

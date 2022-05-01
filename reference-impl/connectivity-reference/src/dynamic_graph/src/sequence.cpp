@@ -9,7 +9,7 @@
 
 #include "utils_assert.hpp"
 
-namespace sequence {
+namespace sequenceReference {
 
 using namespace detail;
 
