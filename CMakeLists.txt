@@ -104,16 +104,15 @@ add_subdirectory(reference-impl/connectivity-reference/src)
 enable_testing()
 
 add_executable(elektra elektra.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)
-
 target_link_libraries(elektra ${Boost_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT})
 
 # Testing
 add_executable(elektra_test test/elektra_test.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)
-target_link_libraries(elektra_test gmock_main gtest_main)
+target_link_libraries(elektra_test gmock_main gtest_main ${CMAKE_THREAD_LIBS_INIT})
 
 # Reference Testing
 add_executable(reference_test test/reference_test.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)
-target_link_libraries(reference_test gmock_main gtest_main lib_dynamic_connectivity)
+target_link_libraries(reference_test gmock_main gtest_main lib_dynamic_connectivity ${CMAKE_THREAD_LIBS_INIT})
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

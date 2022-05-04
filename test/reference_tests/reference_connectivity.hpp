@@ -42,7 +42,7 @@ class ReferenceConnectivityTest : public ::testing::Test {
 };
 
 TEST_F(ReferenceConnectivityTest, SimpleGraph) {
-  const auto filename = get_benchmark_path("email-Eu-core.txt");
+  const auto filename = get_benchmark_path("basic.txt");
   auto vertex_and_edge_list = io::read_unweighted_edge_list(filename.c_str());
 
   const int num_vertices = vertex_and_edge_list.first;
@@ -72,18 +72,18 @@ TEST_F(ReferenceConnectivityTest, SimpleGraph) {
 
   batch_connect.BatchAddEdges(edges_base);
 
-  // // generate random queries
-  // std::uniform_int_distribution<int> dist(0, num_vertices - 1);
-  // const int num_queries = 100;
-  // auto queries = sequence<E>::from_function(
-  //     num_queries, [&]() { return make_pair(dist(rng), dist(rng)); });
+  // generate random queries
+  std::uniform_int_distribution<int> dist(0, num_vertices - 1);
+  const int num_queries = 100;
+  auto queries = sequence<E>::from_function(
+      num_queries, [&]() { return make_pair(dist(rng), dist(rng)); });
 
-  // // run queries
-  // auto batch_results = batch_connect.BatchConnected(queries);
-  // for (int i = 0; i < num_queries; i++) {
-  //   EXPECT_EQ(batch_results[i], static_cast<char>(reference.IsConnected(
-  //                                   queries[i].first, queries[i].second)));
-  // }
+  // run queries
+  auto batch_results = batch_connect.BatchConnected(queries);
+  for (int i = 0; i < num_queries; i++) {
+    EXPECT_EQ(batch_results[i], static_cast<char>(reference.IsConnected(
+                                    queries[i].first, queries[i].second)));
+  }
 }
 
 }  // namespace
