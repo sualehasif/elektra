@@ -7,6 +7,6 @@ if [[ ! -d "build" ]]; then
 fi
 
 cd build || exit
-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ..
-make -j 4
+cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -G Ninja ..
+ninja
 cd ..

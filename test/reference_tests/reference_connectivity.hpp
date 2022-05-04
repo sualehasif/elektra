@@ -41,8 +41,8 @@ class ReferenceConnectivityTest : public ::testing::Test {
   std::mt19937 rng{};
 };
 
-TEST_F(ReferenceConnectivityTest, SimpleGraph) {
-  const auto filename = get_benchmark_path("basic.txt");
+auto test_insertion_and_query(std::string filename, int num_queries,
+                              std::mt19937 rng) -> void {
   auto vertex_and_edge_list = io::read_unweighted_edge_list(filename.c_str());
 
   const int num_vertices = vertex_and_edge_list.first;
@@ -74,9 +74,8 @@ TEST_F(ReferenceConnectivityTest, SimpleGraph) {
 
   // generate random queries
   std::uniform_int_distribution<int> dist(0, num_vertices - 1);
-  const int num_queries = 100;
   auto queries = sequence<E>::from_function(
-      num_queries, [&]() { return make_pair(dist(rng), dist(rng)); });
+      num_queries, [&](size_t i) { return make_pair(dist(rng), dist(rng)); });
 
   // run queries
   auto batch_results = batch_connect.BatchConnected(queries);
@@ -85,6 +84,18 @@ TEST_F(ReferenceConnectivityTest, SimpleGraph) {
                                     queries[i].first, queries[i].second)));
   }
 }
-
 }  // namespace
+
+TEST_F(ReferenceConnectivityTest, SimpleGraph) {
+  const auto filename = get_benchmark_path("basic.txt");
+  const auto num_querys = 100;
+  test_insertion_and_query(filename, num_querys, rng);
+}  // simple graph
+
+TEST_F(ReferenceConnectivityTest, MediumGraph) {
+  const auto filename = get_benchmark_path("basic-medium.txt");
+  const auto num_querys = 100;
+  test_insertion_and_query(filename, num_querys, rng);
+}  // medium graph
+
 }  // namespace elektra::testing

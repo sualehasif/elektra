@@ -1,6 +1,7 @@
 #pragma once
 
 #include "connectivity-helpers.h"
+#include "log.h"
 
 #define INITIAL_SIZE 50
 
@@ -148,12 +149,13 @@ void BatchDynamicConnectivity::CheckRep() {
     // Check that `spanning_forests_[i].edges_` is a subset of `edges_`.
     auto spanning_forest_edges = parallel_spanning_forests_[level]->EdgesBothDirs_();
     assert(spanning_forest_edges.size() <= edges_seq.size());
-    assert(
+    auto sps =
         std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto &e) {
           auto [edge, value] = e;
           auto [edge_level, e_type] = value;
           return edge_level <= level && e_type == EType::K_TREE;
-        }) == static_cast<uint32_t>(spanning_forest_edges.size()));
+        });
+    assert(sps == static_cast<uint32_t>(spanning_forest_edges.size()));
 
     // insert all edges into `edges_set`.
     for (const auto &e : spanning_forest_edges) {
