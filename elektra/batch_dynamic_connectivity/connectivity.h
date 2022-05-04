@@ -106,6 +106,8 @@ private:
       -> parlay::sequence<V>;
   inline void InsertIntoEdgeTable(const pair<V, V> &e, EType e_type,
                                   Level level);
+  inline void BatchTableInsert(const parlay::sequence<pair<V, V>> &se,
+                               EType e_type, Level level);
   inline void DeleteFromEdgeTable(const pair<V, V> &e);
 };
 
@@ -147,7 +149,6 @@ void BatchDynamicConnectivity::CheckRep() {
 
   // Basic checks
 
-  cout << "Basic checks..." << endl;
   set<E> edges_set;
 
   for (Level level = 0; level < max_level_; ++level) {
@@ -162,19 +163,6 @@ void BatchDynamicConnectivity::CheckRep() {
     });
     auto sps = filtered_table_edges.size();
 
-    if (sps != spanning_forest_edges.size()) {
-      // print the spanning forests
-      cout << "Level " << level << " spanning forests:" << endl;
-      cout << "max_level_ = " << max_level_ << endl;
-
-      cout << "num entries in edges_ = " << edges_seq.size() << endl;
-      // PrintEdgeSequence(spanning_forest_edges,
-      // "spanning_forests_[i].edges_"); PrintEdgeSequence(filtered_table_edges,
-      // "\n\n\nfiltered_edges_");
-    }
-
-    // LOG_VAL("spanning_forest_edges.size(): ", spanning_forest_edges,
-    //         spanning_forest_edges.size())
     ASPHR_ASSERT_EQ(sps, static_cast<uint32_t>(spanning_forest_edges.size()));
 
     // insert all edges into `edges_set`.
@@ -222,13 +210,9 @@ void BatchDynamicConnectivity::CheckRep() {
   ASPHR_ASSERT(edges_set.size() == edges_seq.size());
   ASPHR_ASSERT(edges_set_from_table.size() == edges_seq.size());
 
-  cout << "Basic checks passed." << endl;
-
   // ------------------------------------------------------
 
   // MST setup:
-
-  cout << "MST checks ..." << endl;
 
   // we utilize a union find structure to keep track of the merges.
   constexpr auto kFind{elektra::find_variants::find_compress};
@@ -278,8 +262,6 @@ void BatchDynamicConnectivity::CheckRep() {
                    "This should not happen!");
     }
   }
-
-  cout << "MST checks passed." << endl;
 
   // ------------------------------------------------------
 
@@ -451,6 +433,14 @@ inline void BatchDynamicConnectivity::InsertIntoEdgeTable(const pair<V, V> &e,
   // always makes the edge have e.first < e.second
   EInfo ei_rev = {level, e_type};
   edges_.insert(make_tuple(pair<V, V>(e.second, e.first), ei_rev));
+}
+
+inline void BatchDynamicConnectivity::BatchTableInsert(
+    const parlay::sequence<pair<V, V>> &se, EType e_type, Level level) {
+  edges_.maybe_resize(se.size() * 2 + 10);
+
+  parlay::parallel_for(
+      0, se.size(), [&](auto i) { InsertIntoEdgeTable(se[i], e_type, level); });
 }
 
 inline void BatchDynamicConnectivity::DeleteFromEdgeTable(const pair<V, V> &e) {

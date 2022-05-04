@@ -57,13 +57,15 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
       elektra::MakeSet<sequence<pair<uintE, uintE>>, E, EHash>(spanning_tree);
 
   // these are all the tree edges, so we insert them in to the top level.
-  parlay::parallel_for(0, spanning_tree.size(), [&](size_t i) {
-    pair<V, V> e = E(spanning_tree[i].first, spanning_tree[i].second);
-    InsertIntoEdgeTable(e, EType::K_TREE, max_level_ - 1);
-  });
+  BatchTableInsert(spanning_tree, EType::K_TREE, max_level_ - 1);
 
-  cout << "Inserted " << spanning_tree.size() << " edges in the top level.";
-
+  {
+#ifdef DEBUG
+    cout << "Inserted " << spanning_tree.size() << " edges in the top level."
+         << endl;
+    cout << "Table size: " << edges_.size() << endl;
+#endif
+  }
   //  auto tree_edges = NewEdgeSequence<uint32_t>(spanning_tree);
   max_level_euler_tree->BatchLink(
       spanning_tree, parlay::delayed_seq<bool>(spanning_tree.size(),
@@ -75,9 +77,15 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
     //   table altogether.
     return tree_set.count(e) == 0;
   });
-  parlay::parallel_for(0, non_tree_edges.size(), [&](size_t i) {
-    InsertIntoEdgeTable(non_tree_edges[i], EType::K_NON_TREE, max_level_ - 1);
-  });
+
+  BatchTableInsert(non_tree_edges, EType::K_NON_TREE, max_level_ - 1);
+  {
+#ifdef DEBUG
+    cout << "Inserting " << non_tree_edges.size()
+         << " non-tree edges in the top level." << endl;
+    cout << "Table size: " << edges_.size() << endl;
+#endif
+  }
 
   non_tree_adjacency_lists_.BatchAddEdgesToLevel(non_tree_edges,
                                                  max_level_ - 1);
@@ -99,6 +107,7 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
     PrintEdgeSequence(non_tree_edges, "nonTreeEdges");
 #endif
   }
+
   CheckRep();
 }
 

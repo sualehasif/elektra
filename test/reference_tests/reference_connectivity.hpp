@@ -55,10 +55,10 @@ auto test_insertion_and_query(std::string filename, int num_queries,
   DynamicConnectivity reference(num_vertices);
   BatchDynamicConnectivity batch_connect(num_vertices);
 
-  // remove self-loops
+  // remove self-loops and put them in the right order
   auto edges = parlay::sequence<E>::from_function(num_edges, [&](size_t i) {
     if (edges_base[i].first < edges_base[i].second) {
-      return E(edges_base[i].first, edges_base[i].second);
+      return E(edges_base[i].second, edges_base[i].first);
     }
     return E(UINT32_MAX - 1, UINT32_MAX - 1);
   });
@@ -70,7 +70,7 @@ auto test_insertion_and_query(std::string filename, int num_queries,
     reference.AddEdge(e);
   }
 
-  batch_connect.BatchAddEdges(edges_base);
+  batch_connect.BatchAddEdges(edges);
 
   // generate random queries
   std::uniform_int_distribution<int> dist(0, num_vertices - 1);
@@ -97,5 +97,11 @@ TEST_F(ReferenceConnectivityTest, MediumGraph) {
   const auto num_querys = 100;
   test_insertion_and_query(filename, num_querys, rng);
 }  // medium graph
+
+// TEST_F(ReferenceConnectivityTest, EuCoreGraph) {
+//   const auto filename = get_benchmark_path("email-Eu-core.txt");
+//   const auto num_querys = 100;
+//   test_insertion_and_query(filename, num_querys, rng);
+// }  // medium graph
 
 }  // namespace elektra::testing
