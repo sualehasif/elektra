@@ -148,14 +148,17 @@ void BatchDynamicConnectivity::CheckRep() {
   for (Level level = 0; level < max_level_; ++level) {
     // Check that `spanning_forests_[i].edges_` is a subset of `edges_`.
     auto spanning_forest_edges = parallel_spanning_forests_[level]->EdgesBothDirs_();
-    assert(spanning_forest_edges.size() <= edges_seq.size());
+    ASPHR_ASSERT(spanning_forest_edges.size() <= edges_seq.size());
     auto sps =
         std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto &e) {
           auto [edge, value] = e;
           auto [edge_level, e_type] = value;
           return edge_level <= level && e_type == EType::K_TREE;
         });
-    assert(sps == static_cast<uint32_t>(spanning_forest_edges.size()));
+
+    LOG_VAL("spanning_forest_edges.size(): ", spanning_forest_edges,
+            spanning_forest_edges.size())
+    ASPHR_ASSERT(sps == static_cast<uint32_t>(spanning_forest_edges.size()));
 
     // insert all edges into `edges_set`.
     for (const auto &e : spanning_forest_edges) {
@@ -174,8 +177,8 @@ void BatchDynamicConnectivity::CheckRep() {
         opposite_edges[i] = std::make_pair(v, opposite_vertex);
         edges_set.insert(opposite_edges[i]);
       }
-      assert(opposite_edges.size() <= edges_seq.size());
-      assert(
+      ASPHR_ASSERT(opposite_edges.size() <= edges_seq.size());
+      ASPHR_ASSERT(
           std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto &e) {
             auto [edge, value] = e;
             auto [edge_level, e_type] = value;
@@ -187,17 +190,17 @@ void BatchDynamicConnectivity::CheckRep() {
   //   Check that `Set( ...E(v, non_tree_adjacency_lists_[i][v]),
   //            ...spanning_forests_[j].edges_)`
   //     = `edges_`.
-  assert(edges_set.size() == edges_seq.size());
+  ASPHR_ASSERT(edges_set.size() == edges_seq.size());
   set<E> edges_set_from_table;
   for (const auto &e : edges_seq) {
     auto [edge, _] = e;
     edges_set_from_table.insert(edge);
   }
-  assert(edges_set == edges_set_from_table);
+  ASPHR_ASSERT(edges_set == edges_set_from_table);
 
   // all edges in `edges_`, `spanning_forests_[i].edges_` are distinct.
-  assert(edges_set.size() == edges_seq.size());
-  assert(edges_set_from_table.size() == edges_seq.size());
+  ASPHR_ASSERT(edges_set.size() == edges_seq.size());
+  ASPHR_ASSERT(edges_set_from_table.size() == edges_seq.size());
 
   cout << "Basic checks passed." << endl;
 
@@ -236,7 +239,7 @@ void BatchDynamicConnectivity::CheckRep() {
       auto [u, v] = e;
       if (u < v) {
         auto did_unite = unite(u, v, parents);
-        assert(did_unite != UINT_E_MAX && "union of tree edges failed");
+        ASPHR_ASSERT(did_unite != UINT_E_MAX && "union of tree edges failed");
       }
     }
 
@@ -250,8 +253,9 @@ void BatchDynamicConnectivity::CheckRep() {
       auto [e, info] = edge;
       auto [u, v] = e;
       auto did_unite = unite(u, v, parents);
-      assert(did_unite == UINT_E_MAX && "union of non-tree edges succeeded. "
-                                        "This should not happen!");
+      ASPHR_ASSERT(did_unite == UINT_E_MAX &&
+                   "union of non-tree edges succeeded. "
+                   "This should not happen!");
     }
   }
 

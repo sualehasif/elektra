@@ -8,3 +8,6 @@
 [submodule "external/dynamic-connectivity-hdt"]
 	path = external/dynamic-connectivity-hdt
 	url = https://github.com/tomtseng/dynamic-connectivity-hdt.git
+[submodule "external/abseil-cpp"]
+	path = external/abseil-cpp
+	url = https://github.com/abseil/abseil-cpp.git

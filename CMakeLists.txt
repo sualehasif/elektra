@@ -101,6 +101,10 @@ link_directories(${Boost_LIBRARY_DIRS})
 # Reference Testing
 add_subdirectory(reference-impl/connectivity-reference/src)
 
+# add absl
+# add_subdirectory(external/abseil-cpp)
+# find_package(absl CONFIG REQUIRED)
+
 enable_testing()
 
 add_executable(elektra elektra.cpp elektra/hash_table_utils.h elektra/utilities/boost_spanning_tree.h)

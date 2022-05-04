@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "elektra_assert.h"
 #include "hash_pair.h"
 #include "hash_table_utils.h"
 #include "macros.h"

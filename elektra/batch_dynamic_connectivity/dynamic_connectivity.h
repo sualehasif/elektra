@@ -193,7 +193,6 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
     } else {
       levels[i] = make_pair(E(kV_Max, kV_Max), kLevelMax);
       tree_edges.push_back(se[i]);
-      //      URGENT(sualeh): fix this.
       parlay::write_min(&min_tree_edge_level, kLevel, std::less<>());
     }
 
