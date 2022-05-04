@@ -294,9 +294,40 @@ template <typename T> auto PrintSequence(T &seq, const std::string &&name) {
 auto PrintEdgeSequence(sequence<std::tuple<E, elektra::empty>> &seq,
                        const std::string &&name) {
   std::cout << name << ": ";
+
+  auto sorted_seq = parlay::sort(seq, [](const auto &a, const auto &b) {
+    if (std::get<0>(a).first < std::get<0>(b).first) {
+      return true;
+    } else if (std::get<0>(a).first > std::get<0>(b).first) {
+      return false;
+    } else {
+      return std::get<0>(a).second < std::get<0>(b).second;
+    }
+  });
+
   for (auto &i : seq) {
     auto &e = std::get<0>(i);
-    std::cout << "(" << e.first << ", " << e.second << "), ";
+    std::cout << "(" << e.first << ", " << e.second << "), \n";
+  }
+  std::cout << std::endl;
+}
+
+auto PrintEdgeSequence(sequence<std::tuple<E, bdcty::EInfo>> &seq,
+                       const std::string &&name) {
+  std::cout << name << ": ";
+  auto sorted_seq = parlay::sort(seq, [](const auto &a, const auto &b) {
+    if (std::get<0>(a).first < std::get<0>(b).first) {
+      return true;
+    } else if (std::get<0>(a).first > std::get<0>(b).first) {
+      return false;
+    } else {
+      return std::get<0>(a).second < std::get<0>(b).second;
+    }
+  });
+
+  for (auto &i : sorted_seq) {
+    auto &e = std::get<0>(i);
+    std::cout << "(" << e.first << ", " << e.second << "), \n";
   }
   std::cout << std::endl;
 }
@@ -304,8 +335,31 @@ auto PrintEdgeSequence(sequence<std::tuple<E, elektra::empty>> &seq,
 template <typename T>
 auto PrintEdgeSequence(T &edges, const std::string &&name) {
   std::cout << name << ": ";
-  for (const auto &e : edges) {
-    std::cout << "(" << e.first << ", " << e.second << "), ";
+  auto sorted_seq = parlay::sort(edges, [](const E &a, const E &b) {
+    if (a.first < b.first) {
+      return true;
+    } else if (a.first > b.first) {
+      return false;
+    } else {
+      return a.second < b.second;
+    }
+  });
+
+  for (const auto &e : sorted_seq) {
+    std::cout << "(" << e.first << ", " << e.second << "), \n";
+  }
+  std::cout << std::endl;
+}
+
+template <typename T>
+auto PrintDifferenceSequence(sequence<std::tuple<E, elektra::empty>> &seq1,
+                             sequence<T> &seq2, const std::string &&name) {
+  std::cout << name << ": ";
+  for (auto &i : seq1) {
+    auto &e = std::get<0>(i);
+    if (!seq2.contains(e)) {
+      std::cout << "(" << e.first << ", " << e.second << "), ";
+    }
   }
   std::cout << std::endl;
 }

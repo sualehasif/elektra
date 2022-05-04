@@ -55,11 +55,14 @@ void BatchDynamicConnectivity::BatchAddEdges(const sequence<E> &se) {
       RepresentativeSpanningTree<E, uintE>(se, max_level_euler_tree);
   auto tree_set =
       elektra::MakeSet<sequence<pair<uintE, uintE>>, E, EHash>(spanning_tree);
+
   // these are all the tree edges, so we insert them in to the top level.
   parlay::parallel_for(0, spanning_tree.size(), [&](size_t i) {
     pair<V, V> e = E(spanning_tree[i].first, spanning_tree[i].second);
     InsertIntoEdgeTable(e, EType::K_TREE, max_level_ - 1);
   });
+
+  cout << "Inserted " << spanning_tree.size() << " edges in the top level.";
 
   //  auto tree_edges = NewEdgeSequence<uint32_t>(spanning_tree);
   max_level_euler_tree->BatchLink(

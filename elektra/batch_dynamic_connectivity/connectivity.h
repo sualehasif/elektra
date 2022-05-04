@@ -137,6 +137,11 @@ void BatchDynamicConnectivity::CheckRep() {
 
   cout << "Checking rep invariant..." << endl;
   auto edges_seq = edges_.entries();
+  // edges_seq = parlay::filter(edges_seq, [](const auto &e) {
+  //   auto [edge, value] = e;
+  //   auto [u, v] = edge;
+  //   return u < v;
+  // });
 
   // ------------------------------------------------------
 
@@ -149,16 +154,28 @@ void BatchDynamicConnectivity::CheckRep() {
     // Check that `spanning_forests_[i].edges_` is a subset of `edges_`.
     auto spanning_forest_edges = parallel_spanning_forests_[level]->EdgesBothDirs_();
     ASPHR_ASSERT(spanning_forest_edges.size() <= edges_seq.size());
-    auto sps =
-        std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto &e) {
-          auto [edge, value] = e;
-          auto [edge_level, e_type] = value;
-          return edge_level <= level && e_type == EType::K_TREE;
-        });
 
-    LOG_VAL("spanning_forest_edges.size(): ", spanning_forest_edges,
-            spanning_forest_edges.size())
-    ASPHR_ASSERT(sps == static_cast<uint32_t>(spanning_forest_edges.size()));
+    auto filtered_table_edges = parlay::filter(edges_seq, [&](const auto &e) {
+      auto [edge, value] = e;
+      auto [edge_level, e_type] = value;
+      return edge_level <= level && e_type == EType::K_TREE;
+    });
+    auto sps = filtered_table_edges.size();
+
+    if (sps != spanning_forest_edges.size()) {
+      // print the spanning forests
+      cout << "Level " << level << " spanning forests:" << endl;
+      cout << "max_level_ = " << max_level_ << endl;
+
+      cout << "num entries in edges_ = " << edges_seq.size() << endl;
+      // PrintEdgeSequence(spanning_forest_edges,
+      // "spanning_forests_[i].edges_"); PrintEdgeSequence(filtered_table_edges,
+      // "\n\n\nfiltered_edges_");
+    }
+
+    // LOG_VAL("spanning_forest_edges.size(): ", spanning_forest_edges,
+    //         spanning_forest_edges.size())
+    ASPHR_ASSERT_EQ(sps, static_cast<uint32_t>(spanning_forest_edges.size()));
 
     // insert all edges into `edges_set`.
     for (const auto &e : spanning_forest_edges) {
@@ -178,12 +195,15 @@ void BatchDynamicConnectivity::CheckRep() {
         edges_set.insert(opposite_edges[i]);
       }
       ASPHR_ASSERT(opposite_edges.size() <= edges_seq.size());
-      ASPHR_ASSERT(
+
+      auto opp_edges =
           std::count_if(edges_seq.begin(), edges_seq.end(), [&](const auto &e) {
             auto [edge, value] = e;
             auto [edge_level, e_type] = value;
-            return edge_level == level && e_type == EType::K_NON_TREE && edge.first == v;
-          }) == static_cast<uint32_t>(opposite_edges.size()));
+            return edge_level == level && e_type == EType::K_NON_TREE &&
+                   edge.first == v;
+          });
+      ASPHR_ASSERT_EQ(opp_edges, static_cast<uint32_t>(opposite_edges.size()));
     }
   }
 
