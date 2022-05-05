@@ -154,7 +154,8 @@ void BatchDynamicConnectivity::CheckRep() {
   for (Level level = 0; level < max_level_; ++level) {
     // Check that `spanning_forests_[i].edges_` is a subset of `edges_`.
     auto spanning_forest_edges = parallel_spanning_forests_[level]->EdgesBothDirs_();
-    ASPHR_ASSERT(spanning_forest_edges.size() <= edges_seq.size());
+
+    ASPHR_ASSERT_GE(edges_seq.size(), spanning_forest_edges.size());
 
     auto filtered_table_edges = parlay::filter(edges_seq, [&](const auto &e) {
       auto [edge, value] = e;

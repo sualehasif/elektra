@@ -104,5 +104,33 @@
   "C_Cpp.errorSquiggles": "Enabled",
   "C_Cpp.intelliSenseEngineFallback": "Enabled",
   "C_Cpp.codeAnalysis.runAutomatically": false,
-  "C_Cpp.codeAnalysis.clangTidy.enabled": true
+  "C_Cpp.codeAnalysis.clangTidy.enabled": true,
+  "docwriter.style": "Google",
+  "editor.tokenColorCustomizations": {
+    "textMateRules": [
+      {
+        "scope": "googletest.failed",
+        "settings": {
+          "foreground": "#f00"
+        }
+      },
+      {
+        "scope": "googletest.passed",
+        "settings": {
+          "foreground": "#0f0"
+        }
+      },
+      {
+        "scope": "googletest.run",
+        "settings": {
+          "foreground": "#0f0"
+        }
+      }
+    ]
+  },
+  "gtest-adapter.debugConfig": [
+    "Serial Tester debug",
+    "Reference Tester - no build"
+  ],
+  "gtest-adapter.supportLocation": true
 }

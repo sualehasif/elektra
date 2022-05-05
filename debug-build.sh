@@ -9,6 +9,6 @@ if [[ ! -d "build" ]]; then
 fi
 cd build || exit
 # cmake -DCMAKE_BUILD_TYPE=Debug -DCILK=1 ..
-cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DSEQUENTIAL=1 ..
-make -j 4
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DSEQUENTIAL=1 -G Ninja ..
+ninja
 cd ..

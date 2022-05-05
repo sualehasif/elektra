@@ -56,6 +56,22 @@
       "MIMode": "lldb"
     },
     {
+      "name": "Reference Tester - no build",
+      "type": "cppdbg",
+      "request": "launch",
+      "targetArchitecture": "arm",
+      "program": "${workspaceFolder}/build/reference_test",
+      "args": [
+        "--gtest_break_on_failure",
+        "--gtest_catch_exceptions=0"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${fileDirname}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "lldb"
+    },
+    {
       "name": "Benchmark debug",
       "type": "cppdbg",
       "request": "launch",
