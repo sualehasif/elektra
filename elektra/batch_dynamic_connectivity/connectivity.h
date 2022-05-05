@@ -438,8 +438,6 @@ inline void BatchDynamicConnectivity::InsertIntoEdgeTable(const pair<V, V> &e,
 
 inline void BatchDynamicConnectivity::BatchTableInsert(
     const parlay::sequence<pair<V, V>> &se, EType e_type, Level level) {
-  edges_.maybe_resize(se.size() * 2 + 10);
-
   parlay::parallel_for(
       0, se.size(), [&](auto i) { InsertIntoEdgeTable(se[i], e_type, level); });
 }

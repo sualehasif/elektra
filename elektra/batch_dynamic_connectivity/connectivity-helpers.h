@@ -314,7 +314,7 @@ auto PrintEdgeSequence(sequence<std::tuple<E, elektra::empty>> &seq,
 
 auto PrintEdgeSequence(sequence<std::tuple<E, bdcty::EInfo>> &seq,
                        const std::string &&name) {
-  std::cout << name << ": ";
+  std::cout << name << ": \n";
   auto sorted_seq = parlay::sort(seq, [](const auto &a, const auto &b) {
     if (std::get<0>(a).first < std::get<0>(b).first) {
       return true;
@@ -334,7 +334,7 @@ auto PrintEdgeSequence(sequence<std::tuple<E, bdcty::EInfo>> &seq,
 
 template <typename T>
 auto PrintEdgeSequence(T &edges, const std::string &&name) {
-  std::cout << name << ": ";
+  std::cout << name << ": \n";
   auto sorted_seq = parlay::sort(edges, [](const E &a, const E &b) {
     if (a.first < b.first) {
       return true;
@@ -354,7 +354,7 @@ auto PrintEdgeSequence(T &edges, const std::string &&name) {
 template <typename T>
 auto PrintDifferenceSequence(sequence<std::tuple<E, elektra::empty>> &seq1,
                              sequence<T> &seq2, const std::string &&name) {
-  std::cout << name << ": ";
+  std::cout << name << ": \n";
   for (auto &i : seq1) {
     auto &e = std::get<0>(i);
     if (!seq2.contains(e)) {
