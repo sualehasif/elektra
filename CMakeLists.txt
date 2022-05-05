@@ -36,8 +36,7 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O2")
 set(CMAKE_CXX_FLAGS
         "${CMAKE_CXX_FLAGS} \
     -Wno-unused-parameter -Wno-unused-variable \
-    -Wno-unused-function -Wno-unused-private-field \
-    -Wno-unused-local-typedef -Wno-unused-const-variable \
+    -Wno-unused-function -Wno-unused-const-variable \
     -Wno-unused-value \
     ")
 

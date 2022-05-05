@@ -21,8 +21,6 @@ namespace bdcty {
 // the graph
 auto BatchDynamicConnectivity::BatchConnected(sequence<pair<V, V>> suv)
     -> sequence<char> {
-  CheckRep();
-
   sequence<char> s_connected(suv.size(), 0);
   // check if they are connected in the highest level forest
   const auto &p_max_level_euler_tree =

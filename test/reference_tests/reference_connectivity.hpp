@@ -86,22 +86,34 @@ auto test_insertion_and_query(std::string filename, int num_queries,
 }
 }  // namespace
 
-TEST_F(ReferenceConnectivityTest, SimpleGraph) {
+TEST_F(ReferenceConnectivityTest, InsertionSimpleGraphSmallQueries) {
   const auto filename = get_benchmark_path("basic.txt");
-  const auto num_querys = 100;
-  test_insertion_and_query(filename, num_querys, rng);
+  const auto num_queries = 100;
+  test_insertion_and_query(filename, num_queries, rng);
 }  // simple graph
 
-TEST_F(ReferenceConnectivityTest, MediumGraph) {
+TEST_F(ReferenceConnectivityTest, InsertionSimpleGraphLargeQueries) {
+  const auto filename = get_benchmark_path("basic.txt");
+  const auto num_queries = 10000;
+  test_insertion_and_query(filename, num_queries, rng);
+}  // simple graph
+
+TEST_F(ReferenceConnectivityTest, Insertion_MediumGraph_SmallQueries) {
   const auto filename = get_benchmark_path("basic-medium.txt");
-  const auto num_querys = 100;
-  test_insertion_and_query(filename, num_querys, rng);
+  const auto num_queries = 100;
+  test_insertion_and_query(filename, num_queries, rng);
+}  // medium graph
+
+TEST_F(ReferenceConnectivityTest, Insertion_MediumGraph_LargeQueries) {
+  const auto filename = get_benchmark_path("basic-medium.txt");
+  const auto num_queries = 10000;
+  test_insertion_and_query(filename, num_queries, rng);
 }  // medium graph
 
 // TEST_F(ReferenceConnectivityTest, EuCoreGraph) {
 //   const auto filename = get_benchmark_path("email-Eu-core.txt");
-//   const auto num_querys = 100;
-//   test_insertion_and_query(filename, num_querys, rng);
+//   const auto num_queries = 10000;
+//   test_insertion_and_query(filename, num_queries, rng);
 // }  // medium graph
 
 }  // namespace elektra::testing
