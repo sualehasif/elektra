@@ -114,38 +114,20 @@ void BatchDynamicConnectivity::PushDownTreeEdgesFromComponents(
   auto &euler_tree = parallel_spanning_forests_[l];
   auto &lower_level_euler_tree = parallel_spanning_forests_[l - 1];
 
-  // parlay::parallel_for(0, components.size(), [&](size_t i) {
-  //   auto c = components[i];
-  //   auto tree_edges = euler_tree->GetAndClearLevelIEdges(c);
-
-  //   // move all these edges to the euler_tree of level l-1
-  //   lower_level_euler_tree->BatchLink(
-  //       tree_edges, parlay::delayed_seq<bool>(tree_edges.size(),
-  //                                             [](size_t) { return true; }));
-
-  //   parlay::parallel_for(0, tree_edges.size(), [&](size_t j) {
-  //     auto e = tree_edges[j];
-  //     InsertIntoEdgeTable(e, EType::K_TREE, l - 1);
-  //   });
-  // });
-
-  for (int i = 0; i < components.size(); i++) {
+  parlay::parallel_for(0, components.size(), [&](size_t i) {
     auto c = components[i];
-    cout << "at component " << c << endl;
     auto tree_edges = euler_tree->GetAndClearLevelIEdges(c);
-    cout << "cleared level i edges" << endl;
 
     // move all these edges to the euler_tree of level l-1
     lower_level_euler_tree->BatchLink(
         tree_edges, parlay::delayed_seq<bool>(tree_edges.size(),
                                               [](size_t) { return true; }));
 
-    cout << "found and linked tree edges" << endl;
     parlay::parallel_for(0, tree_edges.size(), [&](size_t j) {
       auto e = tree_edges[j];
       InsertIntoEdgeTable(e, EType::K_TREE, l - 1);
     });
-  }
+  });
 }
 
 void BatchDynamicConnectivity::PushDownNonTreeEdges(
@@ -309,7 +291,7 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
     auto components_to_consider = RemoveDuplicates(std::move(components));
 
     {
-      // #ifdef DEBUG
+      #ifdef DEBUG
       std::cout << "----------------- Key loop -----------------" << std::endl;
       cout << "Level " << l << endl;
       // PrintEdgeSequence(edges_to_replace, "Edges to replace");
@@ -319,20 +301,17 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
         //   auto cc = parallel_spanning_forests_[l]->ComponentEdges(c);
         //   PrintEdgeSequence(cc, "Component " + std::to_string(c) + " edges");
       }
-      // #endif
+      #endif
     }
 
     // push down all the small component edges to a lower level.
-    cout << "going to start finding small" << endl;
     const auto kCriticalComponentSize = 1U << (l - 1);
     auto small_components = parlay::filter(components_to_consider, [&](V c) {
       return parallel_spanning_forests_[l]->ComponentSize(c) <=
              kCriticalComponentSize;
     });
-    cout << "going to start pushing down" << endl;
     PushDownTreeEdgesFromComponents(l, small_components);
 
-    cout << "going to start replacing edges" << endl;
 
     // Doing a replacement search for the disconnected edge at level l.
     // TODO: use ::uninitialized and don't use push_back.
