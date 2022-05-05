@@ -141,16 +141,12 @@ auto test_insertion_and_deletion(std::string filename, int num_queries,
   // ensure that the edges are unique
   edges_to_remove = parlay::remove_duplicates(edges_to_remove);
 
-  bdcty::PrintEdgeSequence(edges_to_remove, "edges_to_remove");
-
   // remove edges
   for (const auto& edge : edges_to_remove) {
     const auto e = UndirectedEdgeR(edge.first, edge.second);
     reference.DeleteEdge(e);
   }
   batch_connect.BatchDeleteEdges(edges_to_remove);
-
-  std::cout << "removed edges" << std::endl;
 
   // generate random queries
   queries = sequence<E>::from_function(
