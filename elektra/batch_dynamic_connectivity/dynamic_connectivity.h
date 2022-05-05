@@ -173,15 +173,14 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
   // edges that are not in the graph
   const sequence<E> se = RemoveUnknownEdges(se_unfiltered, edges_);
 
-  // split se into tree and non tree edges
-  sequence<E> tree_edges;
-
   //  V min_tree_edge_level = static_cast<V>(max_level_);
   std::atomic<Level> min_tree_edge_level(max_level_);
 
   std::mutex m;
   std::unique_lock<std::mutex> lock(m, std::defer_lock);
 
+  // split se into tree and non tree edges
+  auto tree_edges = sequence<E>::uninitialized(se.size());
   auto levels = parlay::sequence<std::pair<E, Level>>::uninitialized(se.size());
   // delete edges from the non tree adjacency lists.
   // TODO(sualeh): maybe collect the edges to be deleted and then delete them
@@ -198,28 +197,33 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
     // from the tree.
     if (kType == EType::K_NON_TREE) {
       levels[i] = make_pair(se[i], kLevel);
+      tree_edges[i] = E(kV_Max, kV_Max);  // no-op
       ul.deleteVal(kV);
       vl.deleteVal(kU);
     } else {
-      levels[i] = make_pair(E(kV_Max, kV_Max), kLevelMax);
-      tree_edges.push_back(se[i]);
+      tree_edges[i] = se[i];
+      levels[i] = make_pair(E(kV_Max, kV_Max), kLevelMax);  // no-op
       parlay::write_min(&min_tree_edge_level, kLevel, std::less<>());
-    }
-
-    {
-#ifdef DEBUG
-      auto u_entries = ul.entries();
-      PrintSequence(u_entries, "ul: edges for vertex kU");
-      auto v_entries = vl.entries();
-      PrintSequence(v_entries, "vl: edges for vertex kV");
-#endif
     }
   });
 
+  //   { // can run if serial.
+  // #ifdef DEBUG
+  //     auto u_entries = ul.entries();
+  //     PrintSequence(u_entries, "ul: edges for vertex kU");
+  //     auto v_entries = vl.entries();
+  //     PrintSequence(v_entries, "vl: edges for vertex kV");
+  // #endif
+  //   }
+
+  // remove no-op edges from the tree
+  tree_edges = parlay::filter(
+      tree_edges, [&](auto &elem) { return elem != E(kV_Max, kV_Max); });
   // Update non-tree edge counts in the ETTs. This requires grouping the
   // non-tree edges by level.
   levels = parlay::filter(levels,
                           [&](auto &elem) { return elem.second != kLevelMax; });
+
   parlay::integer_sort_inplace(levels, [&](auto &elem) {
     // we must cast because integer_sort asserts on the type being unsigned
     return static_cast<uint8_t>(elem.second);
