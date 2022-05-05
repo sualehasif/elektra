@@ -179,6 +179,10 @@ parlay::sequence<std::pair<v_int, v_int>> HdtElement::GetAndClearLevelIEdges() {
   BatchUpdate<_internal::IsLevelIEdgeGetter>(
       edge_elements,
       parlay::delayed_seq<v_int>(num_edges, [](size_t) { return 0; }));
+
+  // edge_elements = parlay::filter(
+  //     edge_elements, [](const HdtElement* e) { return e != nullptr; });
+
   parlay::sequence<std::pair<v_int, v_int>> edges{
     parlay::map(edge_elements, [](const HdtElement* elem) { return elem->id_; })
   };
