@@ -248,7 +248,10 @@ void BatchDynamicConnectivity::BatchDeleteEdges(
     return static_cast<uint8_t>(elem.second);
   });
 
-  const auto unique_level_indices = elektra::get_offsets(levels);
+  const auto unique_level_indices = elektra::get_offsets(
+      levels,
+      [](auto &a, auto &b) { return a.second == b.second; }
+  );
   parlay::parallel_for(0, unique_level_indices.size(), [&](const size_t i) {
     const size_t start = unique_level_indices[i];
     const size_t end = i == unique_level_indices.size() - 1
